@@ -1,0 +1,25 @@
+{
+  "name": "The Family Table",
+  "short_name": "Family Table",
+  "description": "Plan meals, save recipes, and share with family & friends",
+  "start_url": "/family-table/",
+  "scope": "/family-table/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F5EBE6",
+  "theme_color": "#F5EBE6",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
