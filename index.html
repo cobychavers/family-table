@@ -2134,6 +2134,13 @@ function App(){
   var [chefMessages,setChefMessages]=useState([]); // [{role:"user"|"assistant", text}]
   var [chefInput,setChefInput]=useState("");
   var [chefLoading,setChefLoading]=useState(false);
+  var [chefLastActive,setChefLastActive]=useState(null);
+  var CHEF_IDLE_CLEAR_MS=30*60*1000; // clear the conversation after 30 min away
+  useEffect(function(){
+    if(view==="chef"&&chefMessages.length>0&&chefLastActive&&(Date.now()-chefLastActive>CHEF_IDLE_CLEAR_MS)){
+      setChefMessages([]);
+    }
+  },[view]);
   var [exploreSearch,setExploreSearch]=useState("");
   var [exploreFilter,setExploreFilter]=useState("");
   var [exploreUser,setExploreUser]=useState(null); // Filter to show only one user's recipes
@@ -4031,11 +4038,15 @@ function App(){
   // Chef chat: recipe-idea brainstorming
   function sendChefMessage(text){
     if(!text||!text.trim())return;
+    // Start fresh if the last exchange was too long ago, rather than bolting
+    // a new question onto a stale, forgotten conversation
+    var isStale=chefLastActive&&(Date.now()-chefLastActive>CHEF_IDLE_CLEAR_MS);
     var userMsg={role:"user",text:text.trim()};
-    var history=chefMessages.concat([userMsg]);
+    var history=(isStale?[]:chefMessages).concat([userMsg]);
     setChefMessages(history);
     setChefInput("");
     setChefLoading(true);
+    setChefLastActive(Date.now());
 
     fetch(RECIPE_PROXY_URL,{
       method:"POST",
@@ -4046,6 +4057,7 @@ function App(){
     .then(function(data){
       if(data.error)throw new Error(data.error);
       if(!data.success||!data.reply)throw new Error("No reply from assistant");
+      setChefLastActive(Date.now());
       setChefMessages(history.concat([{role:"assistant",text:data.reply}]));
       setChefLoading(false);
     })
@@ -5099,9 +5111,12 @@ function App(){
 
       {/* CHEF TAB - AI recipe idea chat */}
       {view==="chef"&&<div>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
-          <Icon name="sparkle" size={19} color={C.gold} strokeWidth={1.75}/>
-          <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}}>AI Chef</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <Icon name="sparkle" size={19} color={C.gold} strokeWidth={1.75}/>
+            <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}}>AI Chef</div>
+          </div>
+          {chefMessages.length>0?<button onClick={function(){setChefMessages([])}} style={{background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.light,cursor:"pointer"}}>New Chat</button>:null}
         </div>
 
         {chefMessages.length===0?
