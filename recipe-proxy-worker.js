@@ -22,6 +22,14 @@ export default {
       const body = await request.json();
       const { type } = body;
 
+      if (type === "chef_chat") {
+        // Handle recipe-idea chat - returns a plain-text reply, not a structured recipe
+        const reply = await chefChat(body.messages, env.ANTHROPIC_API_KEY);
+        return new Response(JSON.stringify({ success: true, reply }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+        });
+      }
+
       let recipe;
 
       if (type === "scan") {
@@ -37,7 +45,7 @@ export default {
         // Handle text parsing
         recipe = await parseRecipeText(body.text, env.ANTHROPIC_API_KEY);
       } else {
-        return new Response(JSON.stringify({ error: "Invalid type. Use 'scan', 'url', 'pdf', or 'parse_text'" }), {
+        return new Response(JSON.stringify({ error: "Invalid type. Use 'scan', 'url', 'pdf', 'parse_text', or 'chef_chat'" }), {
           status: 400,
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
         });
@@ -377,4 +385,52 @@ Important:
   }
 
   return JSON.parse(jsonMatch[0]);
+}
+
+// Recipe-idea brainstorming chat
+async function chefChat(messages, apiKey) {
+  if (!messages || messages.length === 0) {
+    throw new Error("No messages provided");
+  }
+
+  const systemPrompt = `You are a warm, concise recipe-brainstorming assistant inside a home meal-planning app called The Family Table.
+
+The user will tell you what ingredients they have on hand (fridge/pantry), or describe a mood or craving. Suggest 2-4 specific, realistic recipe ideas, each as a short bolded name followed by a one-sentence description. Keep the whole reply brief - this is a quick back-and-forth, not an essay.
+
+If the user asks for more detail on a specific idea (e.g. "tell me more about the second one" or "how do I make that"), respond with ONE full recipe for that dish: the name, total time, a complete ingredient list with quantities, and numbered steps. This detailed reply should be self-contained enough that someone could cook from it without seeing the rest of the conversation.
+
+Keep tone practical and friendly. No long preambles, no markdown headers, no emoji spam - the app already has its own visual style.`;
+
+  const anthropicMessages = messages.map(m => ({
+    role: m.role === "assistant" ? "assistant" : "user",
+    content: m.text
+  }));
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01"
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1200,
+      system: systemPrompt,
+      messages: anthropicMessages
+    })
+  });
+
+  const data = await response.json();
+
+  if (data.error) {
+    throw new Error(data.error.message || "API error");
+  }
+
+  const text = data.content?.[0]?.text || "";
+  if (!text.trim()) {
+    throw new Error("No reply from assistant");
+  }
+
+  return text.trim();
 }
