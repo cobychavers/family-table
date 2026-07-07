@@ -1623,7 +1623,7 @@ function GroceryTab(p){
       React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}},React.createElement(Icon,{name:"cart",size:18,color:C.dark,strokeWidth:1.75}),"Grocery List"),
       React.createElement("div",{style:{display:"flex",gap:8,alignItems:"center"}},
         /* From Calendar icon button */
-        React.createElement("button",{onClick:function(){setShowWeekPicker(!showWeekPicker);setShowPlusMenu(false)},title:"From Calendar",style:{display:"flex",alignItems:"center",gap:4,padding:"7px 10px",borderRadius:8,border:"1px solid "+C.bdr,background:"#fff",color:C.dark,fontWeight:600,fontSize:12,cursor:"pointer"}},"📅",React.createElement("span",{style:{fontSize:11}},"From Calendar")),
+        React.createElement("button",{onClick:function(){setShowWeekPicker(!showWeekPicker);setShowPlusMenu(false)},title:"From Calendar",style:{display:"flex",alignItems:"center",gap:6,padding:"0 14px",height:36,borderRadius:8,border:"1px solid "+C.bdr,background:"#fff",color:C.ink,fontWeight:600,fontSize:12,cursor:"pointer",boxShadow:C.shadowSm}},React.createElement(Icon,{name:"calendar",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"From Calendar")),
         /* + Plus button with popup menu */
         React.createElement("div",{style:{position:"relative"}},
           React.createElement("button",{onClick:function(){setShowPlusMenu(!showPlusMenu);setShowWeekPicker(false)},style:{width:36,height:36,borderRadius:8,border:"none",background:C.dark,color:"#fff",fontWeight:700,fontSize:20,cursor:"pointer",lineHeight:1}},"+"),
@@ -4609,24 +4609,6 @@ function App(){
             <div style={{fontSize:16,fontWeight:600,textAlign:"center",color:C.dark}}>{wl}</div>
             <button onClick={function(){var d=new Date(ws);d.setDate(d.getDate()+7);setWs(d)}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.blush,cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark}}>Next ›</button>
           </div>
-          {/* View grocery list button */}
-          {(function(){
-            var weekMealCount=0;
-            var weekIngCount=0;
-            wd.forEach(function(date){
-              var k=dk(date);
-              var dayMeals=getMealsForDay(k);
-              weekMealCount+=dayMeals.length;
-              dayMeals.forEach(function(m){
-                if(m.ingredients)weekIngCount+=m.ingredients.length;
-              });
-            });
-            return weekMealCount>0?<div style={{marginBottom:16}}>
-              <button onClick={function(){setView("grocery")}} style={{width:"100%",padding:"14px 16px",borderRadius:12,border:"none",background:"linear-gradient(135deg, "+C.dark+" 0%, "+C.blushDark+" 100%)",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-                🛒 Go to Grocery List ({weekMealCount} {weekMealCount===1?"meal":"meals"} planned)
-              </button>
-            </div>:null;
-          })()}
           {wd.map(function(date,i){var k=dk(date),mlist=getMealsForDay(k),isT=k===todayK;return(
             <div key={k} style={{marginBottom:16}}>
               {/* Day header */}
