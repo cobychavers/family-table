@@ -24,10 +24,10 @@
   <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Cormorant Garamond', Georgia, serif; background: #F5EBE6; min-height: 100vh; }
+    body { font-family: 'Inter', -apple-system, sans-serif; background: #F5EBE6; min-height: 100vh; }
     #root { min-height: 100vh; }
   </style>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -276,6 +276,43 @@ const GCATS = {
   "🍝 Grains":["pasta","spaghetti","linguine","fettuccine","penne","rigatoni","ziti","rotini","farfalle","bow tie","orzo","lasagna","lasagna noodle","macaroni","elbow macaroni","shells","stuffed shells","manicotti","cavatappi","orecchiette","pappardelle","tagliatelle","angel hair","capellini","vermicelli","ditalini","pastina","acini di pepe","noodle","noodles","egg noodle","egg noodles","rice noodle","rice noodles","ramen","ramen noodle","udon","soba","lo mein","chow mein","pad thai noodle","rice","white rice","brown rice","jasmine rice","basmati rice","wild rice","arborio","sushi rice","sticky rice","fried rice","rice pilaf","spanish rice","mexican rice","yellow rice","minute rice","instant rice","rice a roni","quinoa","couscous","pearl couscous","israeli couscous","barley","pearl barley","farro","bulgur","wheat berry","freekeh","oats","oatmeal","rolled oats","steel cut oats","instant oatmeal","cereal","breakfast cereal","granola","muesli","bran","wheat bran","oat bran","polenta","grits","cornmeal","masa","hominy"]
 };
 
+
+// Minimal stroke-based line icon set (replaces emoji for nav/chrome)
+function Icon(p){
+  var name=p.name, size=p.size||20, color=p.color||"currentColor", sw=p.strokeWidth||1.75;
+  var cp={width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:color,strokeWidth:sw,strokeLinecap:"round",strokeLinejoin:"round",style:{display:"block"}};
+  if(name==="calendar")return React.createElement("svg",cp,
+    React.createElement("rect",{x:3,y:4,width:18,height:18,rx:2}),
+    React.createElement("line",{x1:16,y1:2,x2:16,y2:6}),
+    React.createElement("line",{x1:8,y1:2,x2:8,y2:6}),
+    React.createElement("line",{x1:3,y1:10,x2:21,y2:10})
+  );
+  if(name==="book")return React.createElement("svg",cp,
+    React.createElement("path",{d:"M4 19.5A2.5 2.5 0 0 1 6.5 17H20"}),
+    React.createElement("path",{d:"M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"})
+  );
+  if(name==="globe")return React.createElement("svg",cp,
+    React.createElement("circle",{cx:12,cy:12,r:10}),
+    React.createElement("line",{x1:2,y1:12,x2:22,y2:12}),
+    React.createElement("path",{d:"M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"})
+  );
+  if(name==="cart")return React.createElement("svg",cp,
+    React.createElement("circle",{cx:9,cy:21,r:1}),
+    React.createElement("circle",{cx:20,cy:21,r:1}),
+    React.createElement("path",{d:"M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"})
+  );
+  if(name==="users")return React.createElement("svg",cp,
+    React.createElement("path",{d:"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"}),
+    React.createElement("circle",{cx:9,cy:7,r:4}),
+    React.createElement("path",{d:"M23 21v-2a4 4 0 0 0-3-3.87"}),
+    React.createElement("path",{d:"M16 3.13a4 4 0 0 1 0 7.75"})
+  );
+  if(name==="plus")return React.createElement("svg",cp,
+    React.createElement("line",{x1:12,y1:5,x2:12,y2:19}),
+    React.createElement("line",{x1:5,y1:12,x2:19,y2:12})
+  );
+  return null;
+}
 
 // Simple QR Code generator component
 function QRCode({data, size=200, darkColor="#000", lightColor="#fff"}){
@@ -821,7 +858,7 @@ function AuthScreen(p){
     }
   }
 
-  var C={dark:"#8B7355",blush:"#F5EBE6",blushMed:"#E8DDD6",light:"#A69485"};
+  var C={ink:"#3A2A1D",dark:"#6B4A32",blush:"#F5EBE6",blushMed:"#E8DDD6",light:"#8C7561",gold:"#B4823D",bdr:"rgba(58,42,29,0.10)",shadowSm:"0 1px 3px rgba(58,42,29,0.08), 0 1px 2px rgba(58,42,29,0.06)",shadowMd:"0 4px 16px rgba(58,42,29,0.10), 0 2px 6px rgba(58,42,29,0.06)"};
   var inp={width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid #ddd",fontSize:15,boxSizing:"border-box",outline:"none",marginBottom:10};
   var btn={width:"100%",padding:"14px",borderRadius:12,border:"none",background:C.dark,color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer",marginTop:6,opacity:loading?0.7:1};
 
@@ -833,7 +870,7 @@ function AuthScreen(p){
       React.createElement("div",{style:{fontSize:24,fontWeight:600,color:C.dark,letterSpacing:3,textTransform:"uppercase"}},"The Family Table"),
       React.createElement("div",{style:{fontSize:13,opacity:.5,marginTop:6}},titles[mode])
     ),
-    React.createElement("div",{style:{background:"#fff",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.08)"}},
+    React.createElement("div",{style:{background:"#fff",borderRadius:16,padding:24,boxShadow:C.shadowMd}},
       
       // Login fields
       mode==="login"?React.createElement("div",null,
@@ -890,8 +927,8 @@ function AuthScreen(p){
 
 // ============ GROCERY TAB ============
 function GroceryTab(p){
-  var C={dark:"#8B7355",light:"#A69485",blush:"#F5EBE6",blushMed:"#E8DDD6",blushDeep:"#D4C4B8",blushAccent:"#B8A090",blushDark:"#96806C",card:"#FBF7F4",bdr:"rgba(139,115,85,0.2)"};
-  
+  var C={ink:"#3A2A1D",dark:"#6B4A32",light:"#8C7561",gold:"#B4823D",blush:"#F5EBE6",blushMed:"#E8DDD6",blushDeep:"#D4C4B8",blushAccent:"#B8A090",blushDark:"#96806C",card:"#FFFFFF",bdr:"rgba(58,42,29,0.10)",shadowSm:"0 1px 3px rgba(58,42,29,0.08), 0 1px 2px rgba(58,42,29,0.06)",shadowMd:"0 4px 16px rgba(58,42,29,0.10), 0 2px 6px rgba(58,42,29,0.06)",shadowLg:"0 12px 32px rgba(58,42,29,0.16)"};
+
   // Helper to render store icon/logo
   function renderStoreIcon(store,size){
     size=size||16;
@@ -1539,7 +1576,7 @@ function GroceryTab(p){
               catStore?React.createElement(React.Fragment,null,renderStoreIcon(catStore,14),React.createElement("span",{style:{color:catStore.color,fontWeight:600}},catStore.name)):React.createElement("span",{style:{color:"#888"}},"Set store"),
               React.createElement("span",{style:{fontSize:8,opacity:.5}},"▼")
             ),
-            catStorePicker===c?React.createElement("div",{style:{position:"absolute",top:"100%",right:0,zIndex:100,background:"#fff",borderRadius:10,boxShadow:"0 4px 20px rgba(0,0,0,0.15)",padding:8,marginTop:4,minWidth:140}},
+            catStorePicker===c?React.createElement("div",{style:{position:"absolute",top:"100%",right:0,zIndex:100,background:"#fff",borderRadius:10,boxShadow:C.shadowLg,padding:8,marginTop:4,minWidth:140}},
               React.createElement("div",{style:{fontSize:10,fontWeight:700,color:"#888",marginBottom:6,padding:"0 4px"}},c.toUpperCase()+" STORE"),
               p.stores.map(function(s){
                 var isActive=p.categoryStores&&p.categoryStores[c]===s.id;
@@ -1571,7 +1608,7 @@ function GroceryTab(p){
         /* + Plus button with popup menu */
         React.createElement("div",{style:{position:"relative"}},
           React.createElement("button",{onClick:function(){setShowPlusMenu(!showPlusMenu);setShowWeekPicker(false)},style:{width:36,height:36,borderRadius:8,border:"none",background:C.dark,color:"#fff",fontWeight:700,fontSize:20,cursor:"pointer",lineHeight:1}},"+"),
-          showPlusMenu?React.createElement("div",{style:{position:"absolute",top:42,right:0,background:"#fff",borderRadius:10,border:"1px solid "+C.bdr,boxShadow:"0 4px 16px rgba(0,0,0,0.1)",minWidth:170,zIndex:50,overflow:"hidden"}},
+          showPlusMenu?React.createElement("div",{style:{position:"absolute",top:42,right:0,background:"#fff",borderRadius:10,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,minWidth:170,zIndex:50,overflow:"hidden"}},
             React.createElement("button",{onClick:function(){setShowAdd(true);setShowPlusMenu(false)},style:{display:"block",width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr}},"➕  Add Item"),
             React.createElement("button",{onClick:function(){setShowImportGrocery(true);setShowPlusMenu(false)},style:{display:"block",width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:savedLists.length>0?"1px solid "+C.bdr:"none"}},"📝  Create List"),
             savedLists.length>0?React.createElement("button",{onClick:function(){setShowLoadList(true);setShowPlusMenu(false)},style:{display:"block",width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer"}},"📋  Saved Lists"):null
@@ -1743,7 +1780,7 @@ function GroceryTab(p){
         React.createElement("span",{style:{fontSize:12,color:"#96806C"}},showGroceryFilters?"▲":"▼")
       ),
       
-      showGroceryFilters?React.createElement("div",{style:{background:"#fff",borderRadius:12,border:"1px solid rgba(139,115,85,0.2)",marginTop:8,padding:12,boxShadow:"0 4px 12px rgba(0,0,0,0.08)"}},
+      showGroceryFilters?React.createElement("div",{style:{background:"#fff",borderRadius:12,border:"1px solid rgba(139,115,85,0.2)",marginTop:8,padding:12,boxShadow:C.shadowMd}},
         React.createElement("div",{style:{fontSize:12,fontWeight:700,color:"#6a6a7a",marginBottom:6}},"FILTER BY CATEGORY"),
         React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12}},
           React.createElement("button",{onClick:function(){setFCat(null);setShowGroceryFilters(false)},style:{padding:"8px 10px",borderRadius:8,border:fCat===null?"2px solid #8B7355":"1px solid #ddd",background:fCat===null?"#8B7355":"#fff",color:fCat===null?"#fff":"#8B7355",fontSize:12,fontWeight:600,cursor:"pointer"}},"All Categories"),
@@ -3976,12 +4013,12 @@ function App(){
   );
   if(showAuth)return React.createElement(AuthScreen,{onLogin:function(uid){handleLogin(uid);setShowAuth(false)}});
 
-  var C={dark:"#8B7355",light:"#A69485",blush:"#F5EBE6",blushMed:"#E8DDD6",blushDeep:"#D4C4B8",blushAccent:"#B8A090",blushDark:"#96806C",card:"#FBF7F4",bdr:"rgba(139,115,85,0.2)"};
+  var C={ink:"#3A2A1D",dark:"#6B4A32",light:"#8C7561",gold:"#B4823D",blush:"#F5EBE6",blushMed:"#E8DDD6",blushDeep:"#D4C4B8",blushAccent:"#B8A090",blushDark:"#96806C",card:"#FFFFFF",bdr:"rgba(58,42,29,0.10)",shadowSm:"0 1px 3px rgba(58,42,29,0.08), 0 1px 2px rgba(58,42,29,0.06)",shadowMd:"0 4px 16px rgba(58,42,29,0.10), 0 2px 6px rgba(58,42,29,0.06)",shadowLg:"0 12px 32px rgba(58,42,29,0.16)"};
   var ovl={position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,padding:16};
-  var mdl={background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:440,maxHeight:"85vh",overflow:"auto"};
-  var inp={width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:14,boxSizing:"border-box",outline:"none"};
-  var btn=function(bg,col){return{padding:"8px 16px",borderRadius:10,border:"none",background:bg,color:col||"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}};
-  var tab=function(a){return{padding:"7px 14px",borderRadius:20,border:"none",background:a?C.dark:C.blushMed,color:a?"#fff":C.light,fontWeight:600,fontSize:13,cursor:"pointer"}};
+  var mdl={background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:440,maxHeight:"85vh",overflow:"auto",boxShadow:C.shadowLg};
+  var inp={width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:14,boxSizing:"border-box",outline:"none",fontFamily:"'Inter',-apple-system,sans-serif"};
+  var btn=function(bg,col){return{padding:"8px 16px",borderRadius:10,border:"none",background:bg,color:col||"#fff",fontWeight:600,fontSize:13,cursor:"pointer",boxShadow:(!col||col==="#fff")?C.shadowSm:"none"}};
+  var tab=function(a){return{padding:"7px 14px",borderRadius:20,border:"none",background:a?C.dark:C.blushMed,color:a?"#fff":C.light,fontWeight:600,fontSize:13,cursor:"pointer",boxShadow:a?C.shadowSm:"none"}};
 
   // Generic refresh function - reloads data based on what the user is currently viewing
   function refreshCurrentView(){
@@ -4059,7 +4096,7 @@ function App(){
         }
         setPullStart(null);
       }}
-      style={{fontFamily:"'Cormorant Garamond','Georgia',serif",maxWidth:600,margin:"0 auto",padding:"12px 8px",color:C.dark}}>
+      style={{fontFamily:"'Inter',-apple-system,sans-serif",maxWidth:600,margin:"0 auto",padding:"12px 8px",color:C.dark}}>
       {/* Pull-to-refresh indicator */}
       {pullDistance>0?<div style={{textAlign:"center",fontSize:13,color:C.light,height:pullDistance,overflow:"hidden",transition:(refreshing||pullStart===null)?"height 0.3s":"none",display:"flex",alignItems:"center",justifyContent:"center"}}>
         {refreshing?"⟳ Refreshing...":pullDistance>50?"↑ Release to refresh":"↓ Pull to refresh"}
@@ -4081,7 +4118,7 @@ function App(){
                 <span style={{fontSize:12,fontWeight:600,color:C.dark}}>{user}</span>
                 <span style={{fontSize:10,opacity:.5}}>▼</span>
               </button>
-              {showProfileMenu?<div style={{position:"absolute",right:0,top:"100%",marginTop:4,background:"#fff",borderRadius:12,boxShadow:"0 4px 20px rgba(0,0,0,0.15)",border:"1px solid "+C.bdr,overflow:"hidden",minWidth:220,zIndex:1000}}>
+              {showProfileMenu?<div style={{position:"absolute",right:0,top:"100%",marginTop:4,background:"#fff",borderRadius:12,boxShadow:C.shadowLg,border:"1px solid "+C.bdr,overflow:"hidden",minWidth:220,zIndex:1000}}>
                 <div style={{padding:"16px",borderBottom:"1px solid "+C.bdr,background:C.blush,display:"flex",alignItems:"center",gap:12}}>
                   {userProfilePic?
                     (userProfilePic.startsWith("data:")?
@@ -4143,7 +4180,7 @@ function App(){
         </div>
         <div style={{textAlign:"center"}}>
           <img src={BEE_LOGO} alt="Logo" style={{width:44,height:44,marginBottom:4}}/>
-          <div style={{fontSize:22,fontWeight:600,color:C.dark,letterSpacing:3,textTransform:"uppercase"}}>The Family Table</div>
+          <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:22,fontWeight:600,color:C.dark,letterSpacing:3,textTransform:"uppercase"}}>The Family Table</div>
         </div>
       </div>
       <div style={{fontSize:12,opacity:.5,textAlign:"center",marginBottom:12,fontStyle:"italic"}}>Plan Meals · Save Recipes · Streamline Shopping · Share What You Love</div>
@@ -4151,7 +4188,7 @@ function App(){
       {/* If not signed in, show sign-in prompt instead of app content */}
       {!user?<div style={{textAlign:"center",padding:"60px 20px"}}>
         <div style={{fontSize:64,marginBottom:20}}>🍽️</div>
-        <div style={{fontSize:22,fontWeight:700,color:C.dark,marginBottom:12}}>Welcome to The Family Table</div>
+        <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:26,fontWeight:700,color:C.ink,marginBottom:12}}>Welcome to The Family Table</div>
         <div style={{fontSize:15,color:C.light,marginBottom:32,maxWidth:320,margin:"0 auto 32px"}}>Plan meals, save recipes, and share with family & friends</div>
         <button onClick={function(){setShowAuth(true)}} style={{padding:"16px 48px",borderRadius:12,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:16,cursor:"pointer",marginBottom:16}}>Sign In / Create Account</button>
       </div>:
@@ -4161,12 +4198,13 @@ function App(){
       {/* Close profile menu when clicking elsewhere */}
       {showProfileMenu?<div onClick={function(){setShowProfileMenu(false)}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:998}}/>:null}
       <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",justifyContent:"center"}}>
-        {[["calendar","📅 Calendar"],["recipes","📖 Recipes"],["explore","🌎 Explore"],["grocery","🛒 Grocery"],["followers","👥 Following"]].map(function(t){
+        {[["calendar","calendar","Calendar"],["recipes","book","Recipes"],["explore","globe","Explore"],["grocery","cart","Grocery"],["followers","users","Following"]].map(function(t){
           var hasInbox=t[0]==="recipes"&&userInbox.length>0;
           var hasRequests=t[0]==="followers"&&followRequests.length>0;
           var badgeCount=hasInbox?userInbox.length:(hasRequests?followRequests.length:0);
-          return <button key={t[0]} style={Object.assign({},tab(view===t[0]),{position:"relative"})} onClick={function(){setView(t[0])}}>
-            {t[1]}
+          return <button key={t[0]} style={Object.assign({},tab(view===t[0]),{position:"relative",display:"flex",alignItems:"center",gap:6})} onClick={function(){setView(t[0])}}>
+            <Icon name={t[1]} size={15} strokeWidth={2}/>
+            {t[2]}
             {badgeCount>0?<span style={{position:"absolute",top:-4,right:-4,width:18,height:18,borderRadius:9,background:"#e74c3c",color:"#fff",fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{badgeCount>9?"9+":badgeCount}</span>:null}
           </button>
         })}
@@ -4383,7 +4421,7 @@ function App(){
               });
               var alreadySaved = !!savedCopy;
               var cookTime = shortTime(recipe.time);
-              return <div key={recipe.id} onClick={function(){setViewFriendRecipe(Object.assign({},recipe,{ownerUsername:viewProfileUser,ownerProfilePic:viewProfileData?viewProfileData.profilePic:null}))}} style={{background:"#fff",borderRadius:20,overflow:"hidden",boxShadow:"0 4px 20px rgba(139,115,85,0.10)",cursor:"pointer"}}>
+              return <div key={recipe.id} onClick={function(){setViewFriendRecipe(Object.assign({},recipe,{ownerUsername:viewProfileUser,ownerProfilePic:viewProfileData?viewProfileData.profilePic:null}))}} style={{background:"#fff",borderRadius:20,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
                 {/* Hero image with heart */}
                 <div style={{position:"relative",width:"100%",height:200,background:C.blush}}>
                   {recipe.photo?<img src={recipe.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:60}}>🍽️</div>}
@@ -4583,7 +4621,7 @@ function App(){
               
               {/* Meals styled like recipe cards */}
               {mlist.length===0?
-                <div style={{marginLeft:62,background:"#fff",borderRadius:16,padding:20,boxShadow:"0 4px 20px rgba(139,115,85,0.08)"}}>
+                <div style={{marginLeft:62,background:"#fff",borderRadius:16,padding:20,boxShadow:C.shadowMd}}>
                   <div style={{fontSize:13,color:C.light,marginBottom:12}}>No meals planned</div>
                   <div style={{display:"flex",gap:10}}>
                     <button onClick={function(){setRpick(k)}} style={{padding:"10px 18px",borderRadius:20,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}}>📖 From Recipes</button>
@@ -4629,7 +4667,7 @@ function App(){
                             setSwipeStart(null);
                             setSwipeOffset(0);
                           }}
-                          style={{background:"#fff",borderRadius:16,overflow:"hidden",boxShadow:"0 4px 20px rgba(139,115,85,0.08)",cursor:"pointer",transform:"translateX("+translateX+"px)",transition:swipeStart?"none":"transform 0.2s",position:"relative",zIndex:1}}
+                          style={{background:"#fff",borderRadius:16,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer",transform:"translateX("+translateX+"px)",transition:swipeStart?"none":"transform 0.2s",position:"relative",zIndex:1}}
                           onClick={function(){
                             if(isSwipedHere){
                               setSwipedMeal(null);
@@ -4675,7 +4713,7 @@ function App(){
           </div>
           
           {/* Calendar grid */}
-          <div style={{background:"#fff",borderRadius:16,overflow:"hidden",boxShadow:"0 4px 20px rgba(139,115,85,0.08)",marginBottom:20}}>
+          <div style={{background:"#fff",borderRadius:16,overflow:"hidden",boxShadow:C.shadowMd,marginBottom:20}}>
             <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:"1px solid "+C.bdr}}>
               {DAYS_SHORT.map(function(d){return <div key={d} style={{textAlign:"center",fontWeight:600,fontSize:11,color:C.light,padding:"12px 4px",textTransform:"uppercase",letterSpacing:1}}>{d}</div>})}
             </div>
@@ -4701,7 +4739,7 @@ function App(){
             </div>
             
             {getMealsForDay(selectedCalDate).length===0?
-              <div style={{background:"#fff",borderRadius:16,padding:24,boxShadow:"0 4px 20px rgba(139,115,85,0.08)"}}>
+              <div style={{background:"#fff",borderRadius:16,padding:24,boxShadow:C.shadowMd}}>
                 <div style={{fontSize:14,color:C.light,marginBottom:14}}>No meals planned for this day</div>
                 <div style={{display:"flex",gap:10}}>
                   <button onClick={function(){setRpick(selectedCalDate)}} style={{padding:"12px 20px",borderRadius:20,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:600}}>📖 From Recipes</button>
@@ -4714,7 +4752,7 @@ function App(){
                   var mealType=m.recipeType||detectRecipeType(m);
                   var typeInfo=RECIPE_TYPES.find(function(t){return t.id===mealType})||RECIPE_TYPES[RECIPE_TYPES.length-1];
                   return(
-                    <div key={mi} style={{background:"#fff",borderRadius:16,marginBottom:12,overflow:"hidden",boxShadow:"0 4px 20px rgba(139,115,85,0.08)",cursor:"pointer"}} onClick={function(){openEdit(selectedCalDate,mi)}}>
+                    <div key={mi} style={{background:"#fff",borderRadius:16,marginBottom:12,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){openEdit(selectedCalDate,mi)}}>
                       {m.photo?
                         <div style={{position:"relative"}}>
                           <img src={m.photo} style={{width:"100%",height:140,objectFit:"cover",display:"block"}} alt=""/>
@@ -4771,10 +4809,10 @@ function App(){
         </div>:null}
         
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,position:"relative"}}>
-          <div style={{fontWeight:700,fontSize:16}}>📖 My Recipes ({recipes.length})</div>
+          <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:19,color:C.ink}}>📖 My Recipes ({recipes.length})</div>
           <div style={{position:"relative"}}>
             <button onClick={function(){setShowRecipePlusMenu(!showRecipePlusMenu)}} style={{padding:"7px 14px",borderRadius:8,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>+ Add</button>
-            {showRecipePlusMenu?<div style={{position:"absolute",top:40,right:0,background:"#fff",borderRadius:10,border:"1px solid "+C.bdr,boxShadow:"0 4px 16px rgba(0,0,0,0.1)",minWidth:180,zIndex:50,overflow:"hidden"}}>
+            {showRecipePlusMenu?<div style={{position:"absolute",top:40,right:0,background:"#fff",borderRadius:10,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,minWidth:180,zIndex:50,overflow:"hidden"}}>
               <button onClick={function(){setRf(emptyMeal());setShowRF(true);setShowRecipePlusMenu(false)}} style={{display:"block",width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr}}>✍️  Add Manually</button>
               <button onClick={function(){setShowScanModal(true);setScanPhotos([]);setShowRecipePlusMenu(false)}} style={{display:"block",width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr}}>📷  Photo</button>
               <button onClick={function(){setShowImport(true);setShowRecipePlusMenu(false)}} style={{display:"block",width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer"}}>📥  Import</button>
@@ -4798,7 +4836,7 @@ function App(){
             <span style={{fontSize:12,color:C.light}}>{showCategories?"▲":"▼"}</span>
           </button>
           
-          {showCategories?<div style={{background:"#fff",borderRadius:12,border:"1px solid "+C.bdr,marginTop:8,padding:8,boxShadow:"0 4px 12px rgba(0,0,0,0.08)"}}>
+          {showCategories?<div style={{background:"#fff",borderRadius:12,border:"1px solid "+C.bdr,marginTop:8,padding:8,boxShadow:C.shadowMd}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
               {RECIPE_TYPES.filter(function(t){
                 if(t.id==="all")return true;
@@ -4816,13 +4854,17 @@ function App(){
           </div>:null}
         </div>
         
-        {recipes.length===0?<div style={{textAlign:"center",padding:40,opacity:.4,fontSize:14}}>No recipes yet! Add your first recipe above.</div>:null}
+        {recipes.length===0?<div style={{textAlign:"center",padding:"48px 20px"}}>
+          <div style={{marginBottom:14,opacity:.35}}><Icon name="book" size={36} color={C.dark} strokeWidth={1.25}/></div>
+          <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:4}}>No recipes yet</div>
+          <div style={{fontSize:13,color:C.light}}>Add your first recipe above to get started</div>
+        </div>:null}
         {recipes.filter(function(r){
           if(recipeFilter==="all")return true;
           if(recipeFilter==="favorites")return favorites.includes(r.id);
           return(r.recipeType||detectRecipeType(r))===recipeFilter;
         }).map(function(r){var rtype=r.recipeType||detectRecipeType(r);var typeInfo=RECIPE_TYPES.find(function(t){return t.id===rtype})||RECIPE_TYPES[RECIPE_TYPES.length-1];var isFav=favorites.includes(r.id);var isPrivate=r.isPublic===false;return(
-          <div key={r.id} style={{background:"#fff",borderRadius:20,border:"none",marginBottom:18,overflow:"hidden",boxShadow:"0 4px 20px rgba(139,115,85,0.10)",cursor:"pointer"}} onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}}>
+          <div key={r.id} style={{background:"#fff",borderRadius:20,border:"none",marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}}>
             {/* Hero image */}
             <div style={{position:"relative",width:"100%",height:200,background:C.blush}}>
               {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:60}}>🍽️</div>}
@@ -4836,7 +4878,7 @@ function App(){
               {(function(){
                 var ct = shortTime(r.time);
                 return [
-                  <h3 key="t" style={{fontWeight:700,fontSize:20,color:C.dark,lineHeight:1.25,margin:0,marginBottom:10}}>{r.name}</h3>,
+                  <h3 key="t" style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:22,color:C.ink,lineHeight:1.25,margin:0,marginBottom:10}}>{r.name}</h3>,
                   (ct || typeInfo)?<div key="m" style={{display:"flex",alignItems:"center",gap:10,fontSize:13,color:C.light}}>
                     {ct?<span>🕐 {ct}</span>:null}
                     {ct && typeInfo?<span style={{opacity:.4}}>|</span>:null}
@@ -4855,7 +4897,7 @@ function App(){
           {/* Header */}
           <div style={{padding:"16px 20px",borderBottom:"1px solid "+C.bdr,background:"#fff",flexShrink:0}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{fontWeight:700,fontSize:18,color:C.dark}}>{viewRecipe.name}</div>
+              <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}}>{viewRecipe.name}</div>
               <button onClick={function(){setViewRecipe(null)}} style={{background:"none",border:"none",fontSize:24,cursor:"pointer",opacity:.4,padding:8}}>✕</button>
             </div>
             {viewRecipe.time?<div style={{fontSize:13,color:C.light,marginTop:4}}>⏱ {viewRecipe.time}</div>:null}
@@ -4953,7 +4995,7 @@ function App(){
           });
           
           return <div>
-            <div style={{fontWeight:700,fontSize:18,color:C.dark,marginBottom:12}}>🌎 Explore Recipes</div>
+            <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink,marginBottom:12}}>🌎 Explore Recipes</div>
             
             {/* Show user filter banner if viewing specific user */}
             {exploreUser?<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:C.blush,borderRadius:10,marginBottom:16}}>
@@ -4979,8 +5021,9 @@ function App(){
             <div style={{fontSize:12,color:C.light,marginBottom:12}}>{filtered.length} recipe{filtered.length!==1?"s":""} found</div>
             
             {/* Recipe cards */}
-            {filtered.length===0?<div style={{textAlign:"center",padding:40,color:C.light}}>
-              {publicRecipesLoaded?"No recipes found":"Loading recipes..."}
+            {filtered.length===0?<div style={{textAlign:"center",padding:"48px 20px"}}>
+              <div style={{marginBottom:14,opacity:.35}}><Icon name="globe" size={36} color={C.dark} strokeWidth={1.25}/></div>
+              <div style={{fontSize:15,color:C.ink,fontWeight:600}}>{publicRecipesLoaded?"No recipes found":"Loading recipes..."}</div>
             </div>:
             filtered.map(function(r){
               var originalCredit = r.credit ? (typeof r.credit === "string" ? r.credit.split(",")[0].split("|")[0].split("via")[0].trim() : r.credit) : null;
@@ -4993,7 +5036,7 @@ function App(){
               var alreadySaved = !!savedCopy;
               var cookTime = shortTime(r.time);
               
-              return <div key={r.id} onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}} style={{background:"#fff",borderRadius:20,marginBottom:18,overflow:"hidden",boxShadow:"0 4px 20px rgba(139,115,85,0.10)",cursor:"pointer"}}>
+              return <div key={r.id} onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}} style={{background:"#fff",borderRadius:20,marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
                 {/* Hero image with heart save button overlaid */}
                 <div style={{position:"relative",width:"100%",height:200,background:C.blush}}>
                   {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:60}}>🍽️</div>}
@@ -5027,7 +5070,7 @@ function App(){
                   </div>
                   
                   {/* Title */}
-                  <div style={{fontWeight:700,fontSize:20,color:C.dark,marginBottom:10,lineHeight:1.2}}>{r.name}</div>
+                  <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink,marginBottom:10,lineHeight:1.2}}>{r.name}</div>
                   
                   {/* Meta row: cook time | type */}
                   {(cookTime || typeInfo)?<div style={{display:"flex",alignItems:"center",gap:10,fontSize:13,color:C.light}}>
@@ -5434,7 +5477,7 @@ function App(){
                 <div style={{width:50,height:50,borderRadius:10,background:C.blush,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>{shareR.emoji}</div>
               }
               <div>
-                <div style={{fontWeight:700,fontSize:18,color:C.dark}}>{shareR.name}</div>
+                <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:18,color:C.ink}}>{shareR.name}</div>
                 {shareR.time?<div style={{fontSize:12,color:C.light}}>⏱ {shareR.time}</div>:null}
               </div>
             </div>
@@ -5538,7 +5581,10 @@ function App(){
                       </div>
                     });
                   })()}
-                </div>:<div style={{padding:16,textAlign:"center",color:C.light,fontSize:13,border:"1px solid "+C.bdr,borderRadius:10,marginBottom:12}}>You're not following anyone yet</div>}
+                </div>:<div style={{padding:"32px 16px",textAlign:"center",border:"1px solid "+C.bdr,borderRadius:14,marginBottom:12,background:"#fff"}}>
+                  <div style={{marginBottom:10,opacity:.35}}><Icon name="users" size={30} color={C.dark} strokeWidth={1.25}/></div>
+                  <div style={{fontSize:14,color:C.ink,fontWeight:600}}>You're not following anyone yet</div>
+                </div>}
                 
                 {/* Send button */}
                 <button onClick={function(){shareToUserDirect(shareR,shareToUser)}} disabled={!shareToUser.trim()} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:shareToUser.trim()?C.dark:"#ccc",color:"#fff",fontWeight:600,fontSize:15,cursor:shareToUser.trim()?"pointer":"not-allowed"}}>Send to @{shareToUser||"..."}</button>
