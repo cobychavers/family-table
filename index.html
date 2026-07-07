@@ -1567,15 +1567,15 @@ function GroceryTab(p){
     var unit=override?override.unit:(it.unit||"");
     var itemName=override&&override.name?override.name:it.name;
     var display=(qty?qty+" ":"")+(unit?unit+" ":"")+itemName;
-    return React.createElement("div",{key:it.id,style:{display:"flex",alignItems:"center",gap:10,padding:"10px 4px",borderBottom:"1px solid #EDE5E0",opacity:ic?.4:1}},
-      React.createElement("button",{onClick:function(){tog(it.id)},style:{width:28,height:28,borderRadius:6,border:ic?"none":"2px solid #ccc",background:ic?"#8B7355":"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:14,color:"#fff"}},ic?"✓":""),
-      React.createElement("button",{onClick:function(){setPickStore(pickStore===it.id?null:it.id)},style:{padding:"4px 8px",borderRadius:6,border:"1px solid "+st.color+"44",background:st.color+"15",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}},renderStoreIcon(st,20)),
+    return React.createElement("div",{key:it.id,style:{display:"flex",alignItems:"center",gap:10,padding:"11px 2px",borderBottom:"1px solid "+C.bdr,opacity:ic?.4:1}},
+      React.createElement("button",{onClick:function(){tog(it.id)},style:{width:24,height:24,borderRadius:6,border:ic?"none":"1.5px solid "+C.blushDeep,background:ic?C.dark:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,color:"#fff"}},ic?"✓":""),
+      React.createElement("button",{onClick:function(){setPickStore(pickStore===it.id?null:it.id)},style:{width:26,height:26,borderRadius:6,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}},renderStoreIcon(st,16)),
       React.createElement("div",{style:{flex:1,minWidth:0}},
-        React.createElement("span",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{fontSize:17,color:"#1a1a2e",textDecoration:ic?"line-through":"none",fontWeight:500,cursor:"pointer",display:"block"}},display),
-        it.source==="generated"&&it.mealName?React.createElement("span",{style:{fontSize:13,color:"#96806C"}},it.mealName):null
+        React.createElement("span",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{fontSize:15,color:C.ink,textDecoration:ic?"line-through":"none",fontWeight:500,cursor:"pointer",display:"block"}},display),
+        it.source==="generated"&&it.mealName?React.createElement("span",{style:{fontSize:12,color:C.light}},it.mealName):null
       ),
-      React.createElement("button",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{background:"none",border:"none",fontSize:16,cursor:"pointer",opacity:.4,padding:4}},"✏️"),
-      React.createElement("button",{onClick:function(){if(it.source==="manual"){remM(it.id)}else{hideItem(it.id)}},style:{background:"none",border:"none",fontSize:16,cursor:"pointer",opacity:.3}},"✕")
+      React.createElement("button",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{background:"none",border:"none",fontSize:14,cursor:"pointer",opacity:.35,padding:4}},"✏️"),
+      React.createElement("button",{onClick:function(){if(it.source==="manual"){remM(it.id)}else{hideItem(it.id)}},style:{background:"none",border:"none",fontSize:15,cursor:"pointer",opacity:.3}},"✕")
     );
   }
 
@@ -1586,24 +1586,25 @@ function GroceryTab(p){
     arr.forEach(function(e){var c=getGCatLocal(e.name);if(!gs[c]){gs[c]=[];ord.push(c)}gs[c].push(e)});
     return ord.map(function(c){
       var catStore=p.categoryStores&&p.categoryStores[c]?p.stores.find(function(s){return s.id===p.categoryStores[c]}):null;
-      return React.createElement("div",{key:c},
-        React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0 6px",borderBottom:"1px solid #E8DDD6",marginBottom:2}},
-          React.createElement("span",{style:{fontSize:15,fontWeight:800,color:"#96806C",textTransform:"uppercase",letterSpacing:.5}},c),
+      var cLabel=c.replace(/^\S+\s*/,"");
+      return React.createElement("div",{key:c,style:{background:"#fff",borderRadius:14,boxShadow:C.shadowSm,padding:"4px 14px",marginBottom:14}},
+        React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0 8px",borderBottom:"1px solid "+C.bdr,marginBottom:2}},
+          React.createElement("span",{style:{fontSize:13,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:1}},cLabel),
           React.createElement("div",{style:{position:"relative"}},
-            React.createElement("button",{onClick:function(e){e.stopPropagation();setCatStorePicker(catStorePicker===c?null:c)},style:{display:"flex",alignItems:"center",gap:4,padding:"4px 8px",borderRadius:6,border:"1px solid "+(catStore?catStore.color:"#ccc")+"44",background:(catStore?catStore.color:"#999")+"10",cursor:"pointer",fontSize:11}},
-              catStore?React.createElement(React.Fragment,null,renderStoreIcon(catStore,14),React.createElement("span",{style:{color:catStore.color,fontWeight:600}},catStore.name)):React.createElement("span",{style:{color:"#888"}},"Set store"),
-              React.createElement("span",{style:{fontSize:8,opacity:.5}},"▼")
+            React.createElement("button",{onClick:function(e){e.stopPropagation();setCatStorePicker(catStorePicker===c?null:c)},style:{display:"flex",alignItems:"center",gap:5,padding:"4px 8px",borderRadius:6,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",fontSize:11}},
+              catStore?React.createElement(React.Fragment,null,renderStoreIcon(catStore,14),React.createElement("span",{style:{color:C.ink,fontWeight:600}},catStore.name)):React.createElement("span",{style:{color:C.light}},"Set store"),
+              React.createElement("span",{style:{fontSize:8,opacity:.5,color:C.light}},"▼")
             ),
             catStorePicker===c?React.createElement("div",{style:{position:"absolute",top:"100%",right:0,zIndex:100,background:"#fff",borderRadius:10,boxShadow:C.shadowLg,padding:8,marginTop:4,minWidth:140}},
-              React.createElement("div",{style:{fontSize:10,fontWeight:700,color:"#888",marginBottom:6,padding:"0 4px"}},c.toUpperCase()+" STORE"),
+              React.createElement("div",{style:{fontSize:10,fontWeight:700,color:C.light,marginBottom:6,padding:"0 4px"}},cLabel.toUpperCase()+" STORE"),
               p.stores.map(function(s){
                 var isActive=p.categoryStores&&p.categoryStores[c]===s.id;
-                return React.createElement("button",{key:s.id,onClick:function(){p.setCategoryStore(c,s.id);setCatStorePicker(null)},style:{display:"flex",alignItems:"center",gap:6,width:"100%",padding:"6px 8px",borderRadius:6,border:isActive?"2px solid "+s.color:"1px solid #eee",background:isActive?s.color+"15":"#fff",cursor:"pointer",marginBottom:4}},
+                return React.createElement("button",{key:s.id,onClick:function(){p.setCategoryStore(c,s.id);setCatStorePicker(null)},style:{display:"flex",alignItems:"center",gap:6,width:"100%",padding:"6px 8px",borderRadius:6,border:isActive?"1.5px solid "+C.dark:"1px solid "+C.bdr,background:isActive?C.blush:"#fff",cursor:"pointer",marginBottom:4}},
                   renderStoreIcon(s,14),
-                  React.createElement("span",{style:{fontWeight:600,fontSize:12,color:s.color}},s.name)
+                  React.createElement("span",{style:{fontWeight:600,fontSize:12,color:C.ink}},s.name)
                 );
               }),
-              p.categoryStores&&p.categoryStores[c]?React.createElement("button",{onClick:function(){p.setCategoryStore(c,null);setCatStorePicker(null)},style:{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #ddd",background:"#f5f5f5",cursor:"pointer",fontSize:11,color:"#888",marginTop:4}},"Use default store"):null
+              p.categoryStores&&p.categoryStores[c]?React.createElement("button",{onClick:function(){p.setCategoryStore(c,null);setCatStorePicker(null)},style:{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid "+C.bdr,background:C.blush,cursor:"pointer",fontSize:11,color:C.light,marginTop:4}},"Use default store"):null
             ):null
           )
         ),
@@ -1619,7 +1620,7 @@ function GroceryTab(p){
 
   return React.createElement("div",null,
     React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,position:"relative"}},
-      React.createElement("div",{style:{fontWeight:700,fontSize:18,color:"#8B7355"}},"🛒 Grocery List"),
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}},React.createElement(Icon,{name:"cart",size:18,color:C.dark,strokeWidth:1.75}),"Grocery List"),
       React.createElement("div",{style:{display:"flex",gap:8,alignItems:"center"}},
         /* From Calendar icon button */
         React.createElement("button",{onClick:function(){setShowWeekPicker(!showWeekPicker);setShowPlusMenu(false)},title:"From Calendar",style:{display:"flex",alignItems:"center",gap:4,padding:"7px 10px",borderRadius:8,border:"1px solid "+C.bdr,background:"#fff",color:C.dark,fontWeight:600,fontSize:12,cursor:"pointer"}},"📅",React.createElement("span",{style:{fontSize:11}},"From Calendar")),
@@ -1700,20 +1701,20 @@ function GroceryTab(p){
         /* Default store row - only shown in modal */
         React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:12,padding:"8px 10px",background:C.blush,borderRadius:8}},
           React.createElement("span",{style:{fontSize:11,color:"#6a6a7a",fontWeight:500}},"Default store:"),
-          React.createElement("button",{onClick:function(){setShowDefStorePicker(!showDefStorePicker)},style:{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:6,border:"1px solid "+defStoreObj.color+"44",background:defStoreObj.color+"10",cursor:"pointer"}},
+          React.createElement("button",{onClick:function(){setShowDefStorePicker(!showDefStorePicker)},style:{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:6,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer"}},
             renderStoreIcon(defStoreObj,16),
-            React.createElement("span",{style:{fontWeight:600,fontSize:12,color:defStoreObj.color}},defStoreObj.name),
-            React.createElement("span",{style:{fontSize:9,opacity:.5}},"▼")
+            React.createElement("span",{style:{fontWeight:600,fontSize:12,color:C.ink}},defStoreObj.name),
+            React.createElement("span",{style:{fontSize:9,opacity:.5,color:C.light}},"▼")
           )
         ),
         showDefStorePicker?React.createElement("div",{style:{marginBottom:12,padding:10,background:"#fff",borderRadius:8,border:"1px solid "+C.bdr}},
-          React.createElement("div",{style:{fontSize:11,fontWeight:700,color:"#6a6a7a",marginBottom:6}},"SELECT DEFAULT STORE"),
+          React.createElement("div",{style:{fontSize:11,fontWeight:700,color:C.light,marginBottom:6}},"SELECT DEFAULT STORE"),
           React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:6}},
             p.stores.map(function(s){
               var isActive=s.id===p.defStore;
-              return React.createElement("button",{key:s.id,onClick:function(){p.setDefStore(s.id);setShowDefStorePicker(false)},style:{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",borderRadius:7,border:isActive?"2px solid "+s.color:"1px solid #eee",background:isActive?s.color+"15":"#fff",cursor:"pointer"}},
+              return React.createElement("button",{key:s.id,onClick:function(){p.setDefStore(s.id);setShowDefStorePicker(false)},style:{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",borderRadius:7,border:isActive?"1.5px solid "+C.dark:"1px solid "+C.bdr,background:isActive?C.blush:"#fff",cursor:"pointer"}},
                 renderStoreIcon(s,16),
-                React.createElement("span",{style:{fontWeight:600,fontSize:12,color:s.color}},s.name)
+                React.createElement("span",{style:{fontWeight:600,fontSize:12,color:C.ink}},s.name)
               )
             })
           )
@@ -1843,7 +1844,7 @@ function GroceryTab(p){
         React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:6}},
           p.stores.map(function(s){return React.createElement("button",{key:s.id,onClick:function(){var it=all.find(function(x){return x.id===pickStore});if(it)p.setItemStore(it.name,s.id);setPickStore(null)},style:{display:"flex",alignItems:"center",gap:10,padding:12,borderRadius:10,border:"1px solid #eee",background:"#fff",cursor:"pointer",textAlign:"left"}},
             renderStoreIcon(s,24),
-            React.createElement("span",{style:{fontWeight:700,fontSize:14,color:s.color,flex:1}},s.name),
+            React.createElement("span",{style:{fontWeight:700,fontSize:14,color:C.ink,flex:1}},s.name),
             s.custom?React.createElement("button",{onClick:function(e){e.stopPropagation();p.removeCustomStore(s.id)},style:{background:"none",border:"none",fontSize:12,cursor:"pointer",opacity:.3,padding:4}},"✕"):null
           )}),
           React.createElement("button",{onClick:function(){setPickStore(null);setShowAddStore(true)},style:{display:"flex",alignItems:"center",gap:10,padding:12,borderRadius:10,border:"1px dashed #ccc",background:"#fafafa",cursor:"pointer",textAlign:"left"}},
