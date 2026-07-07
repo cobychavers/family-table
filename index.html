@@ -2083,6 +2083,7 @@ function App(){
   var [pullStart,setPullStart]=useState(null);
   var [pullDistance,setPullDistance]=useState(0);
   var [refreshing,setRefreshing]=useState(false);
+  var [exploreSubTab,setExploreSubTab]=useState("recipes"); // "recipes" or "people"
   var [exploreSearch,setExploreSearch]=useState("");
   var [exploreFilter,setExploreFilter]=useState("");
   var [exploreUser,setExploreUser]=useState(null); // Filter to show only one user's recipes
@@ -4041,11 +4042,7 @@ function App(){
 
   // Generic refresh function - reloads data based on what the user is currently viewing
   function refreshCurrentView(){
-    if(view==="explore"){
-      setPublicRecipes([]);
-      setPublicRecipesLoaded(false);
-      setTimeout(function(){loadPublicRecipes()},50);
-    } else if(view==="followers"){
+    if(view==="explore"&&exploreSubTab==="people"){
       // Refresh following + friend recipes
       setFriendRecipes([]);
       if(following.length>0){
@@ -4054,6 +4051,10 @@ function App(){
         setFollowing([]);
         setTimeout(function(){setFollowing(current)},50);
       }
+    } else if(view==="explore"){
+      setPublicRecipes([]);
+      setPublicRecipesLoaded(false);
+      setTimeout(function(){loadPublicRecipes()},50);
     } else if(view==="calendar"){
       // Reload meals
       if(userId && userId!=="guest"){
@@ -4217,9 +4218,9 @@ function App(){
       {/* Close profile menu when clicking elsewhere */}
       {showProfileMenu?<div onClick={function(){setShowProfileMenu(false)}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:998}}/>:null}
       <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",justifyContent:"center"}}>
-        {[["calendar","calendar","Calendar"],["recipes","book","Recipes"],["explore","globe","Explore"],["grocery","cart","Grocery"],["followers","users","Following"]].map(function(t){
+        {[["calendar","calendar","Calendar"],["recipes","book","Recipes"],["explore","globe","Explore"],["grocery","cart","Grocery"]].map(function(t){
           var hasInbox=t[0]==="recipes"&&userInbox.length>0;
-          var hasRequests=t[0]==="followers"&&followRequests.length>0;
+          var hasRequests=t[0]==="explore"&&followRequests.length>0;
           var badgeCount=hasInbox?userInbox.length:(hasRequests?followRequests.length:0);
           return <button key={t[0]} style={Object.assign({},tab(view===t[0]),{position:"relative",display:"flex",alignItems:"center",gap:6})} onClick={function(){setView(t[0])}}>
             <Icon name={t[1]} size={15} strokeWidth={2}/>
@@ -4996,9 +4997,15 @@ function App(){
 
       {view==="grocery"&&<GroceryTab meals={meals} wdates={wd} wlabel={wl} rgn={region} gSI={gSI} gSFI={gSFI} setItemStore={setSI} userId={userId} groceryHidden={groceryHidden} setGroceryHidden={setGroceryHidden} stores={STORES} addCustomStore={addCustomStore} removeCustomStore={removeCustomStore} defStore={defStore} setDefStore={handleSetDefStore} categoryStores={categoryStores} setCategoryStore={handleSetCategoryStore} goToCalendar={function(){setView("calendar")}} setWs={setWs} ws={ws}/>}
 
-      {/* EXPLORE TAB - All Public Recipes */}
+      {/* EXPLORE TAB - Recipes + People */}
       {view==="explore"&&<div>
-        {(function(){
+        <div style={{display:"flex",gap:22,marginBottom:18,borderBottom:"1px solid "+C.bdr}}>
+          <button onClick={function(){setExploreSubTab("recipes")}} style={{background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:exploreSubTab==="recipes"?C.ink:C.light,borderBottom:exploreSubTab==="recipes"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>Recipes</button>
+          <button onClick={function(){setExploreSubTab("people")}} style={{position:"relative",background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:exploreSubTab==="people"?C.ink:C.light,borderBottom:exploreSubTab==="people"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>People
+            {followRequests.length>0?<span style={{position:"absolute",top:-2,right:-14,width:16,height:16,borderRadius:8,background:"#e74c3c",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{followRequests.length>9?"9+":followRequests.length}</span>:null}
+          </button>
+        </div>
+        {exploreSubTab==="recipes"?(function(){
           // Load public recipes when tab is viewed
           if(!publicRecipesLoaded)loadPublicRecipes();
           
@@ -5101,11 +5108,8 @@ function App(){
               </div>
             })}
           </div>
-        })()}
-      </div>}
-
-      {/* FOLLOWERS TAB */}
-      {view==="followers"&&<div>
+        })():
+        <div>
         {!user?<div style={{textAlign:"center",padding:40}}>
           <div style={{fontSize:48,marginBottom:16}}>👥</div>
           <div style={{fontSize:16,fontWeight:600,color:C.dark,marginBottom:8}}>Sign in to connect with others</div>
@@ -5313,6 +5317,7 @@ function App(){
             <div style={{fontSize:12,color:C.light}}>Search for users above or wait for suggestions</div>
           </div>:null}
         </div>}
+      </div>}
       </div>}
 
       </div>}
