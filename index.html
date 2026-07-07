@@ -981,6 +981,9 @@ function GroceryTab(p){
   
   var [checked,setChecked]=useState({});
   var [manual,setManual]=useState([]);
+  var [swipedItem,setSwipedItem]=useState(null); // id of swiped-open item
+  var [itemSwipeStart,setItemSwipeStart]=useState(null); // {x,y,id}
+  var [itemSwipeOffset,setItemSwipeOffset]=useState(0);
   var [generatedItems,setGeneratedItems]=useState([]); // Items generated from calendar
   var [generatedWeekLabel,setGeneratedWeekLabel]=useState(""); // Which week was generated
   var [fCat,setFCat]=useState(null);
@@ -1590,15 +1593,36 @@ function GroceryTab(p){
     var unit=override?override.unit:(it.unit||"");
     var itemName=override&&override.name?override.name:it.name;
     var display=(qty?qty+" ":"")+(unit?unit+" ":"")+itemName;
-    return React.createElement("div",{key:it.id,style:{display:"flex",alignItems:"center",gap:10,padding:"11px 2px",borderBottom:"1px solid "+C.bdr,opacity:ic?.4:1}},
-      React.createElement("button",{onClick:function(){tog(it.id)},style:{width:24,height:24,borderRadius:6,border:ic?"none":"1.5px solid "+C.blushDeep,background:ic?C.dark:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,color:"#fff"}},ic?"✓":""),
-      React.createElement("button",{onClick:function(){setPickStore(pickStore===it.id?null:it.id)},style:{width:26,height:26,borderRadius:6,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}},renderStoreIcon(st,16)),
-      React.createElement("div",{style:{flex:1,minWidth:0}},
-        React.createElement("span",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{fontSize:15,color:C.ink,textDecoration:ic?"line-through":"none",fontWeight:500,cursor:"pointer",display:"block"}},display),
-        it.source==="generated"&&it.mealName?React.createElement("span",{style:{fontSize:12,color:C.light}},it.mealName):null
+    var isSwipedHere = swipedItem===it.id;
+    var translateX = isSwipedHere ? -76 : (itemSwipeStart && itemSwipeStart.id===it.id ? itemSwipeOffset : 0);
+    function doDelete(){ if(it.source==="manual"){remM(it.id)}else{hideItem(it.id)} }
+    return React.createElement("div",{key:it.id,style:{position:"relative",overflow:"hidden",borderBottom:"1px solid "+C.bdr}},
+      React.createElement("div",{style:{position:"absolute",right:0,top:0,bottom:0,width:76,background:"#c0392b",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"},onClick:function(e){e.stopPropagation();doDelete()}},
+        React.createElement("span",{style:{color:"#fff",fontSize:12,fontWeight:600}},"Delete")
       ),
-      React.createElement("button",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{background:"none",border:"none",fontSize:14,cursor:"pointer",opacity:.35,padding:4}},"✏️"),
-      React.createElement("button",{onClick:function(){if(it.source==="manual"){remM(it.id)}else{hideItem(it.id)}},style:{background:"none",border:"none",fontSize:15,cursor:"pointer",opacity:.3}},"✕")
+      React.createElement("div",{
+        onTouchStart:function(e){var t=e.touches[0];setItemSwipeStart({x:t.clientX,y:t.clientY,id:it.id})},
+        onTouchMove:function(e){
+          if(!itemSwipeStart||itemSwipeStart.id!==it.id)return;
+          var t=e.touches[0];var dx=t.clientX-itemSwipeStart.x;var dy=t.clientY-itemSwipeStart.y;
+          if(Math.abs(dx)>Math.abs(dy)&&dx<0){setItemSwipeOffset(Math.max(dx,-76))}
+        },
+        onTouchEnd:function(e){
+          if(!itemSwipeStart||itemSwipeStart.id!==it.id)return;
+          if(itemSwipeOffset<-38){setSwipedItem(it.id)}else{setSwipedItem(null)}
+          setItemSwipeStart(null);setItemSwipeOffset(0);
+        },
+        onClick:function(){if(isSwipedHere)setSwipedItem(null)},
+        style:{display:"flex",alignItems:"center",gap:10,padding:"11px 2px",opacity:ic?.4:1,background:"#fff",transform:"translateX("+translateX+"px)",transition:itemSwipeStart?"none":"transform 0.2s",position:"relative",zIndex:1}
+      },
+        React.createElement("button",{onClick:function(){tog(it.id)},style:{width:24,height:24,borderRadius:6,border:ic?"none":"1.5px solid "+C.blushDeep,background:ic?C.dark:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,color:"#fff"}},ic?"✓":""),
+        React.createElement("button",{onClick:function(){setPickStore(pickStore===it.id?null:it.id)},style:{width:26,height:26,borderRadius:6,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}},renderStoreIcon(st,16)),
+        React.createElement("div",{style:{flex:1,minWidth:0}},
+          React.createElement("span",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{fontSize:15,color:C.ink,textDecoration:ic?"line-through":"none",fontWeight:500,cursor:"pointer",display:"block"}},display),
+          it.source==="generated"&&it.mealName?React.createElement("span",{style:{fontSize:12,color:C.light}},it.mealName):null
+        ),
+        React.createElement("button",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{background:"none",border:"none",fontSize:14,cursor:"pointer",opacity:.35,padding:4}},"✏️")
+      )
     );
   }
 
