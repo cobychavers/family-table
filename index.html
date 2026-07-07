@@ -280,7 +280,7 @@ const GCATS = {
 // Minimal stroke-based line icon set (replaces emoji for nav/chrome)
 function Icon(p){
   var name=p.name, size=p.size||20, color=p.color||"currentColor", sw=p.strokeWidth||1.75;
-  var cp={width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:color,strokeWidth:sw,strokeLinecap:"round",strokeLinejoin:"round",style:{display:"block"}};
+  var cp={width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:color,strokeWidth:sw,strokeLinecap:"round",strokeLinejoin:"round",style:{display:"inline-block",verticalAlign:"middle"}};
   if(name==="calendar")return React.createElement("svg",cp,
     React.createElement("rect",{x:3,y:4,width:18,height:18,rx:2}),
     React.createElement("line",{x1:16,y1:2,x2:16,y2:6}),
@@ -311,7 +311,25 @@ function Icon(p){
     React.createElement("line",{x1:12,y1:5,x2:12,y2:19}),
     React.createElement("line",{x1:5,y1:12,x2:19,y2:12})
   );
+  if(name==="heart")return React.createElement("svg",cp,
+    React.createElement("path",{d:"M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"})
+  );
   return null;
+}
+
+// Category tag: colored dot + label (replaces per-category emoji from RECIPE_TYPES)
+function CatTag(p){
+  var t=p.type;
+  if(!t)return null;
+  if(t.id==="favorites")return React.createElement(React.Fragment,null,
+    React.createElement(Icon,{name:"heart",size:11,color:p.color||"#B5525F",strokeWidth:2}),
+    React.createElement("span",{style:{marginLeft:5}},t.label)
+  );
+  if(t.id==="all")return t.label;
+  return React.createElement(React.Fragment,null,
+    React.createElement("span",{style:{display:"inline-block",width:6,height:6,borderRadius:3,background:p.dotColor||"#B4823D",marginRight:6,verticalAlign:1}}),
+    t.label
+  );
 }
 
 // Simple QR Code generator component
@@ -4446,7 +4464,7 @@ function App(){
                   {(cookTime || typeInfo)?<div style={{display:"flex",alignItems:"center",gap:10,fontSize:13,color:C.light}}>
                     {cookTime?<span>🕐 {cookTime}</span>:null}
                     {cookTime && typeInfo?<span style={{opacity:.4}}>|</span>:null}
-                    {typeInfo?<span>{typeInfo.icon} {typeInfo.label}</span>:null}
+                    {typeInfo?<span><CatTag type={typeInfo}/></span>:null}
                   </div>:null}
                 </div>
               </div>
@@ -4489,7 +4507,7 @@ function App(){
         <div style={{flex:1,overflowY:"auto",padding:16}}>
           {/* Photo if exists and not shown in header */}
           {viewFriendRecipe.photo?<div style={{marginBottom:16}}>
-            <img src={viewFriendRecipe.photo} style={{width:"100%",maxHeight:250,objectFit:"contain",borderRadius:12,background:C.blush}} alt=""/>
+            <img src={viewFriendRecipe.photo} style={{width:"100%",height:220,objectFit:"cover",borderRadius:12,background:C.blush}} alt=""/>
           </div>:null}
           
           {/* Ingredients */}
@@ -4678,11 +4696,11 @@ function App(){
                           {m.photo?
                             <div style={{position:"relative"}}>
                               <img src={m.photo} style={{width:"100%",height:120,objectFit:"cover",display:"block"}} alt=""/>
-                              <div style={{position:"absolute",top:10,right:10,background:"rgba(255,255,255,0.95)",borderRadius:16,padding:"4px 12px",fontSize:11,fontWeight:600,color:C.dark}}>{typeInfo.icon} {typeInfo.label}</div>
+                              <div style={{position:"absolute",top:10,right:10,background:"rgba(255,255,255,0.95)",borderRadius:16,padding:"4px 12px",fontSize:11,fontWeight:600,color:C.dark}}><CatTag type={typeInfo}/></div>
                             </div>
                           :
                             <div style={{position:"relative",height:50,background:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
-                              <div style={{position:"absolute",top:10,right:10,background:"rgba(255,255,255,0.95)",borderRadius:16,padding:"4px 12px",fontSize:11,fontWeight:600,color:C.dark}}>{typeInfo.icon} {typeInfo.label}</div>
+                              <div style={{position:"absolute",top:10,right:10,background:"rgba(255,255,255,0.95)",borderRadius:16,padding:"4px 12px",fontSize:11,fontWeight:600,color:C.dark}}><CatTag type={typeInfo}/></div>
                             </div>
                           }
                           <div style={{padding:"12px 16px"}}>
@@ -4756,11 +4774,11 @@ function App(){
                       {m.photo?
                         <div style={{position:"relative"}}>
                           <img src={m.photo} style={{width:"100%",height:140,objectFit:"cover",display:"block"}} alt=""/>
-                          <div style={{position:"absolute",top:12,right:12,background:"rgba(255,255,255,0.95)",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:600,color:C.dark}}>{typeInfo.icon} {typeInfo.label}</div>
+                          <div style={{position:"absolute",top:12,right:12,background:"rgba(255,255,255,0.95)",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:600,color:C.dark}}><CatTag type={typeInfo}/></div>
                         </div>
                       :
                         <div style={{position:"relative",height:60,background:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
-                          <div style={{position:"absolute",top:12,right:12,background:"rgba(255,255,255,0.95)",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:600,color:C.dark}}>{typeInfo.icon} {typeInfo.label}</div>
+                          <div style={{position:"absolute",top:12,right:12,background:"rgba(255,255,255,0.95)",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:600,color:C.dark}}><CatTag type={typeInfo}/></div>
                         </div>
                       }
                       <div style={{padding:"14px 18px"}}>
@@ -4846,7 +4864,7 @@ function App(){
                 var active=recipeFilter===t.id;
                 var count=t.id==="all"?recipes.length:t.id==="favorites"?recipes.filter(function(r){return favorites.includes(r.id)}).length:recipes.filter(function(r){return(r.recipeType||detectRecipeType(r))===t.id}).length;
                 return <button key={t.id} onClick={function(){setRecipeFilter(t.id);setShowCategories(false)}} style={{padding:"10px 12px",borderRadius:10,border:active?"2px solid "+C.dark:"1px solid "+C.bdr,fontSize:13,fontWeight:active?700:500,cursor:"pointer",background:active?C.dark:"#fff",color:active?"#fff":C.dark,textAlign:"left",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                  <span>{t.icon} {t.label}</span>
+                  <span><CatTag type={t}/></span>
                   <span style={{fontSize:12,opacity:.7}}>({count})</span>
                 </button>
               })}
@@ -4882,7 +4900,7 @@ function App(){
                   (ct || typeInfo)?<div key="m" style={{display:"flex",alignItems:"center",gap:10,fontSize:13,color:C.light}}>
                     {ct?<span>🕐 {ct}</span>:null}
                     {ct && typeInfo?<span style={{opacity:.4}}>|</span>:null}
-                    {typeInfo?<span>{typeInfo.icon} {typeInfo.label}</span>:null}
+                    {typeInfo?<span><CatTag type={typeInfo}/></span>:null}
                   </div>:null
                 ];
               })()}
@@ -4907,7 +4925,7 @@ function App(){
           <div style={{flex:1,overflowY:"auto",padding:16}}>
             {/* Photo - only display if exists */}
             {viewRecipe.photo?<div style={{marginBottom:16}}>
-              <img src={viewRecipe.photo} style={{width:"100%",maxHeight:250,objectFit:"contain",borderRadius:12,background:C.blush}} alt=""/>
+              <img src={viewRecipe.photo} style={{width:"100%",height:220,objectFit:"cover",borderRadius:12,background:C.blush}} alt=""/>
             </div>:null}
             
             {/* Action buttons */}
@@ -5076,7 +5094,7 @@ function App(){
                   {(cookTime || typeInfo)?<div style={{display:"flex",alignItems:"center",gap:10,fontSize:13,color:C.light}}>
                     {cookTime?<span>🕐 {cookTime}</span>:null}
                     {cookTime && typeInfo?<span style={{opacity:.4}}>|</span>:null}
-                    {typeInfo?<span>{typeInfo.icon} {typeInfo.label}</span>:null}
+                    {typeInfo?<span><CatTag type={typeInfo}/></span>:null}
                   </div>:null}
                 </div>
               </div>
@@ -5305,7 +5323,7 @@ function App(){
           <button onClick={function(){setSelDate(null);setEm(null);setEditIdx(null)}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}}>✕</button>
         </div>
         <div style={{position:"relative",marginBottom:12}}>
-          {em.photo?<div style={{position:"relative"}}><img src={em.photo} style={{width:"100%",height:160,objectFit:"contain",background:C.blush,borderRadius:10}} alt=""/><button onClick={function(){fileRef.current&&fileRef.current.click()}} style={Object.assign({},btn("rgba(0,0,0,0.6)"),{position:"absolute",bottom:8,right:8,fontSize:11,padding:"4px 10px"})}>📷</button></div>:<div onClick={function(){fileRef.current&&fileRef.current.click()}} style={{width:"100%",height:120,borderRadius:10,border:"2px dashed #ddd",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",background:"#fafafe"}}><span style={{fontSize:28}}>📷</span><span style={{fontSize:13,opacity:.5,marginTop:4}}>Add photo</span></div>}
+          {em.photo?<div style={{position:"relative"}}><img src={em.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/><button onClick={function(){fileRef.current&&fileRef.current.click()}} style={Object.assign({},btn("rgba(0,0,0,0.6)"),{position:"absolute",bottom:8,right:8,fontSize:11,padding:"4px 10px"})}>📷</button></div>:<div onClick={function(){fileRef.current&&fileRef.current.click()}} style={{width:"100%",height:120,borderRadius:10,border:"2px dashed #ddd",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",background:"#fafafe"}}><span style={{fontSize:28}}>📷</span><span style={{fontSize:13,opacity:.5,marginTop:4}}>Add photo</span></div>}
           <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={function(e){handlePhoto(e,setEm)}}/>
         </div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Name *</label><input style={inp} placeholder="e.g. Mom's Chicken Parm" value={em.name} onChange={function(e){setEm(function(m){return Object.assign({},m,{name:e.target.value})})}}/></div>
@@ -5341,9 +5359,9 @@ function App(){
       {/* ADD RECIPE */}
       {showRF&&<div style={ovl} onClick={function(){setShowRF(false)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontWeight:700,fontSize:17}}>Add Recipe</div><button onClick={function(){setShowRF(false)}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}}>✕</button></div>
-        <div style={{marginBottom:12}}>{rf.photo?<img src={rf.photo} style={{width:"100%",height:160,objectFit:"contain",background:C.blush,borderRadius:10}} alt=""/>:<div onClick={function(){rfRef.current&&rfRef.current.click()}} style={{width:"100%",height:100,borderRadius:10,border:"2px dashed #ddd",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><span style={{fontSize:28}}>📷</span></div>}<input ref={rfRef} type="file" accept="image/*" style={{display:"none"}} onChange={function(e){handlePhoto(e,setRf)}}/></div>
+        <div style={{marginBottom:12}}>{rf.photo?<img src={rf.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/>:<div onClick={function(){rfRef.current&&rfRef.current.click()}} style={{width:"100%",height:100,borderRadius:10,border:"2px dashed #ddd",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><span style={{fontSize:28}}>📷</span></div>}<input ref={rfRef} type="file" accept="image/*" style={{display:"none"}} onChange={function(e){handlePhoto(e,setRf)}}/></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Name *</label><input style={inp} value={rf.name} onChange={function(e){setRf(function(m){return Object.assign({},m,{name:e.target.value})})}}/></div>
-        <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Category <span style={{color:"#c0392b"}}>*</span></label><div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=rf.recipeType===t.id;return <button key={t.id} onClick={function(){setRf(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"4px 8px",borderRadius:8,border:active?"2px solid "+C.dark:"1px solid #eee",background:active?C.blushMed:"#fff",cursor:"pointer",fontSize:11,fontWeight:600}}>{t.icon} {t.label}</button>})}</div></div>
+        <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Category <span style={{color:"#c0392b"}}>*</span></label><div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=rf.recipeType===t.id;return <button key={t.id} onClick={function(){setRf(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"4px 8px",borderRadius:8,border:active?"2px solid "+C.dark:"1px solid #eee",background:active?C.blushMed:"#fff",cursor:"pointer",fontSize:11,fontWeight:600}}><CatTag type={t}/></button>})}</div></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Time</label><input style={inp} value={rf.time} onChange={function(e){setRf(function(m){return Object.assign({},m,{time:e.target.value})})}}/></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Ingredients</label>
           {rf.ingredients.map(function(g,i){return <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",fontSize:13}}><span style={{flex:1}}>{formatIng(g)}</span><button onClick={function(){setRf(function(m){return Object.assign({},m,{ingredients:m.ingredients.filter(function(_,j){return j!==i})})})}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4}}>✕</button></div>})}
@@ -5377,9 +5395,9 @@ function App(){
       {/* EDIT RECIPE */}
       {editRecipe&&<div style={ovl} onClick={function(){setEditRecipe(null)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontWeight:700,fontSize:17}}>Edit Recipe</div><button onClick={function(){setEditRecipe(null)}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}}>✕</button></div>
-        <div style={{marginBottom:12}}>{editRecipe.photo?<div style={{position:"relative"}}><img src={editRecipe.photo} style={{width:"100%",height:160,objectFit:"contain",background:C.blush,borderRadius:10}} alt=""/><button onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){setEditRecipe(function(m){return Object.assign({},m,{photo:e.target.result})})};rd.readAsDataURL(f)};inp.click()}} style={Object.assign({},btn("rgba(0,0,0,0.6)"),{position:"absolute",bottom:8,right:8,fontSize:11,padding:"4px 10px"})}>📷</button></div>:<div onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){setEditRecipe(function(m){return Object.assign({},m,{photo:e.target.result})})};rd.readAsDataURL(f)};inp.click()}} style={{width:"100%",height:100,borderRadius:10,border:"2px dashed #ddd",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><span style={{fontSize:28}}>📷</span></div>}</div>
+        <div style={{marginBottom:12}}>{editRecipe.photo?<div style={{position:"relative"}}><img src={editRecipe.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/><button onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){setEditRecipe(function(m){return Object.assign({},m,{photo:e.target.result})})};rd.readAsDataURL(f)};inp.click()}} style={Object.assign({},btn("rgba(0,0,0,0.6)"),{position:"absolute",bottom:8,right:8,fontSize:11,padding:"4px 10px"})}>📷</button></div>:<div onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){setEditRecipe(function(m){return Object.assign({},m,{photo:e.target.result})})};rd.readAsDataURL(f)};inp.click()}} style={{width:"100%",height:100,borderRadius:10,border:"2px dashed #ddd",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><span style={{fontSize:28}}>📷</span></div>}</div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Name *</label><input style={inp} value={editRecipe.name} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{name:e.target.value})})}}/></div>
-        <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Category <span style={{color:"#c0392b"}}>*</span></label><div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=editRecipe.recipeType===t.id;return <button key={t.id} onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"4px 8px",borderRadius:8,border:active?"2px solid "+C.dark:"1px solid #eee",background:active?C.blushMed:"#fff",cursor:"pointer",fontSize:11,fontWeight:600}}>{t.icon} {t.label}</button>})}</div></div>
+        <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Category <span style={{color:"#c0392b"}}>*</span></label><div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=editRecipe.recipeType===t.id;return <button key={t.id} onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"4px 8px",borderRadius:8,border:active?"2px solid "+C.dark:"1px solid #eee",background:active?C.blushMed:"#fff",cursor:"pointer",fontSize:11,fontWeight:600}}><CatTag type={t}/></button>})}</div></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Time</label><input style={inp} value={editRecipe.time} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{time:e.target.value})})}}/></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Ingredients</label>
           {editRecipe.ingredients.map(function(g,i){
@@ -5455,7 +5473,7 @@ function App(){
       {/* RECIPE TO CALENDAR */}
       {r2cal&&<div style={ovl} onClick={function(){setR2cal(null)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontWeight:700,fontSize:17}}>📅 Add to Calendar</div><button onClick={function(){setR2cal(null)}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}}>✕</button></div>
-        <div style={{display:"flex",alignItems:"center",gap:10,padding:12,background:C.blush,borderRadius:10,marginBottom:16}}>{r2cal.photo?<img src={r2cal.photo} style={{width:48,height:48,borderRadius:10,objectFit:"contain",background:C.blush}} alt=""/>:<span style={{fontSize:32}}>{r2cal.emoji}</span>}<div><div style={{fontWeight:700,fontSize:15}}>{r2cal.name}</div></div></div>
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:12,background:C.blush,borderRadius:10,marginBottom:16}}>{r2cal.photo?<img src={r2cal.photo} style={{width:48,height:48,borderRadius:10,objectFit:"cover",background:C.blush}} alt=""/>:<span style={{fontSize:32}}>{r2cal.emoji}</span>}<div><div style={{fontWeight:700,fontSize:15}}>{r2cal.name}</div></div></div>
         <div style={{fontWeight:600,fontSize:13,marginBottom:8}}>This week</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:16}}>
           {wd.map(function(date,i){var k=dk(date),isT=k===todayK,hm=meals[k];return <button key={k} onClick={function(){var u=Object.assign({},meals);var list=getMealsForDay(k).slice();list.push({name:r2cal.name,emoji:r2cal.emoji,time:r2cal.time,ingredients:(r2cal.ingredients||[]).slice(),notes:r2cal.notes||"",photo:r2cal.photo||null});u[k]=list;svM(u);setR2cal(null)}} style={{padding:10,borderRadius:10,border:isT?"2px solid "+C.dark:"1px solid "+C.bdr,background:hm?C.blushMed:C.card,cursor:"pointer",textAlign:"center"}}><div style={{fontSize:11,fontWeight:700,color:C.light}}>{DAYS_FULL[i].slice(0,3)}</div><div style={{fontSize:16,fontWeight:800,color:isT?C.dark:"#8B7355"}}>{date.getDate()}</div>{hm?<div style={{fontSize:9,color:C.blushDark}}>has meal</div>:null}</button>})}
