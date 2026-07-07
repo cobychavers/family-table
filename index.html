@@ -4017,6 +4017,17 @@ function App(){
     reader.readAsDataURL(file);
   }
 
+  // A chat reply is only "save"-able once it's ONE fully detailed recipe (numbered
+  // steps + quantities), not a menu of 2-4 bolded idea names with one-line blurbs.
+  function chefReplyIsFullRecipe(text){
+    if(!text)return false;
+    var boldCount=(text.match(/\*\*/g)||[]).length/2;
+    if(boldCount>1)return false; // multiple bolded names = an idea list, not one recipe
+    var hasNumberedSteps=/(^|\n)\s*\d+\.\s/.test(text);
+    var hasQtyLine=/(^|\n)\s*[-•]?\s*\d+(\/\d+)?\s*(cup|cups|tbsp|tsp|oz|lb|g|kg|ml|clove|cloves)?\b/i.test(text);
+    return hasNumberedSteps&&hasQtyLine;
+  }
+
   // Chef chat: recipe-idea brainstorming
   function sendChefMessage(text){
     if(!text||!text.trim())return;
@@ -5111,7 +5122,7 @@ function App(){
                 <div style={{maxWidth:"85%"}}>
                   {m.role==="assistant"?<div style={{display:"flex",alignItems:"center",gap:5,marginBottom:5}}><Icon name="sparkle" size={11} color={C.gold} strokeWidth={2}/><span style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.5}}>AI Chef</span></div>:null}
                   <div style={{padding:"11px 14px",borderRadius:14,background:m.role==="user"?C.dark:"#fff",color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.5,boxShadow:m.role==="user"?"none":C.shadowSm,whiteSpace:"pre-wrap"}}>{m.text}</div>
-                  {m.role==="assistant"?<button onClick={function(){saveChefIdeaAsRecipe(m.text)}} disabled={chefLoading} style={{marginTop:6,background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.gold,cursor:chefLoading?"default":"pointer"}}>Save as Recipe</button>:null}
+                  {m.role==="assistant"&&chefReplyIsFullRecipe(m.text)?<button onClick={function(){saveChefIdeaAsRecipe(m.text)}} disabled={chefLoading} style={{marginTop:6,background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.gold,cursor:chefLoading?"default":"pointer"}}>Save as Recipe</button>:null}
                 </div>
               </div>
             })}
