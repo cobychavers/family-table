@@ -2055,8 +2055,6 @@ function App(){
   var [groceryHidden,setGroceryHidden]=useState({});
   var [showProfileMenu,setShowProfileMenu]=useState(false);
   var [showChangePassword,setShowChangePassword]=useState(false);
-  var [showFixAttribution,setShowFixAttribution]=useState(false);
-  var [fixAttributionChoices,setFixAttributionChoices]=useState({});
   var [showEditProfile,setShowEditProfile]=useState(false);
   var [currentPassword,setCurrentPassword]=useState("");
   var [newPassword,setNewPassword]=useState("");
@@ -3277,44 +3275,6 @@ function App(){
     }catch(e){}
   }
 
-  function applyAttributionFixes(){
-    var changes = 0;
-    var deletes = [];
-    var updated = recipes.map(function(r){
-      var c = fixAttributionChoices[r.id];
-      if(!c || !c.type) return r;
-      if(c.type==="delete"){ deletes.push(r.id); return null; }
-      var copy = Object.assign({},r);
-      if(c.type==="mine"){
-        copy.originalOwner = userId;
-        copy.savedBy = userId;
-        delete copy.savedFrom;
-        if(!copy.recipeId) copy.recipeId = genRecipeId(userId);
-        if(!copy.originalCreatedAt) copy.originalCreatedAt = copy.createdAt || copy.id || Date.now();
-      } else if(c.type==="saved" && c.savedFrom && c.savedFrom.trim()){
-        var src = c.savedFrom.trim().replace(/^@/,"");
-        copy.originalOwner = src;
-        copy.savedBy = userId;
-        copy.savedFrom = src;
-        if(!copy.recipeId) copy.recipeId = genRecipeId(src);
-        if(!copy.originalCreatedAt) copy.originalCreatedAt = copy.createdAt || copy.id || Date.now();
-      } else {
-        return r;
-      }
-      changes++;
-      return copy;
-    }).filter(function(r){return r!==null});
-    if(changes+deletes.length===0){alert("Pick at least one option for a recipe.");return;}
-    deletes.forEach(function(rid){
-      window.storage.delete("dm_recipe_"+userId.toLowerCase()+"_"+rid, true).catch(function(){});
-    });
-    setRecipes(updated);
-    saveRecipesIndividually(updated);
-    setShowFixAttribution(false);
-    setFixAttributionChoices({});
-    alert("Fixed "+changes+" recipe(s)"+(deletes.length?", deleted "+deletes.length:"")+".");
-  }
-
   function handleLogout(){
     // Sign out of Firebase Auth
     if(auth){
@@ -4144,9 +4104,6 @@ function App(){
                   <button onClick={function(){setShowChangePassword(true);setShowProfileMenu(false)}} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:500,color:C.dark,display:"flex",alignItems:"center",gap:8}}>
                     <span>🔒</span> Change Password
                   </button>
-                  <button onClick={function(){setShowFixAttribution(true);setShowProfileMenu(false);setFixAttributionChoices({})}} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:500,color:C.dark,display:"flex",alignItems:"center",gap:8}}>
-                    <span>🔧</span> Fix Recipe Attribution
-                  </button>
                   <div style={{height:1,background:C.bdr,margin:"4px 0"}}/>
                   <div style={{padding:"10px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -4214,37 +4171,6 @@ function App(){
           </button>
         })}
       </div>
-
-      {/* FIX RECIPE ATTRIBUTION MODAL */}
-      {showFixAttribution?<div style={ovl} onClick={function(){setShowFixAttribution(false)}}>
-        <div style={Object.assign({},mdl,{maxWidth:560,maxHeight:"85vh",display:"flex",flexDirection:"column"})} onClick={function(e){e.stopPropagation()}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,paddingBottom:10,borderBottom:"1px solid "+C.bdr}}>
-            <div style={{fontWeight:700,fontSize:17,color:C.dark}}>🔧 Fix Recipe Attribution</div>
-            <button onClick={function(){setShowFixAttribution(false)}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}}>✕</button>
-          </div>
-          <div style={{fontSize:12,color:C.light,marginBottom:12,lineHeight:1.5}}>
-            For each recipe, tell us if you created it or saved it from someone else.
-          </div>
-          <div style={{overflowY:"auto",flex:1,margin:"0 -8px",padding:"0 8px"}}>
-            {recipes.length===0?<div style={{textAlign:"center",padding:30,color:C.light}}>No recipes yet</div>:recipes.map(function(r){
-              var choice = fixAttributionChoices[r.id] || {type:"",savedFrom:""};
-              return <div key={r.id} style={{background:C.blush,borderRadius:10,padding:12,marginBottom:10}}>
-                <div style={{fontWeight:600,fontSize:14,color:C.dark,marginBottom:4}}>{r.name}</div>
-                <div style={{fontSize:11,color:C.light,marginBottom:10}}>Currently: <strong>@{r.originalOwner||"unknown"}</strong>{r.savedFrom?" · saved from @"+r.savedFrom:""}</div>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:choice.type==="saved"?8:0}}>
-                  <button onClick={function(){var next=Object.assign({},fixAttributionChoices);next[r.id]={type:"mine",savedFrom:""};setFixAttributionChoices(next)}} style={{padding:"6px 10px",borderRadius:6,border:choice.type==="mine"?"2px solid "+C.dark:"1px solid "+C.bdr,background:choice.type==="mine"?C.blushMed:"#fff",cursor:"pointer",fontSize:12,color:C.dark}}>✅ I created this</button>
-                  <button onClick={function(){var next=Object.assign({},fixAttributionChoices);next[r.id]={type:"saved",savedFrom:r.savedFrom||""};setFixAttributionChoices(next)}} style={{padding:"6px 10px",borderRadius:6,border:choice.type==="saved"?"2px solid "+C.dark:"1px solid "+C.bdr,background:choice.type==="saved"?C.blushMed:"#fff",cursor:"pointer",fontSize:12,color:C.dark}}>📥 Saved from...</button>
-                  <button onClick={function(){var next=Object.assign({},fixAttributionChoices);next[r.id]={type:"delete",savedFrom:""};setFixAttributionChoices(next)}} style={{padding:"6px 10px",borderRadius:6,border:choice.type==="delete"?"2px solid #c0392b":"1px solid "+C.bdr,background:choice.type==="delete"?"#fce4e2":"#fff",cursor:"pointer",fontSize:12,color:choice.type==="delete"?"#c0392b":C.dark}}>🗑️ Delete</button>
-                </div>
-                {choice.type==="saved"?<input type="text" value={choice.savedFrom} placeholder="Username (without @)" onChange={function(e){var next=Object.assign({},fixAttributionChoices);next[r.id]={type:"saved",savedFrom:e.target.value};setFixAttributionChoices(next)}} style={{width:"100%",padding:"7px 10px",borderRadius:6,border:"1px solid "+C.bdr,fontSize:12,boxSizing:"border-box"}}/>:null}
-              </div>;
-            })}
-          </div>
-          <div style={{paddingTop:12,borderTop:"1px solid "+C.bdr,marginTop:12}}>
-            <button onClick={applyAttributionFixes} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:14,cursor:"pointer"}}>Save Changes</button>
-          </div>
-        </div>
-      </div>:null}
 
       {/* CHANGE PASSWORD MODAL */}
       {showChangePassword&&<div style={ovl} onClick={function(){setShowChangePassword(false);setCurrentPassword("");setNewPassword("");setConfirmNewPassword("");setPasswordError("");setPasswordSuccess("")}}><div style={Object.assign({},mdl,{maxWidth:380})} onClick={function(e){e.stopPropagation()}}>
