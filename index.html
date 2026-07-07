@@ -4514,8 +4514,8 @@ function App(){
               var cookTime = shortTime(recipe.time);
               return <div key={recipe.id} onClick={function(){setViewFriendRecipe(Object.assign({},recipe,{ownerUsername:viewProfileUser,ownerProfilePic:viewProfileData?viewProfileData.profilePic:null}))}} style={{background:"#fff",borderRadius:20,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
                 {/* Hero image with heart */}
-                <div style={{position:"relative",width:"100%",height:200,background:C.blush}}>
-                  {recipe.photo?<img src={recipe.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:60}}>🍽️</div>}
+                <div style={{position:"relative",width:"100%",height:recipe.photo?200:56,background:C.blush}}>
+                  {recipe.photo?<img src={recipe.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:null}
                   <button onClick={function(e){
                     e.stopPropagation();
                     if(alreadySaved){
@@ -4939,8 +4939,8 @@ function App(){
         }).map(function(r){var rtype=r.recipeType||detectRecipeType(r);var typeInfo=RECIPE_TYPES.find(function(t){return t.id===rtype})||RECIPE_TYPES[RECIPE_TYPES.length-1];var isFav=favorites.includes(r.id);var isPrivate=r.isPublic===false;return(
           <div key={r.id} style={{background:"#fff",borderRadius:20,border:"none",marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}}>
             {/* Hero image */}
-            <div style={{position:"relative",width:"100%",height:200,background:C.blush}}>
-              {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:60}}>🍽️</div>}
+            <div style={{position:"relative",width:"100%",height:r.photo?200:56,background:C.blush}}>
+              {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:null}
               {/* Privacy badge - top left only if private */}
               {isPrivate?<div style={{position:"absolute",top:14,left:14,background:"rgba(0,0,0,0.75)",borderRadius:20,padding:"6px 12px",fontSize:10,fontWeight:600,color:"#fff"}}>🔒 Private</div>:null}
             </div>
@@ -5158,8 +5158,8 @@ function App(){
               
               return <div key={r.id} onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}} style={{background:"#fff",borderRadius:20,marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
                 {/* Hero image with heart save button overlaid */}
-                <div style={{position:"relative",width:"100%",height:200,background:C.blush}}>
-                  {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:60}}>🍽️</div>}
+                <div style={{position:"relative",width:"100%",height:r.photo?200:56,background:C.blush}}>
+                  {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:null}
                   {user?<button onClick={function(e){
                     e.stopPropagation();
                     if(alreadySaved){
