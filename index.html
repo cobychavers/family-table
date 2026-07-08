@@ -315,7 +315,30 @@ function Icon(p){
     React.createElement("line",{x1:5,y1:12,x2:19,y2:12})
   );
   if(name==="heart")return React.createElement("svg",cp,
-    React.createElement("path",{d:"M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"})
+    React.createElement("path",{d:"M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z",fill:p.filled?color:"none"})
+  );
+  if(name==="pencil")return React.createElement("svg",cp,
+    React.createElement("path",{d:"M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"})
+  );
+  if(name==="trash")return React.createElement("svg",cp,
+    React.createElement("polyline",{points:"3 6 5 6 21 6"}),
+    React.createElement("path",{d:"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"}),
+    React.createElement("line",{x1:10,y1:11,x2:10,y2:17}),
+    React.createElement("line",{x1:14,y1:11,x2:14,y2:17})
+  );
+  if(name==="list")return React.createElement("svg",cp,
+    React.createElement("line",{x1:8,y1:6,x2:21,y2:6}),
+    React.createElement("line",{x1:8,y1:12,x2:21,y2:12}),
+    React.createElement("line",{x1:8,y1:18,x2:21,y2:18}),
+    React.createElement("line",{x1:3,y1:6,x2:3.01,y2:6}),
+    React.createElement("line",{x1:3,y1:12,x2:3.01,y2:12}),
+    React.createElement("line",{x1:3,y1:18,x2:3.01,y2:18})
+  );
+  if(name==="filetext")return React.createElement("svg",cp,
+    React.createElement("path",{d:"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"}),
+    React.createElement("polyline",{points:"14 2 14 8 20 8"}),
+    React.createElement("line",{x1:16,y1:13,x2:8,y2:13}),
+    React.createElement("line",{x1:16,y1:17,x2:8,y2:17})
   );
   if(name==="sparkle")return React.createElement("svg",cp,
     React.createElement("path",{d:"M12 3 L13.8 9.2 L20 11 L13.8 12.8 L12 19 L10.2 12.8 L4 11 L10.2 9.2 Z",fill:color,stroke:"none"})
@@ -4597,7 +4620,7 @@ function App(){
                       var newRecipes=recipes.concat([newRecipe]);
                       svR(newRecipes);
                     }
-                  }} style={{position:"absolute",top:12,right:12,width:40,height:40,borderRadius:20,border:"none",background:"rgba(255,255,255,0.92)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:"0 2px 6px rgba(0,0,0,0.1)"}}>{alreadySaved?"❤️":"🤍"}</button>
+                  }} style={{position:"absolute",top:12,right:12,width:40,height:40,borderRadius:20,border:"none",background:"rgba(255,255,255,0.92)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.1)"}}><Icon name="heart" size={17} color={alreadySaved?"#c0392b":"#3A2A1D"} strokeWidth={2} filled={alreadySaved}/></button>
                 </div>
                 {/* Content */}
                 <div style={{padding:"14px 20px 18px"}}>
@@ -5055,39 +5078,39 @@ function App(){
             
             {/* Action buttons */}
             <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:20}}>
-              <button onClick={function(){toggleFavorite(viewRecipe.id)}} style={{padding:"10px 16px",borderRadius:25,border:"none",background:favorites.includes(viewRecipe.id)?C.blush:"#f5f5f5",cursor:"pointer",fontSize:13,fontWeight:600,color:favorites.includes(viewRecipe.id)?"#c0392b":C.dark}}>{favorites.includes(viewRecipe.id)?"❤️":"🤍"} Save</button>
-              <button onClick={function(){setR2cal(viewRecipe);setR2date("");setViewRecipe(null)}} style={{padding:"10px 16px",borderRadius:25,border:"none",background:"#f5f5f5",cursor:"pointer",fontSize:13,fontWeight:600,color:C.dark}}>📅 Plan</button>
-              <button onClick={function(){setShareR(viewRecipe);setViewRecipe(null)}} style={{padding:"10px 16px",borderRadius:25,border:"none",background:"#f5f5f5",cursor:"pointer",fontSize:13,fontWeight:600,color:C.dark}}>📤 Share</button>
-              {(!viewRecipe.ownerUsername && viewRecipe.originalOwner && viewRecipe.originalOwner.toLowerCase()===userId.toLowerCase() && (!viewRecipe.savedBy || viewRecipe.savedBy.toLowerCase()===userId.toLowerCase()) && !viewRecipe.savedFrom)?<button onClick={function(){setEditRecipe(Object.assign({},viewRecipe,{ingredients:viewRecipe.ingredients.slice()}));setEditRecipeIng("");setEditRecipeQty("");setEditRecipeUnit("");setEditIngIdx(-1);setViewRecipe(null)}} style={{padding:"10px 14px",borderRadius:25,border:"none",background:"#f5f5f5",cursor:"pointer",fontSize:13,color:C.dark}}>✏️</button>:null}
-              {!viewRecipe.ownerUsername?<button onClick={function(){deleteRecipeDoc(viewRecipe.id);svR(recipes.filter(function(x){return x.id!==viewRecipe.id}));svF(favorites.filter(function(id){return id!==viewRecipe.id}));setViewRecipe(null)}} style={{padding:"10px 14px",borderRadius:25,border:"none",background:"#f5f5f5",cursor:"pointer",fontSize:13,color:"#999"}}>🗑️</button>:null}
+              <button onClick={function(){toggleFavorite(viewRecipe.id)}} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 16px",borderRadius:25,border:"none",background:favorites.includes(viewRecipe.id)?C.blush:"#f5f5f5",cursor:"pointer",fontSize:13,fontWeight:600,color:favorites.includes(viewRecipe.id)?"#c0392b":C.ink}}><Icon name="heart" size={14} color={favorites.includes(viewRecipe.id)?"#c0392b":C.dark} strokeWidth={2} filled={favorites.includes(viewRecipe.id)}/> Save</button>
+              <button onClick={function(){setR2cal(viewRecipe);setR2date("");setViewRecipe(null)}} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 16px",borderRadius:25,border:"none",background:"#f5f5f5",cursor:"pointer",fontSize:13,fontWeight:600,color:C.ink}}><Icon name="calendar" size={14} color={C.dark} strokeWidth={2}/> Plan</button>
+              <button onClick={function(){setShareR(viewRecipe);setViewRecipe(null)}} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 16px",borderRadius:25,border:"none",background:"#f5f5f5",cursor:"pointer",fontSize:13,fontWeight:600,color:C.ink}}><Icon name="send" size={14} color={C.dark} strokeWidth={2}/> Share</button>
+              {(!viewRecipe.ownerUsername && viewRecipe.originalOwner && viewRecipe.originalOwner.toLowerCase()===userId.toLowerCase() && (!viewRecipe.savedBy || viewRecipe.savedBy.toLowerCase()===userId.toLowerCase()) && !viewRecipe.savedFrom)?<button onClick={function(){setEditRecipe(Object.assign({},viewRecipe,{ingredients:viewRecipe.ingredients.slice()}));setEditRecipeIng("");setEditRecipeQty("");setEditRecipeUnit("");setEditIngIdx(-1);setViewRecipe(null)}} style={{display:"flex",alignItems:"center",padding:"10px 14px",borderRadius:25,border:"none",background:"#f5f5f5",cursor:"pointer"}}><Icon name="pencil" size={14} color={C.dark} strokeWidth={2}/></button>:null}
+              {!viewRecipe.ownerUsername?<button onClick={function(){deleteRecipeDoc(viewRecipe.id);svR(recipes.filter(function(x){return x.id!==viewRecipe.id}));svF(favorites.filter(function(id){return id!==viewRecipe.id}));setViewRecipe(null)}} style={{display:"flex",alignItems:"center",padding:"10px 14px",borderRadius:25,border:"none",background:"#f5f5f5",cursor:"pointer"}}><Icon name="trash" size={14} color={C.light} strokeWidth={2}/></button>:null}
             </div>
-            
+
             {/* Ingredients - collapsible */}
             {viewRecipe.ingredients&&viewRecipe.ingredients.length>0?<div style={{marginBottom:20}}>
               <div onClick={function(){setViewRecipeHideIng(!viewRecipeHideIng)}} style={{display:"flex",alignItems:"center",gap:8,marginBottom:viewRecipeHideIng?0:12,cursor:"pointer"}}>
-                <div style={{width:28,height:28,borderRadius:14,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🥗</div>
-                <div style={{fontSize:16,fontWeight:700,color:C.dark,letterSpacing:1,textTransform:"uppercase"}}>Ingredients</div>
+                <div style={{width:28,height:28,borderRadius:14,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="list" size={14} color={C.dark} strokeWidth={2}/></div>
+                <div style={{fontSize:16,fontWeight:700,color:C.ink,letterSpacing:1,textTransform:"uppercase"}}>Ingredients</div>
                 <div style={{flex:1,height:1,background:C.bdr}}/>
                 <div style={{fontSize:13,color:C.light,padding:"4px 10px",background:C.blush,borderRadius:8}}>{viewRecipeHideIng?"▼ Show":"▲ Hide"}</div>
               </div>
               {!viewRecipeHideIng?<div style={{background:C.blush,borderRadius:12,padding:14}}>
                 {viewRecipe.ingredients.map(function(g,j){return <div key={j} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:j<viewRecipe.ingredients.length-1?"1px solid "+C.bdr:"none"}}>
                   <div style={{width:6,height:6,borderRadius:3,background:C.blushDark,flexShrink:0}}/>
-                  <span style={{fontSize:17,color:C.dark}}>{formatIng(g)}</span>
+                  <span style={{fontSize:17,color:C.ink}}>{formatIng(g)}</span>
                 </div>})}
               </div>:null}
             </div>:null}
-            
+
             {/* Instructions - collapsible */}
             {viewRecipe.notes?<div style={{marginBottom:20}}>
               <div onClick={function(){setViewRecipeHideInst(!viewRecipeHideInst)}} style={{display:"flex",alignItems:"center",gap:8,marginBottom:viewRecipeHideInst?0:12,cursor:"pointer"}}>
-                <div style={{width:28,height:28,borderRadius:14,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>📝</div>
-                <div style={{fontSize:16,fontWeight:700,color:C.dark,letterSpacing:1,textTransform:"uppercase"}}>Instructions</div>
+                <div style={{width:28,height:28,borderRadius:14,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="filetext" size={14} color={C.dark} strokeWidth={2}/></div>
+                <div style={{fontSize:16,fontWeight:700,color:C.ink,letterSpacing:1,textTransform:"uppercase"}}>Instructions</div>
                 <div style={{flex:1,height:1,background:C.bdr}}/>
                 <div style={{fontSize:13,color:C.light,padding:"4px 10px",background:C.blush,borderRadius:8}}>{viewRecipeHideInst?"▼ Show":"▲ Hide"}</div>
               </div>
               {!viewRecipeHideInst?<div style={{background:C.blush,borderRadius:12,padding:14}}>
-                <div style={{fontSize:17,lineHeight:1.7,color:C.dark,whiteSpace:"pre-wrap"}}>{viewRecipe.notes}</div>
+                <div style={{fontSize:17,lineHeight:1.7,color:C.ink,whiteSpace:"pre-wrap"}}>{viewRecipe.notes}</div>
               </div>:null}
             </div>:null}
             
@@ -5176,7 +5199,7 @@ function App(){
           // Load public recipes when tab is viewed
           if(!publicRecipesLoaded)loadPublicRecipes();
           
-          var RTYPES=[{v:"",l:"All"},{v:"breakfast",l:"🍳 Breakfast"},{v:"chicken",l:"🍗 Chicken"},{v:"beef",l:"🥩 Beef"},{v:"pork",l:"🥓 Pork"},{v:"seafood",l:"🐟 Seafood"},{v:"pasta",l:"🍝 Pasta"},{v:"mexican",l:"🌮 Mexican"},{v:"asian",l:"🥢 Asian"},{v:"soup",l:"🍲 Soup"},{v:"salad",l:"🥗 Salad"},{v:"vegetarian",l:"🥬 Vegetarian"},{v:"dessert",l:"🍰 Dessert"},{v:"other",l:"📝 Other"}];
+          var RTYPES=[{v:"",l:"All"},{v:"breakfast",l:"Breakfast"},{v:"chicken",l:"Chicken"},{v:"beef",l:"Beef"},{v:"pork",l:"Pork"},{v:"seafood",l:"Seafood"},{v:"pasta",l:"Pasta"},{v:"mexican",l:"Mexican"},{v:"asian",l:"Asian"},{v:"soup",l:"Soup"},{v:"salad",l:"Salad"},{v:"vegetarian",l:"Vegetarian"},{v:"dessert",l:"Dessert"},{v:"other",l:"Other"}];
           
           var filtered=publicRecipes.filter(function(r){
             // Don't show my own recipes in Explore (check originalOwner)
@@ -5249,7 +5272,7 @@ function App(){
                       setRecipes(updated);
                       saveRecipesIndividually(updated);
                     }
-                  }} style={{position:"absolute",top:12,right:12,width:40,height:40,borderRadius:20,border:"none",background:"rgba(255,255,255,0.92)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:"0 2px 6px rgba(0,0,0,0.1)"}}>{alreadySaved?"❤️":"🤍"}</button>:null}
+                  }} style={{position:"absolute",top:12,right:12,width:40,height:40,borderRadius:20,border:"none",background:"rgba(255,255,255,0.92)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.1)"}}><Icon name="heart" size={17} color={alreadySaved?"#c0392b":"#3A2A1D"} strokeWidth={2} filled={alreadySaved}/></button>:null}
                 </div>
                 
                 {/* Content section */}
