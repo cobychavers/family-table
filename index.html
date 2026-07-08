@@ -4804,14 +4804,15 @@ function App(){
               
               {/* Meals styled like recipe cards */}
               {mlist.length===0?
-                <div style={{marginLeft:62,background:"#fff",borderRadius:16,padding:"24px 20px",boxShadow:C.shadowMd,textAlign:"center"}}>
-                  <div style={{marginBottom:10,opacity:.3}}><Icon name="calendar" size={26} color={C.dark} strokeWidth={1.25}/></div>
-                  <div style={{fontSize:14,fontWeight:600,color:C.ink,marginBottom:3}}>Nothing planned yet</div>
-                  <div style={{fontSize:12,color:C.light,marginBottom:14}}>Add a recipe, a quick meal, or a placeholder</div>
-                  <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}>
-                    <button onClick={function(){setRpick(k)}} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",borderRadius:20,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}}><Icon name="book" size={13} strokeWidth={2}/> From Recipes</button>
-                    <button onClick={function(){openEdit(k)}} style={{padding:"10px 18px",borderRadius:20,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",color:C.ink,fontSize:12,fontWeight:500}}>+ New Meal</button>
-                    <button onClick={function(){setShowPlaceholder(k)}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:34,height:34,borderRadius:17,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",color:C.dark,flexShrink:0}}><Icon name="tag" size={14} strokeWidth={2}/></button>
+                <div style={{marginLeft:62,background:"#fff",borderRadius:16,padding:"14px 16px",boxShadow:C.shadowMd}}>
+                  <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:10}}>
+                    <Icon name="calendar" size={14} color={C.light} strokeWidth={1.5}/>
+                    <span style={{fontSize:13,color:C.light,fontWeight:500}}>Nothing planned yet</span>
+                  </div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    <button onClick={function(){setRpick(k)}} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:18,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}}><Icon name="book" size={12} strokeWidth={2}/> From Recipes</button>
+                    <button onClick={function(){openEdit(k)}} style={{padding:"8px 16px",borderRadius:18,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",color:C.ink,fontSize:12,fontWeight:500}}>+ New Meal</button>
+                    <button onClick={function(){setShowPlaceholder(k)}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,borderRadius:15,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",color:C.dark,flexShrink:0}}><Icon name="tag" size={13} strokeWidth={2}/></button>
                   </div>
                 </div>
               :
@@ -4933,14 +4934,15 @@ function App(){
             </div>
             
             {getMealsForDay(selectedCalDate).length===0?
-              <div style={{background:"#fff",borderRadius:16,padding:"28px 24px",boxShadow:C.shadowMd,textAlign:"center"}}>
-                <div style={{marginBottom:10,opacity:.3}}><Icon name="calendar" size={26} color={C.dark} strokeWidth={1.25}/></div>
-                <div style={{fontSize:14,fontWeight:600,color:C.ink,marginBottom:3}}>Nothing planned yet</div>
-                <div style={{fontSize:12,color:C.light,marginBottom:16}}>Add a recipe, a quick meal, or a placeholder</div>
-                <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}>
-                  <button onClick={function(){setRpick(selectedCalDate)}} style={{display:"flex",alignItems:"center",gap:6,padding:"12px 20px",borderRadius:20,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:600}}><Icon name="book" size={13} strokeWidth={2}/> From Recipes</button>
-                  <button onClick={function(){openEdit(selectedCalDate)}} style={{padding:"12px 20px",borderRadius:20,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",color:C.ink,fontSize:13,fontWeight:500}}>+ New Meal</button>
-                  <button onClick={function(){setShowPlaceholder(selectedCalDate)}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:38,height:38,borderRadius:19,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",color:C.dark,flexShrink:0}}><Icon name="tag" size={15} strokeWidth={2}/></button>
+              <div style={{background:"#fff",borderRadius:16,padding:"16px 18px",boxShadow:C.shadowMd}}>
+                <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:12}}>
+                  <Icon name="calendar" size={15} color={C.light} strokeWidth={1.5}/>
+                  <span style={{fontSize:13,color:C.light,fontWeight:500}}>Nothing planned yet</span>
+                </div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <button onClick={function(){setRpick(selectedCalDate)}} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 18px",borderRadius:18,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}}><Icon name="book" size={12} strokeWidth={2}/> From Recipes</button>
+                  <button onClick={function(){openEdit(selectedCalDate)}} style={{padding:"9px 18px",borderRadius:18,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",color:C.ink,fontSize:12,fontWeight:500}}>+ New Meal</button>
+                  <button onClick={function(){setShowPlaceholder(selectedCalDate)}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:16,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",color:C.dark,flexShrink:0}}><Icon name="tag" size={13} strokeWidth={2}/></button>
                 </div>
               </div>
             :
