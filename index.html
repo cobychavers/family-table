@@ -4349,7 +4349,7 @@ function App(){
       <div style={{fontSize:12,opacity:.5,textAlign:"center",marginBottom:12,fontStyle:"italic"}}>Plan Meals · Save Recipes · Streamline Shopping · Share What You Love</div>
 
       {/* If not signed in, show sign-in prompt instead of app content */}
-      {!user?<div style={{textAlign:"center",padding:"24px",minHeight:"calc(100vh - 170px)",display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center"}}>
+      {!user?<div style={{textAlign:"center",padding:"24px 24px 0"}}>
         <button onClick={function(){setShowAuth(true)}} style={{padding:"15px 44px",borderRadius:12,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:15,cursor:"pointer",boxShadow:C.shadowMd}}>Sign In / Create Account</button>
       </div>:
       
