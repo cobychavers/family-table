@@ -347,6 +347,9 @@ function Icon(p){
     React.createElement("line",{x1:22,y1:2,x2:11,y2:13}),
     React.createElement("polygon",{points:"22 2 15 22 11 13 2 9 22 2"})
   );
+  if(name==="folder")return React.createElement("svg",cp,
+    React.createElement("path",{d:"M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"})
+  );
   if(name==="camera")return React.createElement("svg",cp,
     React.createElement("path",{d:"M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"}),
     React.createElement("circle",{cx:12,cy:13,r:4})
@@ -4975,7 +4978,7 @@ function App(){
         </div>:null}
         
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,position:"relative"}}>
-          <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:19,color:C.ink}}>📖 My Recipes ({recipes.length})</div>
+          <div style={{fontWeight:700,fontSize:16,letterSpacing:.3,color:C.ink}}>My Recipes ({recipes.length})</div>
           <div style={{position:"relative"}}>
             <button onClick={function(){setShowRecipePlusMenu(!showRecipePlusMenu)}} style={{padding:"7px 14px",borderRadius:8,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>+ Add</button>
             {showRecipePlusMenu?<div style={{position:"absolute",top:40,right:0,background:"#fff",borderRadius:10,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,minWidth:180,zIndex:50,overflow:"hidden"}}>
@@ -4990,9 +4993,9 @@ function App(){
         <div style={{marginBottom:12}}>
           <button onClick={function(){setShowCategories(!showCategories)}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"10px 14px",borderRadius:12,border:"1px solid "+C.bdr,background:C.blush,cursor:"pointer"}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <span style={{fontSize:14}}>📁</span>
-              <span style={{fontWeight:600,fontSize:14,color:C.dark}}>
-                {recipeFilter==="all"?"All Recipes":RECIPE_TYPES.find(function(t){return t.id===recipeFilter})?.icon+" "+RECIPE_TYPES.find(function(t){return t.id===recipeFilter})?.label}
+              <Icon name="folder" size={14} color={C.dark} strokeWidth={1.75}/>
+              <span style={{fontWeight:600,fontSize:14,color:C.ink}}>
+                {recipeFilter==="all"?"All Recipes":<CatTag type={RECIPE_TYPES.find(function(t){return t.id===recipeFilter})}/>}
               </span>
               {recipeFilter!=="all"?<span style={{fontSize:12,color:C.light}}>({recipes.filter(function(r){
                 if(recipeFilter==="favorites")return favorites.includes(r.id);
