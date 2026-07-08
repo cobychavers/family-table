@@ -5555,7 +5555,7 @@ function App(){
       {/* ADD PLACEHOLDER MODAL */}
       {showPlaceholder?<div style={ovl} onClick={function(){setShowPlaceholder(null);setPlaceholderText("")}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:19,color:C.ink}}><Icon name="tag" size={16} color={C.dark} strokeWidth={1.75}/> Add a Placeholder</div>
+          <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16,color:C.ink}}><Icon name="tag" size={15} color={C.dark} strokeWidth={1.75}/> Add a Placeholder</div>
           <button onClick={function(){setShowPlaceholder(null);setPlaceholderText("")}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}}>✕</button>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
