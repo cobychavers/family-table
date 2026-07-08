@@ -1628,11 +1628,10 @@ function GroceryTab(p){
       },
         React.createElement("button",{onClick:function(){tog(it.id)},style:{width:24,height:24,borderRadius:6,border:ic?"none":"1.5px solid "+C.blushDeep,background:ic?C.dark:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,color:"#fff"}},ic?"✓":""),
         React.createElement("button",{onClick:function(){setPickStore(pickStore===it.id?null:it.id)},style:{width:26,height:26,borderRadius:6,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}},renderStoreIcon(st,16)),
-        React.createElement("div",{style:{flex:1,minWidth:0}},
-          React.createElement("span",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{fontSize:15,color:C.ink,textDecoration:ic?"line-through":"none",fontWeight:500,cursor:"pointer",display:"block"}},display),
+        React.createElement("div",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{flex:1,minWidth:0,cursor:"pointer"}},
+          React.createElement("span",{style:{fontSize:15,color:C.ink,textDecoration:ic?"line-through":"none",fontWeight:500,display:"block"}},display),
           it.source==="generated"&&it.mealName?React.createElement("span",{style:{fontSize:12,color:C.light}},it.mealName):null
-        ),
-        React.createElement("button",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{background:"none",border:"none",fontSize:14,cursor:"pointer",opacity:.35,padding:4}},"✏️")
+        )
       )
     );
   }
