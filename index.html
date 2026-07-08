@@ -5047,8 +5047,7 @@ function App(){
           {showCategories?<div style={{background:"#fff",borderRadius:12,border:"1px solid "+C.bdr,marginTop:8,padding:8,boxShadow:C.shadowMd}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
               {RECIPE_TYPES.filter(function(t){
-                if(t.id==="all")return true;
-                if(t.id==="favorites")return recipes.some(function(r){return favorites.includes(r.id)});
+                if(t.id==="all"||t.id==="favorites")return true;
                 return recipes.some(function(r){return(r.recipeType||detectRecipeType(r))===t.id});
               }).map(function(t){
                 var active=recipeFilter===t.id;
