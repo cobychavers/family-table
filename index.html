@@ -4349,11 +4349,13 @@ function App(){
       <div style={{fontSize:12,opacity:.5,textAlign:"center",marginBottom:12,fontStyle:"italic"}}>Plan Meals · Save Recipes · Streamline Shopping · Share What You Love</div>
 
       {/* If not signed in, show sign-in prompt instead of app content */}
-      {!user?<div style={{textAlign:"center",padding:"60px 20px"}}>
-        <div style={{fontSize:64,marginBottom:20}}>🍽️</div>
-        <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:26,fontWeight:700,color:C.ink,marginBottom:12}}>Welcome to The Family Table</div>
-        <div style={{fontSize:15,color:C.light,marginBottom:32,maxWidth:320,margin:"0 auto 32px"}}>Plan meals, save recipes, and share with family & friends</div>
-        <button onClick={function(){setShowAuth(true)}} style={{padding:"16px 48px",borderRadius:12,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:16,cursor:"pointer",marginBottom:16}}>Sign In / Create Account</button>
+      {!user?<div style={{textAlign:"center",padding:"52px 24px"}}>
+        <div style={{width:58,height:58,borderRadius:29,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 26px",boxShadow:C.shadowMd}}>
+          <Icon name="sparkle" size={23} color={C.gold} strokeWidth={1.5}/>
+        </div>
+        <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:25,fontWeight:700,color:C.ink,marginBottom:10}}>Ready when you are</div>
+        <div style={{fontSize:14,color:C.light,marginBottom:32,maxWidth:290,margin:"0 auto 32px",lineHeight:1.6}}>Sign in to plan meals, save recipes, and share what you love with family & friends.</div>
+        <button onClick={function(){setShowAuth(true)}} style={{padding:"15px 44px",borderRadius:12,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:15,cursor:"pointer",boxShadow:C.shadowMd}}>Sign In / Create Account</button>
       </div>:
       
       /* Logged in - show tabs and content */
