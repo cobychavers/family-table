@@ -5138,7 +5138,7 @@ function App(){
             <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:6}}>What should we cook?</div>
             <div style={{fontSize:13,color:C.light,marginBottom:22,maxWidth:280,margin:"0 auto 22px"}}>Tell me what's in your fridge, or what you're in the mood for.</div>
             <div style={{display:"flex",flexDirection:"column",gap:8,maxWidth:340,margin:"0 auto"}}>
-              {["What can I make with what I have?","Something quick and easy tonight","Surprise me with an idea"].map(function(sug){
+              {["What can I make with what I have?","Something quick and easy tonight","Kid-friendly dinner ideas","Surprise me with an idea"].map(function(sug){
                 return <button key={sug} onClick={function(){sendChefMessage(sug)}} style={{padding:"12px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:"#fff",color:C.ink,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",boxShadow:C.shadowSm}}>{sug}</button>
               })}
             </div>
@@ -5161,7 +5161,7 @@ function App(){
         }
 
         <div style={{display:"flex",gap:8}}>
-          <input value={chefInput} onChange={function(e){setChefInput(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter"&&!chefLoading&&chefInput.trim())sendChefMessage(chefInput)}} placeholder="What's in your kitchen?" style={Object.assign({},inp,{flex:1})} disabled={chefLoading}/>
+          <input value={chefInput} onChange={function(e){setChefInput(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter"&&!chefLoading&&chefInput.trim())sendChefMessage(chefInput)}} style={Object.assign({},inp,{flex:1})} disabled={chefLoading}/>
           <button onClick={function(){sendChefMessage(chefInput)}} disabled={chefLoading||!chefInput.trim()} style={{width:44,height:44,borderRadius:10,border:"none",background:(chefLoading||!chefInput.trim())?C.blushDeep:C.dark,color:"#fff",cursor:(chefLoading||!chefInput.trim())?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="send" size={18} strokeWidth={2}/></button>
         </div>
       </div>}
