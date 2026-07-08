@@ -337,6 +337,17 @@ function Icon(p){
     React.createElement("polyline",{points:"16 17 21 12 16 7"}),
     React.createElement("line",{x1:21,y1:12,x2:9,y2:12})
   );
+  if(name==="mail")return React.createElement("svg",cp,
+    React.createElement("path",{d:"M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"}),
+    React.createElement("polyline",{points:"22 6 12 13 2 6"})
+  );
+  if(name==="x")return React.createElement("svg",cp,
+    React.createElement("line",{x1:18,y1:6,x2:6,y2:18}),
+    React.createElement("line",{x1:6,y1:6,x2:18,y2:18})
+  );
+  if(name==="check")return React.createElement("svg",cp,
+    React.createElement("polyline",{points:"20 6 9 17 4 12"})
+  );
   return null;
 }
 
@@ -4916,30 +4927,32 @@ function App(){
 
       {view==="recipes"&&<div>
         {/* Inbox - Recipes shared to you */}
-        {userInbox.length>0?<div style={{marginBottom:16,background:"linear-gradient(135deg, #fff5f5 0%, #fff 100%)",borderRadius:12,border:"1px solid #f5c6cb",padding:14}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <div style={{fontWeight:700,fontSize:14,color:"#721c24"}}>📬 Shared with You ({userInbox.length})</div>
+        {userInbox.length>0?<div style={{marginBottom:16,background:"#fff",borderRadius:16,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,padding:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+            <Icon name="mail" size={16} color={C.gold} strokeWidth={1.75}/>
+            <div style={{fontWeight:700,fontSize:14,color:C.ink}}>Shared with You</div>
+            <span style={{fontSize:11,fontWeight:700,color:C.gold,background:C.blush,borderRadius:9,padding:"1px 8px"}}>{userInbox.length}</span>
           </div>
           {userInbox.slice(0,3).map(function(item){return(
-            <div key={item.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid rgba(0,0,0,0.05)"}}>
+            <div key={item.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid "+C.bdr}}>
               {item.fromProfilePic?
                 (item.fromProfilePic.startsWith("data:")?
-                  <img src={item.fromProfilePic} style={{width:36,height:36,borderRadius:18,objectFit:"cover"}} alt=""/>
+                  <img src={item.fromProfilePic} style={{width:38,height:38,borderRadius:19,objectFit:"cover"}} alt=""/>
                 :
-                  <span style={{width:36,height:36,borderRadius:18,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{item.fromProfilePic}</span>
+                  <span style={{width:38,height:38,borderRadius:19,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{item.fromProfilePic}</span>
                 )
               :
-                <span style={{width:36,height:36,borderRadius:18,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:C.dark}}>{(item.fromUser||"?").charAt(0).toUpperCase()}</span>
+                <span style={{width:38,height:38,borderRadius:19,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:C.dark}}>{(item.fromUser||"?").charAt(0).toUpperCase()}</span>
               }
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontWeight:600,fontSize:14,color:C.dark,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{item.recipe.name}</div>
+                <div style={{fontWeight:600,fontSize:14,color:C.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{item.recipe.name}</div>
                 <div style={{fontSize:11,color:C.light}}>from @{item.fromUser}</div>
               </div>
-              <button onClick={function(){acceptInboxRecipe(item)}} style={{padding:"6px 12px",borderRadius:8,border:"none",background:"#27ae60",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ Add</button>
-              <button onClick={function(){dismissInboxRecipe(item.id)}} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #ddd",background:"#fff",color:"#999",fontSize:12,cursor:"pointer"}}>✕</button>
+              <button onClick={function(){acceptInboxRecipe(item)}} style={{width:32,height:32,borderRadius:16,border:"none",background:C.dark,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="check" size={15} strokeWidth={2.25}/></button>
+              <button onClick={function(){dismissInboxRecipe(item.id)}} style={{width:32,height:32,borderRadius:16,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="x" size={13} color={C.light} strokeWidth={2}/></button>
             </div>
           )})}
-          {userInbox.length>3?<div style={{textAlign:"center",fontSize:12,color:C.light,paddingTop:8}}>+{userInbox.length-3} more</div>:null}
+          {userInbox.length>3?<div style={{textAlign:"center",fontSize:12,color:C.light,paddingTop:10}}>+{userInbox.length-3} more</div>:null}
         </div>:null}
         
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,position:"relative"}}>
