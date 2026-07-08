@@ -4629,15 +4629,17 @@ function App(){
                   <button onClick={function(e){
                     e.stopPropagation();
                     if(alreadySaved){
-                      // Unsave: remove the saved copy
+                      // Unsave: remove the saved copy (and un-favorite it)
                       if(confirm("Remove '"+recipe.name+"' from your saved recipes?")){
                         var newRecipes=recipes.filter(function(r){return r.id!==savedCopy.id});
                         svR(newRecipes);
+                        svF(favorites.filter(function(id){return id!==savedCopy.id}));
                       }
                     } else {
                       var newRecipe = copyRecipeFor(recipe, userId, viewProfileUser);
                       var newRecipes=recipes.concat([newRecipe]);
                       svR(newRecipes);
+                      svF(favorites.concat([newRecipe.id]));
                     }
                   }} style={{position:"absolute",top:12,right:12,width:40,height:40,borderRadius:20,border:"none",background:"rgba(255,255,255,0.92)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.1)"}}><Icon name="heart" size={17} color={alreadySaved?"#c0392b":"#3A2A1D"} strokeWidth={2} filled={alreadySaved}/></button>
                 </div>
@@ -5298,11 +5300,12 @@ function App(){
                   {user?<button onClick={function(e){
                     e.stopPropagation();
                     if(alreadySaved){
-                      // Unsave: remove the saved copy
+                      // Unsave: remove the saved copy (and un-favorite it)
                       if(confirm("Remove '"+r.name+"' from your saved recipes?")){
                         var updated=recipes.filter(function(x){return x.id!==savedCopy.id});
                         setRecipes(updated);
                         saveRecipesIndividually(updated);
+                        svF(favorites.filter(function(id){return id!==savedCopy.id}));
                       }
                     } else {
                       var newRecipe = copyRecipeFor(r, userId, r.ownerUsername);
@@ -5310,6 +5313,7 @@ function App(){
                       var updated=recipes.concat([newRecipe]);
                       setRecipes(updated);
                       saveRecipesIndividually(updated);
+                      svF(favorites.concat([newRecipe.id]));
                     }
                   }} style={{position:"absolute",top:12,right:12,width:40,height:40,borderRadius:20,border:"none",background:"rgba(255,255,255,0.92)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.1)"}}><Icon name="heart" size={17} color={alreadySaved?"#c0392b":"#3A2A1D"} strokeWidth={2} filled={alreadySaved}/></button>:null}
                 </div>
