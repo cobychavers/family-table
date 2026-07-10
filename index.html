@@ -50,6 +50,16 @@
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
+    @keyframes ft-backdrop-fade {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .ft-card-tap {
+      transition: transform .15s cubic-bezier(0.4,0,0.2,1), box-shadow .15s cubic-bezier(0.4,0,0.2,1);
+    }
+    .ft-card-tap:active {
+      transform: scale(0.98);
+    }
     .ft-loader {
       display: flex;
       flex-direction: column;
@@ -389,6 +399,37 @@ function Icon(p){
   if(name==="search")return React.createElement("svg",cp,
     React.createElement("circle",{cx:11,cy:11,r:8}),
     React.createElement("line",{x1:21,y1:21,x2:16.65,y2:16.65})
+  );
+  if(name==="clock")return React.createElement("svg",cp,
+    React.createElement("circle",{cx:12,cy:12,r:9}),
+    React.createElement("polyline",{points:"12 7 12 12 15.5 13.75"})
+  );
+  if(name==="clipboard")return React.createElement("svg",cp,
+    React.createElement("path",{d:"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"}),
+    React.createElement("rect",{x:8,y:2,width:8,height:4,rx:1,ry:1})
+  );
+  if(name==="user")return React.createElement("svg",cp,
+    React.createElement("path",{d:"M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"}),
+    React.createElement("circle",{cx:12,cy:7,r:4})
+  );
+  if(name==="store")return React.createElement("svg",cp,
+    React.createElement("path",{d:"M3 9l2-6h14l2 6"}),
+    React.createElement("line",{x1:3,y1:9,x2:21,y2:9}),
+    React.createElement("path",{d:"M4 9v10a1 1 0 0 0 1 1h3v-6h8v6h3a1 1 0 0 0 1-1V9"})
+  );
+  if(name==="hourglass")return React.createElement("svg",cp,
+    React.createElement("path",{d:"M5 22h14"}),
+    React.createElement("path",{d:"M5 2h14"}),
+    React.createElement("path",{d:"M17 22v-4.17a2 2 0 0 0-.59-1.42L12 12l-4.41 4.41a2 2 0 0 0-.59 1.42V22"}),
+    React.createElement("path",{d:"M7 2v4.17a2 2 0 0 0 .59 1.42L12 12l4.41-4.41A2 2 0 0 0 17 6.17V2"})
+  );
+  if(name==="inbox")return React.createElement("svg",cp,
+    React.createElement("polyline",{points:"22 12 16 12 14 15 10 15 8 12 2 12"}),
+    React.createElement("path",{d:"M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"})
+  );
+  if(name==="plate")return React.createElement("svg",cp,
+    React.createElement("circle",{cx:12,cy:12,r:9}),
+    React.createElement("circle",{cx:12,cy:12,r:4})
   );
   return null;
 }
@@ -1668,7 +1709,7 @@ function GroceryTab(p){
         onClick:function(){if(isSwipedHere)setSwipedItem(null)},
         style:{display:"flex",alignItems:"center",gap:10,padding:"11px 2px",opacity:ic?.4:1,background:"#fff",transform:"translateX("+translateX+"px)",transition:itemSwipeStart?"none":"transform 0.2s",position:"relative",zIndex:1}
       },
-        React.createElement("button",{onClick:function(){tog(it.id)},style:{width:24,height:24,borderRadius:6,border:ic?"none":"1.5px solid "+C.blushDeep,background:ic?C.dark:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,color:"#fff"}},ic?"✓":""),
+        React.createElement("button",{onClick:function(){tog(it.id)},style:{width:24,height:24,borderRadius:6,border:ic?"none":"1.5px solid "+C.blushDeep,background:ic?C.dark:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},ic?React.createElement(Icon,{name:"check",size:14,color:"#fff",strokeWidth:2.5}):null),
         React.createElement("button",{onClick:function(){setPickStore(pickStore===it.id?null:it.id)},style:{width:26,height:26,borderRadius:6,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}},renderStoreIcon(st,16)),
         React.createElement("div",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{flex:1,minWidth:0,cursor:"pointer"}},
           React.createElement("span",{style:{fontSize:15,color:C.ink,textDecoration:ic?"line-through":"none",fontWeight:500,display:"block"}},display),
@@ -1717,7 +1758,7 @@ function GroceryTab(p){
   var [showDefStorePicker,setShowDefStorePicker]=useState(false);
   var defStoreObj=p.stores.find(function(s){return s.id===p.defStore})||p.stores[0];
 
-  return React.createElement("div",null,
+  return React.createElement("div",{style:{animation:"ft-fade-in .25s ease-out"}},
     React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,position:"relative"}},
       React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}},React.createElement(Icon,{name:"cart",size:18,color:C.dark,strokeWidth:1.75}),"Grocery List"),
       React.createElement("div",{style:{display:"flex",gap:8,alignItems:"center"}},
@@ -1783,19 +1824,19 @@ function GroceryTab(p){
     React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},
       React.createElement("div",{style:{fontSize:12,color:C.light}},all.length+" items · "+tc+" checked"+(hiddenCount>0?" · "+hiddenCount+" hidden":"")),
       React.createElement("div",{style:{display:"flex",gap:8}},
-        tc>0?React.createElement("button",{onClick:clr,style:{display:"flex",alignItems:"center",height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm}},"Clear ✓"):null,
+        tc>0?React.createElement("button",{onClick:clr,style:{display:"flex",alignItems:"center",gap:5,height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm}},"Clear ",React.createElement(Icon,{name:"check",size:12,strokeWidth:2.5})):null,
         all.length>0?React.createElement("button",{onClick:clearAllItems,style:{display:"flex",alignItems:"center",gap:5,height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid rgba(192,57,43,0.25)",background:"#fdf2f1",cursor:"pointer",fontWeight:600,color:"#c0392b"}},React.createElement(Icon,{name:"trash",size:12,strokeWidth:2}),"Clear All"):null,
         hiddenCount>0?React.createElement("button",{onClick:unhideAllItems,style:{display:"flex",alignItems:"center",height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm}},"Restore "+hiddenCount):null,
         all.length>0?React.createElement("button",{onClick:function(){setShowSaveLists(true)},style:{display:"flex",alignItems:"center",gap:5,height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:C.shadowSm}},React.createElement(Icon,{name:"bookmark",size:12,strokeWidth:2}),"Save"):null
       )
     ),
 
-    showAdd?React.createElement("div",{onClick:function(){setShowAdd(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0}},
-      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:480,maxHeight:"85vh",overflowY:"auto",padding:16,paddingBottom:"calc(16px + env(safe-area-inset-bottom))",boxShadow:"0 -4px 20px rgba(0,0,0,0.15)"}},
+    showAdd?React.createElement("div",{onClick:function(){setShowAdd(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0,animation:"ft-backdrop-fade .18s ease-out"}},
+      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:480,maxHeight:"85vh",overflowY:"auto",padding:16,paddingBottom:"calc(16px + env(safe-area-inset-bottom))",boxShadow:"0 -4px 20px rgba(0,0,0,0.15)",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
         /* Modal header */
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,paddingBottom:10,borderBottom:"1px solid "+C.bdr}},
-          React.createElement("div",{style:{fontWeight:700,fontSize:16,color:C.dark}},"➕ Add Item"),
-          React.createElement("button",{onClick:function(){setShowAdd(false)},style:{background:"none",border:"none",fontSize:22,cursor:"pointer",opacity:.4,padding:0,lineHeight:1}},"✕")
+          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16,color:C.dark}},React.createElement(Icon,{name:"plus",size:16,strokeWidth:2}),"Add Item"),
+          React.createElement("button",{onClick:function(){setShowAdd(false)},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,padding:0,lineHeight:1,display:"flex"}},React.createElement(Icon,{name:"x",size:20,strokeWidth:2}))
         ),
         /* Default store row - only shown in modal */
         React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:12,padding:"8px 10px",background:C.blush,borderRadius:8}},
@@ -1862,7 +1903,7 @@ function GroceryTab(p){
       ):null,
       
       groceryHistory.length>0&&!ni.trim()?React.createElement("div",{style:{marginTop:10}},
-        React.createElement("button",{onClick:function(){setShowHistory(!showHistory)},style:{fontSize:12,color:"#6a6a7a",background:"none",border:"none",cursor:"pointer",fontWeight:600}},showHistory?"▼ Hide past items":"📋 Browse past items ("+(function(){var s={};var c=0;groceryHistory.forEach(function(h){var n=(h.name||"").toLowerCase().trim();if(n&&!s[n]){s[n]=true;c++;}});return c;})()+")"),
+        React.createElement("button",{onClick:function(){setShowHistory(!showHistory)},style:{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"#6a6a7a",background:"none",border:"none",cursor:"pointer",fontWeight:600}},showHistory?"▼ Hide past items":React.createElement(React.Fragment,null,React.createElement(Icon,{name:"clipboard",size:12,strokeWidth:2}),"Browse past items ("+(function(){var s={};var c=0;groceryHistory.forEach(function(h){var n=(h.name||"").toLowerCase().trim();if(n&&!s[n]){s[n]=true;c++;}});return c;})()+")")),
         showHistory?React.createElement("div",{style:{marginTop:8,maxHeight:200,overflowY:"auto",border:"1px solid #eee",borderRadius:8,padding:8,background:"#fff"}},
           React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:4}},
             (function(){
@@ -1876,7 +1917,7 @@ function GroceryTab(p){
             })().map(function(h){
               return React.createElement("div",{key:h.name,style:{display:"flex",alignItems:"center",gap:2}},
                 React.createElement("button",{onClick:function(){addFromHistory(h.name)},style:{padding:"4px 8px",borderRadius:6,border:"1px solid #ddd",background:"#fff",cursor:"pointer",fontSize:11,fontWeight:500}},h.name),
-                React.createElement("button",{onClick:function(){removeFromHistory(h.name)},style:{background:"none",border:"none",fontSize:10,cursor:"pointer",opacity:.3,padding:2}},"✕")
+                React.createElement("button",{onClick:function(){removeFromHistory(h.name)},style:{background:"none",border:"none",cursor:"pointer",opacity:.3,padding:2,display:"flex"}},React.createElement(Icon,{name:"x",size:10,strokeWidth:2.5}))
               );
             })
           )
@@ -1921,30 +1962,34 @@ function GroceryTab(p){
       React.createElement("div",{style:{height:8,background:"#E8DDD6",borderRadius:4,overflow:"hidden"}},
         React.createElement("div",{style:{height:"100%",background:tc===all.length?"#2e7d32":"linear-gradient(90deg,#96806C,#B8A090)",borderRadius:4,width:(all.length?tc/all.length*100:0)+"%",transition:"width 0.3s"}})
       ),
-      tc===all.length&&all.length>0?React.createElement("div",{style:{textAlign:"center",marginTop:8,fontSize:14,fontWeight:700,color:"#2e7d32"}},"✅ All done!"):null
+      tc===all.length&&all.length>0?React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:8,fontSize:14,fontWeight:700,color:"#2e7d32"}},React.createElement(Icon,{name:"check",size:15,strokeWidth:2.5}),"All done!"):null
     ):null,
 
-    all.length===0?React.createElement("div",{style:{textAlign:"center",padding:20,opacity:.4,fontSize:14}},"Add meals or items to build your grocery list."):null,
+    all.length===0?React.createElement("div",{style:{textAlign:"center",padding:"32px 20px"}},
+      React.createElement("div",{style:{marginBottom:10,opacity:.35}},React.createElement(Icon,{name:"cart",size:32,color:C.dark,strokeWidth:1.25})),
+      React.createElement("div",{style:{fontSize:14,fontWeight:600,color:C.dark,marginBottom:4}},"Your list is empty"),
+      React.createElement("div",{style:{fontSize:12,color:C.light}},"Add meals or items to build your grocery list.")
+    ):null,
 
     grouped(unc),
 
     chk.length>0?React.createElement("div",{onClick:function(){setShowDone(!showDone)},style:{display:"flex",alignItems:"center",gap:6,padding:"10px 0 4px",cursor:"pointer"}},
-      React.createElement("span",{style:{fontSize:12,fontWeight:700,color:"#6a6a7a"}},"✅ Purchased ("+chk.length+")"),
+      React.createElement("span",{style:{display:"flex",alignItems:"center",gap:5,fontSize:12,fontWeight:700,color:"#6a6a7a"}},React.createElement(Icon,{name:"check",size:12,strokeWidth:2.5}),"Purchased ("+chk.length+")"),
       React.createElement("span",{style:{fontSize:10,opacity:.3}},showDone?"▼":"▶")
     ):null,
     showDone?chk.map(function(e){return item(e)}):null,
 
-    pickStore?React.createElement("div",{onClick:function(){setPickStore(null)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,padding:16}},
-      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:360,maxHeight:"80vh",overflowY:"auto"}},
+    pickStore?React.createElement("div",{onClick:function(){setPickStore(null)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,padding:16,animation:"ft-backdrop-fade .18s ease-out"}},
+      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:360,maxHeight:"80vh",overflowY:"auto",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
-          React.createElement("div",{style:{fontWeight:700,fontSize:16}},"🏪 Choose Store"),
-          React.createElement("button",{onClick:function(){setPickStore(null)},style:{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}},"✕")
+          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16}},React.createElement(Icon,{name:"store",size:16,strokeWidth:1.75}),"Choose Store"),
+          React.createElement("button",{onClick:function(){setPickStore(null)},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}},React.createElement(Icon,{name:"x",size:18,strokeWidth:2}))
         ),
         React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:6}},
           p.stores.map(function(s){return React.createElement("button",{key:s.id,onClick:function(){var it=all.find(function(x){return x.id===pickStore});if(it)p.setItemStore(it.name,s.id);setPickStore(null)},style:{display:"flex",alignItems:"center",gap:10,padding:12,borderRadius:10,border:"1px solid #eee",background:"#fff",cursor:"pointer",textAlign:"left"}},
             renderStoreIcon(s,24),
             React.createElement("span",{style:{fontWeight:700,fontSize:14,color:C.ink,flex:1}},s.name),
-            s.custom?React.createElement("button",{onClick:function(e){e.stopPropagation();p.removeCustomStore(s.id)},style:{background:"none",border:"none",fontSize:12,cursor:"pointer",opacity:.3,padding:4}},"✕"):null
+            s.custom?React.createElement("button",{onClick:function(e){e.stopPropagation();p.removeCustomStore(s.id)},style:{background:"none",border:"none",cursor:"pointer",opacity:.3,padding:4,display:"flex"}},React.createElement(Icon,{name:"x",size:12,strokeWidth:2.5})):null
           )}),
           React.createElement("button",{onClick:function(){setPickStore(null);setShowAddStore(true)},style:{display:"flex",alignItems:"center",gap:10,padding:12,borderRadius:10,border:"1px dashed #ccc",background:"#fafafa",cursor:"pointer",textAlign:"left"}},
             React.createElement("span",{style:{width:24,height:24,borderRadius:4,background:"#eee",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}},"+"),
@@ -1954,11 +1999,11 @@ function GroceryTab(p){
       )
     ):null,
     
-    showAddStore?React.createElement("div",{onClick:function(){setShowAddStore(false);setNewStoreName("");setNewStoreColor("#8B7355")},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:1001}},
-      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:360}},
+    showAddStore?React.createElement("div",{onClick:function(){setShowAddStore(false);setNewStoreName("");setNewStoreColor("#8B7355")},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:1001,animation:"ft-backdrop-fade .18s ease-out"}},
+      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:360,animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
-          React.createElement("div",{style:{fontWeight:700,fontSize:16}},"➕ Add Custom Store"),
-          React.createElement("button",{onClick:function(){setShowAddStore(false);setNewStoreName("");setNewStoreColor("#8B7355")},style:{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}},"✕")
+          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16}},React.createElement(Icon,{name:"plus",size:16,strokeWidth:2}),"Add Custom Store"),
+          React.createElement("button",{onClick:function(){setShowAddStore(false);setNewStoreName("");setNewStoreColor("#8B7355")},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}},React.createElement(Icon,{name:"x",size:18,strokeWidth:2}))
         ),
         React.createElement("div",{style:{marginBottom:16}},
           React.createElement("label",{style:{fontSize:12,fontWeight:600,opacity:.6,display:"block",marginBottom:4}},"Store Name"),
@@ -1980,11 +2025,11 @@ function GroceryTab(p){
       )
     ):null,
     
-    editItem?React.createElement("div",{onClick:function(){setEditItem(null)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:1000}},
-      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:400,maxHeight:"80vh",overflow:"auto",boxShadow:C.shadowLg}},
+    editItem?React.createElement("div",{onClick:function(){setEditItem(null)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:1000,animation:"ft-backdrop-fade .18s ease-out"}},
+      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:400,maxHeight:"80vh",overflow:"auto",boxShadow:C.shadowLg,animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}},
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:19,color:C.ink}},"Edit Item"),
-          React.createElement("button",{onClick:function(){setEditItem(null)},style:{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}},"✕")
+          React.createElement("button",{onClick:function(){setEditItem(null)},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}},React.createElement(Icon,{name:"x",size:18,strokeWidth:2}))
         ),
 
         /* Item Name */
@@ -2022,11 +2067,11 @@ function GroceryTab(p){
       )
     ):null,
     
-    showSaveLists?React.createElement("div",{onClick:function(){setShowSaveLists(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:1000}},
-      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:400,maxHeight:"80vh",overflow:"auto"}},
+    showSaveLists?React.createElement("div",{onClick:function(){setShowSaveLists(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:1000,animation:"ft-backdrop-fade .18s ease-out"}},
+      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:400,maxHeight:"80vh",overflow:"auto",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16,color:C.ink}},React.createElement(Icon,{name:"bookmark",size:15,color:C.dark,strokeWidth:1.75}),"Save Grocery List"),
-          React.createElement("button",{onClick:function(){setShowSaveLists(false)},style:{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}},"✕")
+          React.createElement("button",{onClick:function(){setShowSaveLists(false)},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}},React.createElement(Icon,{name:"x",size:18,strokeWidth:2}))
         ),
         React.createElement("div",{style:{marginBottom:16}},
           React.createElement("label",{style:{fontSize:12,fontWeight:600,opacity:.6,display:"block",marginBottom:4}},"List Name"),
@@ -2043,21 +2088,25 @@ function GroceryTab(p){
             ),
             React.createElement("div",{style:{display:"flex",gap:6}},
               React.createElement("button",{onClick:function(e){e.stopPropagation();updateSavedList(list.id)},style:{padding:"8px 12px",borderRadius:8,border:"none",background:"#8B7355",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}},"Update"),
-              React.createElement("button",{onClick:function(e){e.stopPropagation();deleteSavedList(list.id)},style:{padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",background:"#fff",fontSize:12,cursor:"pointer",opacity:.6}},"🗑️")
+              React.createElement("button",{onClick:function(e){e.stopPropagation();deleteSavedList(list.id)},style:{padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",background:"#fff",cursor:"pointer",opacity:.6,display:"flex",alignItems:"center"}},React.createElement(Icon,{name:"trash",size:14,strokeWidth:1.75}))
             )
           )})
         ):null
       )
     ):null,
     
-    showLoadList?React.createElement("div",{onClick:function(){setShowLoadList(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:1000}},
-      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:400,maxHeight:"80vh",overflow:"auto"}},
+    showLoadList?React.createElement("div",{onClick:function(){setShowLoadList(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:1000,animation:"ft-backdrop-fade .18s ease-out"}},
+      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:400,maxHeight:"80vh",overflow:"auto",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
-          React.createElement("div",{style:{fontWeight:700,fontSize:16}},"📂 Load Saved List"),
-          React.createElement("button",{onClick:function(){setShowLoadList(false)},style:{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}},"✕")
+          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16}},React.createElement(Icon,{name:"folder",size:16,strokeWidth:1.75}),"Load Saved List"),
+          React.createElement("button",{onClick:function(){setShowLoadList(false)},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}},React.createElement(Icon,{name:"x",size:18,strokeWidth:2}))
         ),
         React.createElement("div",{style:{fontSize:12,opacity:.6,marginBottom:12}},"Items will be added to your current grocery list"),
-        savedLists.length===0?React.createElement("div",{style:{textAlign:"center",padding:20,opacity:.4}},"No saved lists yet"):
+        savedLists.length===0?React.createElement("div",{style:{textAlign:"center",padding:"28px 20px"}},
+          React.createElement("div",{style:{marginBottom:10,opacity:.35}},React.createElement(Icon,{name:"bookmark",size:30,color:C.dark,strokeWidth:1.25})),
+          React.createElement("div",{style:{fontSize:14,fontWeight:600,color:C.dark,marginBottom:4}},"No saved lists yet"),
+          React.createElement("div",{style:{fontSize:12,color:C.light}},"Save your current list to reuse it later.")
+        ):
         savedLists.map(function(list){return React.createElement("div",{key:list.id,style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:12,borderRadius:10,border:"1px solid #eee",marginBottom:8,cursor:"pointer",background:"#fafaff"},onClick:function(){loadSavedList(list)}},
           React.createElement("div",{style:{flex:1}},
             React.createElement("div",{style:{fontWeight:600,fontSize:14}},list.name),
@@ -2070,11 +2119,11 @@ function GroceryTab(p){
     ):null,
     
     // Import Grocery List Modal
-    showImportGrocery?React.createElement("div",{onClick:function(){setShowImportGrocery(false);setImportGroceryText("")},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:1000}},
-      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:420}},
+    showImportGrocery?React.createElement("div",{onClick:function(){setShowImportGrocery(false);setImportGroceryText("")},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:1000,animation:"ft-backdrop-fade .18s ease-out"}},
+      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:420,animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16}},React.createElement(Icon,{name:"list",size:16,color:"#333",strokeWidth:1.75}),"Create Grocery List"),
-          React.createElement("button",{onClick:function(){setShowImportGrocery(false);setImportGroceryText("")},style:{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}},"✕")
+          React.createElement("button",{onClick:function(){setShowImportGrocery(false);setImportGroceryText("")},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}},React.createElement(Icon,{name:"x",size:18,strokeWidth:2}))
         ),
         
         importGroceryLoading?React.createElement("div",{style:{textAlign:"center",padding:40}},
@@ -4233,11 +4282,11 @@ function App(){
   if(showAuth)return React.createElement(AuthScreen,{onLogin:function(uid){handleLogin(uid);setShowAuth(false)}});
 
   var C={ink:"#3A2A1D",dark:"#6B4A32",light:"#8C7561",gold:"#B4823D",blush:"#F5EBE6",blushMed:"#E8DDD6",blushDeep:"#D4C4B8",blushAccent:"#B8A090",blushDark:"#96806C",card:"#FFFFFF",bdr:"rgba(58,42,29,0.10)",shadowSm:"0 1px 3px rgba(58,42,29,0.08), 0 1px 2px rgba(58,42,29,0.06)",shadowMd:"0 4px 16px rgba(58,42,29,0.10), 0 2px 6px rgba(58,42,29,0.06)",shadowLg:"0 12px 32px rgba(58,42,29,0.16)"};
-  var ovl={position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,padding:16};
-  var mdl={background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:440,maxHeight:"85vh",overflow:"auto",boxShadow:C.shadowLg};
+  var ovl={position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,padding:16,animation:"ft-backdrop-fade .18s ease-out"};
+  var mdl={background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:440,maxHeight:"85vh",overflow:"auto",boxShadow:C.shadowLg,animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"};
   var inp={width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:14,boxSizing:"border-box",outline:"none",fontFamily:"'Inter',-apple-system,sans-serif"};
-  var btn=function(bg,col){return{padding:"8px 16px",borderRadius:10,border:"none",background:bg,color:col||"#fff",fontWeight:600,fontSize:13,cursor:"pointer",boxShadow:(!col||col==="#fff")?C.shadowSm:"none"}};
-  var tab=function(a){return{padding:"7px 14px",borderRadius:20,border:"none",background:a?C.dark:C.blushMed,color:a?"#fff":C.light,fontWeight:600,fontSize:13,cursor:"pointer",boxShadow:a?C.shadowSm:"none"}};
+  var btn=function(bg,col){return{padding:"8px 16px",borderRadius:10,border:"none",background:bg,color:col||"#fff",fontWeight:600,fontSize:13,cursor:"pointer",boxShadow:(!col||col==="#fff")?C.shadowSm:"none",transition:"transform .12s ease-out, box-shadow .12s ease-out"}};
+  var tab=function(a){return{padding:"7px 14px",borderRadius:20,border:"none",background:a?C.dark:C.blushMed,color:a?"#fff":C.light,fontWeight:600,fontSize:13,cursor:"pointer",boxShadow:a?C.shadowSm:"none",transition:"background-color .15s cubic-bezier(0.4,0,0.2,1), color .15s cubic-bezier(0.4,0,0.2,1)"}};
 
   // Generic refresh function - reloads data based on what the user is currently viewing
   function refreshCurrentView(){
@@ -4318,7 +4367,7 @@ function App(){
       style={{fontFamily:"'Inter',-apple-system,sans-serif",maxWidth:600,margin:"0 auto",padding:"12px 8px",color:C.dark}}>
       {/* Pull-to-refresh indicator */}
       {pullDistance>0?<div style={{textAlign:"center",fontSize:13,color:C.light,height:pullDistance,overflow:"hidden",transition:(refreshing||pullStart===null)?"height 0.3s":"none",display:"flex",alignItems:"center",justifyContent:"center"}}>
-        {refreshing?"⟳ Refreshing...":pullDistance>50?"↑ Release to refresh":"↓ Pull to refresh"}
+        {refreshing?<React.Fragment><Icon name="refresh" size={12} strokeWidth={2}/>&nbsp;Refreshing...</React.Fragment>:pullDistance>50?"↑ Release to refresh":"↓ Pull to refresh"}
       </div>:null}
       <div style={{position:"relative",marginBottom:8}}>
         <div style={{position:"absolute",right:0,top:0}}>
@@ -4404,7 +4453,7 @@ function App(){
 
       {/* If not signed in, show sign-in prompt instead of app content */}
       {!user?<div style={{textAlign:"center",padding:"24px 24px 0"}}>
-        <button onClick={function(){setShowAuth(true)}} style={{padding:"15px 44px",borderRadius:12,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:15,cursor:"pointer",boxShadow:C.shadowMd}}>Sign In / Create Account</button>
+        <button className="ft-card-tap" onClick={function(){setShowAuth(true)}} style={{padding:"15px 44px",borderRadius:12,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:15,cursor:"pointer",boxShadow:C.shadowMd}}>Sign In / Create Account</button>
       </div>:
       
       /* Logged in - show tabs and content */
@@ -4428,7 +4477,7 @@ function App(){
       {showChangePassword&&<div style={ovl} onClick={function(){setShowChangePassword(false);setCurrentPassword("");setNewPassword("");setConfirmNewPassword("");setPasswordError("");setPasswordSuccess("")}}><div style={Object.assign({},mdl,{maxWidth:380})} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:17,color:C.ink}}><Icon name="lock" size={16} color={C.dark} strokeWidth={1.75}/> Change Password</div>
-          <button onClick={function(){setShowChangePassword(false);setCurrentPassword("");setNewPassword("");setConfirmNewPassword("");setPasswordError("");setPasswordSuccess("")}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}}>✕</button>
+          <button onClick={function(){setShowChangePassword(false);setCurrentPassword("");setNewPassword("");setConfirmNewPassword("");setPasswordError("");setPasswordSuccess("")}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button>
         </div>
         <div style={{marginBottom:12}}>
           <label style={{fontSize:12,fontWeight:600,color:C.light,display:"block",marginBottom:4}}>Current Password</label>
@@ -4451,7 +4500,7 @@ function App(){
       {showEditProfile&&<div style={ovl} onClick={function(){setShowEditProfile(false);setProfileError("");setProfileSuccess("")}}><div style={Object.assign({},mdl,{maxWidth:400})} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:17,color:C.ink}}><Icon name="camera" size={16} color={C.dark} strokeWidth={1.75}/> Edit Profile Picture</div>
-          <button onClick={function(){setShowEditProfile(false);setProfileError("");setProfileSuccess("")}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}}>✕</button>
+          <button onClick={function(){setShowEditProfile(false);setProfileError("");setProfileSuccess("")}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button>
         </div>
         
         {/* Current profile pic */}
@@ -4471,8 +4520,8 @@ function App(){
         <div style={{marginBottom:16}}>
           <div style={{fontSize:12,fontWeight:600,color:C.light,marginBottom:8}}>Upload Photo</div>
           <input id="profilePicInput" type="file" accept="image/*" style={{display:"none"}} onChange={handleProfilePicUpload}/>
-          <label htmlFor="profilePicInput" style={{display:"block",width:"100%",padding:"14px",borderRadius:10,border:"2px dashed "+C.bdr,background:C.blush,cursor:"pointer",fontSize:13,fontWeight:600,color:C.dark,textAlign:"center",boxSizing:"border-box"}}>
-            📤 Choose Image
+          <label htmlFor="profilePicInput" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,width:"100%",padding:"14px",borderRadius:10,border:"2px dashed "+C.bdr,background:C.blush,cursor:"pointer",fontSize:13,fontWeight:600,color:C.dark,textAlign:"center",boxSizing:"border-box"}}>
+            <Icon name="camera" size={14} strokeWidth={1.75}/> Choose Image
           </label>
         </div>
         
@@ -4502,7 +4551,7 @@ function App(){
       {showMyQR&&user&&<div style={ovl} onClick={function(){setShowMyQR(false)}}><div style={Object.assign({},mdl,{maxWidth:360,textAlign:"center"})} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div style={{fontWeight:700,fontSize:17,color:C.dark}}>My QR Code</div>
-          <button onClick={function(){setShowMyQR(false)}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}}>✕</button>
+          <button onClick={function(){setShowMyQR(false)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button>
         </div>
         
         {/* Profile info */}
@@ -4544,18 +4593,18 @@ function App(){
           document.body.removeChild(el);
           setCopyFeedback("username");
           setTimeout(function(){setCopyFeedback("")},2000);
-        }} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:copyFeedback==="username"?"#27ae60":C.dark,color:"#fff",fontWeight:600,fontSize:14,cursor:"pointer"}}>{copyFeedback==="username"?"✓ Username Copied!":"📋 Copy Username"}</button>
+        }} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",padding:"14px",borderRadius:10,border:"none",background:copyFeedback==="username"?"#27ae60":C.dark,color:"#fff",fontWeight:600,fontSize:14,cursor:"pointer"}}>{copyFeedback==="username"?<React.Fragment><Icon name="check" size={15} strokeWidth={2}/>Username Copied!</React.Fragment>:<React.Fragment><Icon name="clipboard" size={15} strokeWidth={1.75}/>Copy Username</React.Fragment>}</button>
       </div></div>}
 
       {/* ADD FRIEND / SCAN QR MODAL */}
       {showScanQR&&<div style={ovl} onClick={function(){setShowScanQR(false);setFollowStatus("")}}><div style={Object.assign({},mdl,{maxWidth:380})} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div style={{fontWeight:700,fontSize:17,color:C.dark}}>Follow User</div>
-          <button onClick={function(){setShowScanQR(false);setFollowStatus("")}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}}>✕</button>
+          <button onClick={function(){setShowScanQR(false);setFollowStatus("")}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button>
         </div>
         
         <div style={{textAlign:"center",marginBottom:20}}>
-          <div style={{fontSize:48,marginBottom:8}}>👥</div>
+          <div style={{marginBottom:8,opacity:.4}}><Icon name="users" size={44} strokeWidth={1.5}/></div>
           <div style={{fontSize:14,color:C.light}}>Enter a username to send a follow request</div>
         </div>
         
@@ -4570,7 +4619,7 @@ function App(){
         </div>
         
         {followStatus?<div style={{textAlign:"center",padding:12,marginBottom:16,borderRadius:8,background:followStatus.startsWith("error")?"#fef2f2":"#f0fdf4"}}>
-          <span style={{fontSize:13,fontWeight:600,color:followStatus.startsWith("error")?"#c0392b":"#27ae60"}}>{followStatus.startsWith("error")?followStatus.replace("error:","❌ "):followStatus.replace("success:","✓ ")}</span>
+          <span style={{display:"flex",alignItems:"center",gap:5,fontSize:13,fontWeight:600,color:followStatus.startsWith("error")?"#c0392b":"#27ae60"}}>{followStatus.startsWith("error")?<React.Fragment><Icon name="x" size={13} strokeWidth={2.5}/>{followStatus.replace("error:","")}</React.Fragment>:<React.Fragment><Icon name="check" size={13} strokeWidth={2.5}/>{followStatus.replace("success:","")}</React.Fragment>}</span>
         </div>:null}
         
         <button onClick={function(){followUser(followRequestUser)}} disabled={!followRequestUser.trim()} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:followRequestUser.trim()?C.dark:"#ccc",color:"#fff",fontWeight:600,fontSize:14,cursor:followRequestUser.trim()?"pointer":"not-allowed"}}>Follow</button>
@@ -4608,7 +4657,7 @@ function App(){
               <button onClick={function(){
                 unfollowUser(viewProfileUser);
                 setViewProfileData(Object.assign({},viewProfileData,{isFollowing:false}));
-              }} style={{padding:"10px 20px",borderRadius:25,border:"1px solid "+C.bdr,background:"#fff",color:C.dark,fontWeight:600,fontSize:13,cursor:"pointer"}}>✓ Following</button>
+              }} style={{display:"flex",alignItems:"center",gap:5,padding:"10px 20px",borderRadius:25,border:"1px solid "+C.bdr,background:"#fff",color:C.dark,fontWeight:600,fontSize:13,cursor:"pointer"}}><Icon name="check" size={13} strokeWidth={2}/>Following</button>
             :
               <button onClick={function(){
                 followUser(viewProfileUser);
@@ -4620,9 +4669,13 @@ function App(){
         
         {/* Recipes section - scrollable */}
         <div style={{flex:1,overflowY:"auto",padding:"16px 18px",background:C.card}}>
-          <div style={{fontSize:14,fontWeight:700,color:C.dark,marginBottom:14}}>📖 Public Recipes</div>
+          <div style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark,marginBottom:14}}><Icon name="book" size={14} strokeWidth={1.75}/>Public Recipes</div>
           {loadingProfileRecipes?<div style={{textAlign:"center",padding:30,color:C.light}}>Loading...</div>:
-          viewProfileRecipes.length===0?<div style={{textAlign:"center",padding:40,color:C.light,fontSize:14}}>No public recipes yet</div>:
+          viewProfileRecipes.length===0?<div style={{textAlign:"center",padding:"40px 20px"}}>
+            <div style={{marginBottom:10,opacity:.35}}><Icon name="book" size={32} color={C.dark} strokeWidth={1.25}/></div>
+            <div style={{fontSize:14,fontWeight:600,color:C.dark,marginBottom:4}}>No public recipes yet</div>
+            <div style={{fontSize:12,color:C.light}}>Check back later — @{viewProfileUser} hasn't shared any recipes.</div>
+          </div>:
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
             {viewProfileRecipes.map(function(recipe){
               var rtype=recipe.recipeType||detectRecipeType(recipe);
@@ -4635,10 +4688,10 @@ function App(){
               });
               var alreadySaved = !!savedCopy;
               var cookTime = shortTime(recipe.time);
-              return <div key={recipe.id} onClick={function(){setViewFriendRecipe(Object.assign({},recipe,{ownerUsername:viewProfileUser,ownerProfilePic:viewProfileData?viewProfileData.profilePic:null}))}} style={{background:"#fff",borderRadius:20,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
+              return <div key={recipe.id} className="ft-card-tap" onClick={function(){setViewFriendRecipe(Object.assign({},recipe,{ownerUsername:viewProfileUser,ownerProfilePic:viewProfileData?viewProfileData.profilePic:null}))}} style={{background:"#fff",borderRadius:20,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
                 {/* Hero image with heart */}
-                <div style={{position:"relative",width:"100%",height:recipe.photo?200:56,background:C.blush}}>
-                  {recipe.photo?<img src={recipe.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:null}
+                <div style={{position:"relative",width:"100%",height:recipe.photo?200:56,background:recipe.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
+                  {recipe.photo?<img src={recipe.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.3}}><Icon name="plate" size={28} color={C.dark} strokeWidth={1.25}/></div>}
                   <button onClick={function(e){
                     e.stopPropagation();
                     if(alreadySaved){
@@ -4660,7 +4713,7 @@ function App(){
                 <div style={{padding:"14px 20px 18px"}}>
                   <div style={{fontWeight:700,fontSize:20,color:C.dark,lineHeight:1.25,marginBottom:10}}>{recipe.name}</div>
                   {(cookTime || typeInfo)?<div style={{display:"flex",alignItems:"center",gap:10,fontSize:13,color:C.light}}>
-                    {cookTime?<span>🕐 {cookTime}</span>:null}
+                    {cookTime?<span style={{display:"inline-flex",alignItems:"center",gap:4}}><Icon name="clock" size={11} strokeWidth={1.75}/>{cookTime}</span>:null}
                     {cookTime && typeInfo?<span style={{opacity:.4}}>|</span>:null}
                     {typeInfo?<span><CatTag type={typeInfo}/></span>:null}
                   </div>:null}
@@ -4672,7 +4725,7 @@ function App(){
       </div>}
 
       {/* VIEW FRIEND RECIPE MODAL */}
-      {viewFriendRecipe&&<div style={ovl} onClick={function(){setViewFriendRecipe(null)}}><div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:480,maxHeight:"90vh",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={function(e){e.stopPropagation()}}>
+      {viewFriendRecipe&&<div style={ovl} onClick={function(){setViewFriendRecipe(null)}}><div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:480,maxHeight:"90vh",display:"flex",flexDirection:"column",overflow:"hidden",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}} onClick={function(e){e.stopPropagation()}}>
         {/* Header */}
         <div style={{padding:"16px 20px",borderBottom:"1px solid "+C.bdr,background:"#fff",flexShrink:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -4680,7 +4733,7 @@ function App(){
               {viewFriendRecipe.photo?
                 <img src={viewFriendRecipe.photo} style={{width:50,height:50,borderRadius:10,objectFit:"cover"}} alt=""/>
               :
-                <div style={{width:50,height:50,borderRadius:10,background:C.blush,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>{viewFriendRecipe.emoji||"🍽️"}</div>
+                <div style={{width:50,height:50,borderRadius:10,background:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="plate" size={22} color={C.dark} strokeWidth={1.25}/></div>
               }
               <div>
                 <div style={{fontWeight:700,fontSize:18,color:C.dark}}>{viewFriendRecipe.name}</div>
@@ -4693,11 +4746,11 @@ function App(){
                     )
                   :null}
                   <span style={{fontSize:12,color:C.light}}>@{viewFriendRecipe.ownerUsername}</span>
-                  {viewFriendRecipe.time?<span style={{fontSize:12,color:C.light}}>· ⏱ {viewFriendRecipe.time}</span>:null}
+                  {viewFriendRecipe.time?<span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:12,color:C.light}}>· <Icon name="clock" size={11} strokeWidth={1.75}/>{viewFriendRecipe.time}</span>:null}
                 </div>
               </div>
             </div>
-            <button onClick={function(){setViewFriendRecipe(null)}} style={{background:"none",border:"none",fontSize:24,cursor:"pointer",opacity:.4,padding:8}}>✕</button>
+            <button onClick={function(){setViewFriendRecipe(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,padding:8,display:"flex"}}><Icon name="x" size={20} strokeWidth={2}/></button>
           </div>
         </div>
         
@@ -4711,7 +4764,7 @@ function App(){
           {/* Ingredients */}
           {viewFriendRecipe.ingredients&&viewFriendRecipe.ingredients.length>0?<div style={{marginBottom:16}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-              <div style={{width:28,height:28,borderRadius:14,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🥗</div>
+              <div style={{width:28,height:28,borderRadius:14,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="list" size={14} color={C.dark} strokeWidth={1.75}/></div>
               <div style={{fontSize:16,fontWeight:700,color:C.dark,letterSpacing:1,textTransform:"uppercase"}}>Ingredients</div>
               <div style={{flex:1,height:1,background:C.bdr}}/>
             </div>
@@ -4726,7 +4779,7 @@ function App(){
           {/* Instructions - collapsible */}
           {viewFriendRecipe.notes?<div style={{marginBottom:16}}>
             <div onClick={function(){setFriendRecipeExpInst(!friendRecipeExpInst)}} style={{display:"flex",alignItems:"center",gap:8,marginBottom:friendRecipeExpInst?12:0,cursor:"pointer"}}>
-              <div style={{width:28,height:28,borderRadius:14,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>📝</div>
+              <div style={{width:28,height:28,borderRadius:14,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="filetext" size={14} color={C.dark} strokeWidth={1.75}/></div>
               <div style={{fontSize:16,fontWeight:700,color:C.dark,letterSpacing:1,textTransform:"uppercase"}}>Instructions</div>
               <div style={{flex:1,height:1,background:C.bdr}}/>
               <div style={{fontSize:13,color:C.light,padding:"4px 10px",background:C.blush,borderRadius:8}}>{friendRecipeExpInst?"▲ Hide":"▼ Show"}</div>
@@ -4778,7 +4831,7 @@ function App(){
         </div>
       </div></div>}
 
-      {view==="calendar"&&<div>
+      {view==="calendar"&&<div style={{animation:"ft-fade-in .25s ease-out"}}>
         {/* Week/Month Toggle */}
         {(function(){
           var now = new Date();
@@ -4895,7 +4948,7 @@ function App(){
                           }
                           <div style={{padding:"12px 16px"}}>
                             <div style={{fontWeight:600,fontSize:16,color:C.dark}}>{m.name}</div>
-                            {m.time?<div style={{fontSize:12,color:C.light,marginTop:2}}>⏱ {m.time}</div>:null}
+                            {m.time?<div style={{display:"flex",alignItems:"center",gap:4,fontSize:12,color:C.light,marginTop:2}}><Icon name="clock" size={11} strokeWidth={1.75}/>{m.time}</div>:null}
                           </div>
                           </React.Fragment>}
                         </div>
@@ -4985,7 +5038,7 @@ function App(){
                       }
                       <div style={{padding:"14px 18px"}}>
                         <div style={{fontWeight:600,fontSize:17,color:C.dark}}>{m.name}</div>
-                        {m.time?<div style={{fontSize:12,color:C.light,marginTop:3}}>⏱ {m.time}</div>:null}
+                        {m.time?<div style={{display:"flex",alignItems:"center",gap:4,fontSize:12,color:C.light,marginTop:3}}><Icon name="clock" size={11} strokeWidth={1.75}/>{m.time}</div>:null}
                       </div>
                     </div>
                   );
@@ -5001,7 +5054,7 @@ function App(){
         </div>}
       </div>}
 
-      {view==="recipes"&&<div>
+      {view==="recipes"&&<div style={{animation:"ft-fade-in .25s ease-out"}}>
         {/* Inbox - Recipes shared to you */}
         {userInbox.length>0?<div style={{marginBottom:16,background:"#fff",borderRadius:16,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,padding:16}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
@@ -5036,9 +5089,9 @@ function App(){
           <div style={{position:"relative"}}>
             <button onClick={function(){setShowRecipePlusMenu(!showRecipePlusMenu)}} style={{padding:"7px 14px",borderRadius:8,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>+ Add</button>
             {showRecipePlusMenu?<div style={{position:"absolute",top:40,right:0,background:"#fff",borderRadius:10,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,minWidth:180,zIndex:50,overflow:"hidden"}}>
-              <button onClick={function(){setRf(emptyMeal());setShowRF(true);setShowRecipePlusMenu(false)}} style={{display:"block",width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr}}>✍️  Add Manually</button>
-              <button onClick={function(){setShowScanModal(true);setScanPhotos([]);setShowRecipePlusMenu(false)}} style={{display:"block",width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr}}>📷  Photo</button>
-              <button onClick={function(){setShowImport(true);setShowRecipePlusMenu(false)}} style={{display:"block",width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer"}}>📥  Import</button>
+              <button onClick={function(){setRf(emptyMeal());setShowRF(true);setShowRecipePlusMenu(false)}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}}><Icon name="pencil" size={14} strokeWidth={1.75}/>Add Manually</button>
+              <button onClick={function(){setShowScanModal(true);setScanPhotos([]);setShowRecipePlusMenu(false)}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}}><Icon name="camera" size={14} strokeWidth={1.75}/>Photo</button>
+              <button onClick={function(){setShowImport(true);setShowRecipePlusMenu(false)}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",boxSizing:"border-box"}}><Icon name="inbox" size={14} strokeWidth={1.75}/>Import</button>
             </div>:null}
           </div>
           {showRecipePlusMenu?<div onClick={function(){setShowRecipePlusMenu(false)}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:40}}/>:null}
@@ -5086,12 +5139,12 @@ function App(){
           if(recipeFilter==="favorites")return favorites.includes(r.id);
           return(r.recipeType||detectRecipeType(r))===recipeFilter;
         }).map(function(r){var rtype=r.recipeType||detectRecipeType(r);var typeInfo=RECIPE_TYPES.find(function(t){return t.id===rtype})||RECIPE_TYPES[RECIPE_TYPES.length-1];var isFav=favorites.includes(r.id);var isPrivate=r.isPublic===false;return(
-          <div key={r.id} style={{background:"#fff",borderRadius:20,border:"none",marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}}>
+          <div key={r.id} className="ft-card-tap" style={{background:"#fff",borderRadius:20,border:"none",marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}}>
             {/* Hero image */}
-            <div style={{position:"relative",width:"100%",height:r.photo?200:56,background:C.blush}}>
-              {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:null}
+            <div style={{position:"relative",width:"100%",height:r.photo?200:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
+              {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.3}}><Icon name="plate" size={28} color={C.dark} strokeWidth={1.25}/></div>}
               {/* Privacy badge - top left only if private */}
-              {isPrivate?<div style={{position:"absolute",top:14,left:14,background:"rgba(0,0,0,0.75)",borderRadius:20,padding:"6px 12px",fontSize:10,fontWeight:600,color:"#fff"}}>🔒 Private</div>:null}
+              {isPrivate?<div style={{position:"absolute",top:14,left:14,display:"flex",alignItems:"center",gap:5,background:"rgba(0,0,0,0.75)",borderRadius:20,padding:"6px 12px",fontSize:10,fontWeight:600,color:"#fff"}}><Icon name="lock" size={10} color="#fff" strokeWidth={2}/>Private</div>:null}
             </div>
             
             {/* Content area */}
@@ -5102,7 +5155,7 @@ function App(){
                 return [
                   <h3 key="t" style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:22,color:C.ink,lineHeight:1.25,margin:0,marginBottom:10}}>{r.name}</h3>,
                   (ct || typeInfo)?<div key="m" style={{display:"flex",alignItems:"center",gap:10,fontSize:13,color:C.light}}>
-                    {ct?<span>🕐 {ct}</span>:null}
+                    {ct?<span style={{display:"inline-flex",alignItems:"center",gap:4}}><Icon name="clock" size={11} strokeWidth={1.75}/>{ct}</span>:null}
                     {ct && typeInfo?<span style={{opacity:.4}}>|</span>:null}
                     {typeInfo?<span><CatTag type={typeInfo}/></span>:null}
                   </div>:null
@@ -5115,14 +5168,14 @@ function App(){
 
       {/* VIEW RECIPE MODAL */}
       {viewRecipe&&<div style={ovl} onClick={function(){setViewRecipe(null)}}>
-        <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:480,maxHeight:"90vh",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={function(e){e.stopPropagation()}}>
+        <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:480,maxHeight:"90vh",display:"flex",flexDirection:"column",overflow:"hidden",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}} onClick={function(e){e.stopPropagation()}}>
           {/* Header */}
           <div style={{padding:"16px 20px",borderBottom:"1px solid "+C.bdr,background:"#fff",flexShrink:0}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}}>{viewRecipe.name}</div>
-              <button onClick={function(){setViewRecipe(null)}} style={{background:"none",border:"none",fontSize:24,cursor:"pointer",opacity:.4,padding:8}}>✕</button>
+              <button onClick={function(){setViewRecipe(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,padding:8,display:"flex"}}><Icon name="x" size={20} strokeWidth={2}/></button>
             </div>
-            {viewRecipe.time?<div style={{fontSize:13,color:C.light,marginTop:4}}>⏱ {viewRecipe.time}</div>:null}
+            {viewRecipe.time?<div style={{display:"flex",alignItems:"center",gap:4,fontSize:13,color:C.light,marginTop:4}}><Icon name="clock" size={12} strokeWidth={1.75}/>{viewRecipe.time}</div>:null}
           </div>
           
           {/* Scrollable Content */}
@@ -5198,7 +5251,7 @@ function App(){
       </div>}
 
       {/* CHEF TAB - AI recipe idea chat */}
-      {view==="chef"&&<div>
+      {view==="chef"&&<div style={{animation:"ft-fade-in .25s ease-out"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <Icon name="sparkle" size={19} color={C.gold} strokeWidth={1.75}/>
@@ -5244,7 +5297,7 @@ function App(){
       {view==="grocery"&&<GroceryTab meals={meals} wdates={wd} wlabel={wl} rgn={region} gSI={gSI} gSFI={gSFI} setItemStore={setSI} userId={userId} groceryHidden={groceryHidden} setGroceryHidden={setGroceryHidden} stores={STORES} addCustomStore={addCustomStore} removeCustomStore={removeCustomStore} defStore={defStore} setDefStore={handleSetDefStore} categoryStores={categoryStores} setCategoryStore={handleSetCategoryStore} goToCalendar={function(){setView("calendar")}} setWs={setWs} ws={ws}/>}
 
       {/* EXPLORE TAB - Recipes + People */}
-      {view==="explore"&&<div>
+      {view==="explore"&&<div style={{animation:"ft-fade-in .25s ease-out"}}>
         <div style={{display:"flex",gap:22,marginBottom:18,borderBottom:"1px solid "+C.bdr}}>
           <button onClick={function(){setExploreSubTab("recipes")}} style={{background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:exploreSubTab==="recipes"?C.ink:C.light,borderBottom:exploreSubTab==="recipes"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>Recipes</button>
           <button onClick={function(){setExploreSubTab("people")}} style={{position:"relative",background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:exploreSubTab==="people"?C.ink:C.light,borderBottom:exploreSubTab==="people"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>People
@@ -5293,7 +5346,8 @@ function App(){
             {/* Recipe cards */}
             {filtered.length===0?<div style={{textAlign:"center",padding:"48px 20px"}}>
               <div style={{marginBottom:14,opacity:.35}}><Icon name="globe" size={36} color={C.dark} strokeWidth={1.25}/></div>
-              <div style={{fontSize:15,color:C.ink,fontWeight:600}}>{publicRecipesLoaded?"No recipes found":"Loading recipes..."}</div>
+              <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:4}}>{publicRecipesLoaded?"No recipes found":"Loading recipes..."}</div>
+              {publicRecipesLoaded?<div style={{fontSize:12,color:C.light}}>Try adjusting your search or filters</div>:null}
             </div>:
             filtered.map(function(r){
               var originalCredit = r.credit ? (typeof r.credit === "string" ? r.credit.split(",")[0].split("|")[0].split("via")[0].trim() : r.credit) : null;
@@ -5306,10 +5360,10 @@ function App(){
               var alreadySaved = !!savedCopy;
               var cookTime = shortTime(r.time);
               
-              return <div key={r.id} onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}} style={{background:"#fff",borderRadius:20,marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
+              return <div key={r.id} className="ft-card-tap" onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}} style={{background:"#fff",borderRadius:20,marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
                 {/* Hero image with heart save button overlaid */}
-                <div style={{position:"relative",width:"100%",height:r.photo?200:56,background:C.blush}}>
-                  {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:null}
+                <div style={{position:"relative",width:"100%",height:r.photo?200:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
+                  {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.3}}><Icon name="plate" size={28} color={C.dark} strokeWidth={1.25}/></div>}
                   {user?<button onClick={function(e){
                     e.stopPropagation();
                     if(alreadySaved){
@@ -5336,7 +5390,7 @@ function App(){
                   {/* Owner row (clickable, doesn't trigger card click) */}
                   <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
                     <div onClick={function(e){e.stopPropagation();setViewProfileUser(r.ownerUsername)}} style={{width:30,height:30,borderRadius:15,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",cursor:"pointer",flexShrink:0}}>
-                      {r.ownerProfilePic && r.ownerProfilePic.startsWith && r.ownerProfilePic.startsWith("data:")?<img src={r.ownerProfilePic} style={{width:30,height:30,objectFit:"cover"}}/>:r.ownerProfilePic?<span style={{fontSize:14}}>{r.ownerProfilePic}</span>:<span style={{fontSize:13}}>👤</span>}
+                      {r.ownerProfilePic && r.ownerProfilePic.startsWith && r.ownerProfilePic.startsWith("data:")?<img src={r.ownerProfilePic} style={{width:30,height:30,objectFit:"cover"}}/>:r.ownerProfilePic?<span style={{fontSize:14}}>{r.ownerProfilePic}</span>:<Icon name="user" size={14} strokeWidth={1.75}/>}
                     </div>
                     <div onClick={function(e){e.stopPropagation();setViewProfileUser(r.ownerUsername)}} style={{fontSize:14,color:C.light,cursor:"pointer",flex:1}}>@{r.ownerUsername}</div>
                   </div>
@@ -5346,7 +5400,7 @@ function App(){
                   
                   {/* Meta row: cook time | type */}
                   {(cookTime || typeInfo)?<div style={{display:"flex",alignItems:"center",gap:10,fontSize:13,color:C.light}}>
-                    {cookTime?<span>🕐 {cookTime}</span>:null}
+                    {cookTime?<span style={{display:"inline-flex",alignItems:"center",gap:4}}><Icon name="clock" size={11} strokeWidth={1.75}/>{cookTime}</span>:null}
                     {cookTime && typeInfo?<span style={{opacity:.4}}>|</span>:null}
                     {typeInfo?<span><CatTag type={typeInfo}/></span>:null}
                   </div>:null}
@@ -5357,7 +5411,7 @@ function App(){
         })():
         <div>
         {!user?<div style={{textAlign:"center",padding:40}}>
-          <div style={{fontSize:48,marginBottom:16}}>👥</div>
+          <div style={{marginBottom:16,opacity:.35}}><Icon name="users" size={36} strokeWidth={1.5}/></div>
           <div style={{fontSize:16,fontWeight:600,color:C.dark,marginBottom:8}}>Sign in to connect with others</div>
           <div style={{fontSize:13,color:C.light,marginBottom:16}}>Follow other Family Table users to share recipes</div>
           <button onClick={function(){setShowAuth(true)}} style={{padding:"12px 24px",borderRadius:10,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:14,cursor:"pointer"}}>Sign In</button>
@@ -5367,7 +5421,7 @@ function App(){
           {followRequests.length>0?<div style={{marginBottom:16}}>
             <div style={{background:"linear-gradient(135deg, #fff5f5 0%, #fff 100%)",borderRadius:12,border:"1px solid #f0c0c0",padding:16}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                <span style={{fontSize:20}}>📬</span>
+                <Icon name="mail" size={17} color="#c0392b" strokeWidth={1.75}/>
                 <span style={{fontSize:14,fontWeight:700,color:"#c0392b"}}>Follow Requests ({followRequests.length})</span>
               </div>
               {followRequests.map(function(req){return(
@@ -5398,7 +5452,7 @@ function App(){
           {myPendingRequests.length>0?<div style={{marginBottom:16}}>
             <div style={{background:"#fff",borderRadius:12,border:"1px solid "+C.bdr,padding:16}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                <span style={{fontSize:16}}>⏳</span>
+                <Icon name="hourglass" size={14} color={C.light} strokeWidth={1.75}/>
                 <span style={{fontSize:13,fontWeight:600,color:C.light}}>Pending Requests ({myPendingRequests.length})</span>
               </div>
               {myPendingRequests.map(function(req){return(
@@ -5423,7 +5477,7 @@ function App(){
           
           {/* Search for Users */}
           <div style={{background:"#fff",borderRadius:12,padding:16,marginBottom:16,border:"1px solid "+C.bdr}}>
-            <div style={{fontSize:14,fontWeight:700,color:C.dark,marginBottom:12}}>🔍 Find Users</div>
+            <div style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark,marginBottom:12}}><Icon name="search" size={14} strokeWidth={1.75}/>Find Users</div>
             <input 
               value={friendSearch}
               onChange={function(e){setFriendSearch(e.target.value);searchFriends(e.target.value)}}
@@ -5450,7 +5504,7 @@ function App(){
                   <div style={{flex:1}} onClick={function(){setViewProfileUser(result.username);setViewProfileData(result)}}>
                     <div style={{fontWeight:600,fontSize:14,color:C.dark,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
                       @{result.username}
-                      {isPrivate?<span style={{fontSize:10}}>🔐</span>:null}
+                      {isPrivate?<span style={{display:"inline-flex"}}><Icon name="lock" size={10} strokeWidth={2}/></span>:null}
                     </div>
                   </div>
                   {result.isFollowing?
@@ -5469,7 +5523,7 @@ function App(){
           
           {/* Suggested Users */}
           {suggestedFriends.length>0?<div style={{marginBottom:16}}>
-            <div style={{fontSize:14,fontWeight:700,color:C.dark,marginBottom:10}}>✨ Suggested</div>
+            <div style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark,marginBottom:10}}><Icon name="sparkle" size={13} color={C.gold} strokeWidth={2}/>Suggested</div>
             <div style={{background:"linear-gradient(135deg, #fff 0%, "+C.blush+" 100%)",borderRadius:12,border:"1px solid "+C.bdr,overflow:"hidden"}}>
               {suggestedFriends.map(function(sug,i){return(
                 <div key={sug.username} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderBottom:i<suggestedFriends.length-1?"1px solid "+C.bdr:"none",background:"rgba(255,255,255,0.7)"}}>
@@ -5505,7 +5559,7 @@ function App(){
           
           {/* Followers List */}
           {expandedSection==="followers"&&followers.length>0?<div style={{marginBottom:16}}>
-            <div style={{fontSize:14,fontWeight:700,color:C.dark,marginBottom:10}}>👥 Followers</div>
+            <div style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark,marginBottom:10}}><Icon name="users" size={14} strokeWidth={1.75}/>Followers</div>
             <div style={{background:"#fff",borderRadius:12,border:"1px solid "+C.bdr,overflow:"hidden"}}>
               {followers.map(function(f,i){return(
                 <div key={f.username} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderBottom:i<followers.length-1?"1px solid "+C.bdr:"none"}}>
@@ -5529,7 +5583,7 @@ function App(){
           
           {/* Following List */}
           {expandedSection==="following"&&following.length>0?<div style={{marginBottom:16}}>
-            <div style={{fontSize:14,fontWeight:700,color:C.dark,marginBottom:10}}>💫 Following</div>
+            <div style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark,marginBottom:10}}><Icon name="sparkle" size={12} color={C.gold} strokeWidth={2}/>Following</div>
             <div style={{background:"#fff",borderRadius:12,border:"1px solid "+C.bdr,overflow:"hidden"}}>
               {following.map(function(f,i){return(
                 <div key={f.username} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderBottom:i<following.length-1?"1px solid "+C.bdr:"none"}}>
@@ -5553,12 +5607,12 @@ function App(){
           
           {/* Status message */}
           {followStatus?<div style={{textAlign:"center",padding:12,marginBottom:16,borderRadius:8,background:followStatus.startsWith("error")?"#fef2f2":"#f0fdf4"}}>
-            <span style={{fontSize:13,fontWeight:600,color:followStatus.startsWith("error")?"#c0392b":"#27ae60"}}>{followStatus.startsWith("error")?followStatus.replace("error:","❌ "):followStatus.replace("success:","✓ ")}</span>
+            <span style={{display:"flex",alignItems:"center",gap:5,fontSize:13,fontWeight:600,color:followStatus.startsWith("error")?"#c0392b":"#27ae60"}}>{followStatus.startsWith("error")?<React.Fragment><Icon name="x" size={13} strokeWidth={2.5}/>{followStatus.replace("error:","")}</React.Fragment>:<React.Fragment><Icon name="check" size={13} strokeWidth={2.5}/>{followStatus.replace("success:","")}</React.Fragment>}</span>
           </div>:null}
           
           {/* Empty state */}
           {followers.length===0&&following.length===0&&followRequests.length===0&&suggestedFriends.length===0?<div style={{textAlign:"center",padding:30,background:"#fff",borderRadius:12,border:"1px solid "+C.bdr}}>
-            <div style={{fontSize:40,marginBottom:12}}>👋</div>
+            <div style={{marginBottom:12,opacity:.35}}><Icon name="users" size={32} strokeWidth={1.5}/></div>
             <div style={{fontSize:14,fontWeight:600,color:C.dark,marginBottom:4}}>Connect with friends!</div>
             <div style={{fontSize:12,color:C.light}}>Search for users above or wait for suggestions</div>
           </div>:null}
@@ -5572,7 +5626,7 @@ function App(){
       {showPlaceholder?<div style={ovl} onClick={function(){setShowPlaceholder(null);setPlaceholderText("")}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16,color:C.ink}}><Icon name="tag" size={15} color={C.dark} strokeWidth={1.75}/> Add a Placeholder</div>
-          <button onClick={function(){setShowPlaceholder(null);setPlaceholderText("")}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}}>✕</button>
+          <button onClick={function(){setShowPlaceholder(null);setPlaceholderText("")}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
           {["Out to Eat","Leftovers","Takeout","Skipping this Meal"].map(function(sug){
@@ -5589,16 +5643,16 @@ function App(){
       {selDate&&em&&<div style={ovl} onClick={function(){setSelDate(null);setEm(null);setEditIdx(null)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <div style={{fontWeight:700,fontSize:17}}>{typeof editIdx==="number"?"Edit":"Add"} Meal</div>
-          <button onClick={function(){setSelDate(null);setEm(null);setEditIdx(null)}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}}>✕</button>
+          <button onClick={function(){setSelDate(null);setEm(null);setEditIdx(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button>
         </div>
         <div style={{position:"relative",marginBottom:12}}>
-          {em.photo?<div style={{position:"relative"}}><img src={em.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/><button onClick={function(){fileRef.current&&fileRef.current.click()}} style={Object.assign({},btn("rgba(0,0,0,0.6)"),{position:"absolute",bottom:8,right:8,fontSize:11,padding:"4px 10px"})}>📷</button></div>:<div onClick={function(){fileRef.current&&fileRef.current.click()}} style={{width:"100%",height:120,borderRadius:10,border:"2px dashed #ddd",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",background:"#fafafe"}}><span style={{fontSize:28}}>📷</span><span style={{fontSize:13,opacity:.5,marginTop:4}}>Add photo</span></div>}
+          {em.photo?<div style={{position:"relative"}}><img src={em.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/><button onClick={function(){fileRef.current&&fileRef.current.click()}} style={Object.assign({},btn("rgba(0,0,0,0.6)"),{position:"absolute",bottom:8,right:8,padding:"4px 10px",display:"flex",alignItems:"center"})}><Icon name="camera" size={13} color="#fff" strokeWidth={1.75}/></button></div>:<div onClick={function(){fileRef.current&&fileRef.current.click()}} style={{width:"100%",height:120,borderRadius:10,border:"2px dashed #ddd",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",background:"#fafafe"}}><Icon name="camera" size={26} color="#999" strokeWidth={1.5}/><span style={{fontSize:13,opacity:.5,marginTop:4}}>Add photo</span></div>}
           <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={function(e){handlePhoto(e,setEm)}}/>
         </div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Name *</label><input style={inp} placeholder="e.g. Mom's Chicken Parm" value={em.name} onChange={function(e){setEm(function(m){return Object.assign({},m,{name:e.target.value})})}}/></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Time</label><input style={inp} placeholder="e.g. 45 min" value={em.time} onChange={function(e){setEm(function(m){return Object.assign({},m,{time:e.target.value})})}}/></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Ingredients</label>
-          {em.ingredients.map(function(g,i){return <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",fontSize:13}}><span style={{flex:1}}>{formatIng(g)}</span><button onClick={function(){setEm(function(m){return Object.assign({},m,{ingredients:m.ingredients.filter(function(_,j){return j!==i})})})} } style={{background:"none",border:"none",cursor:"pointer",opacity:.4,fontSize:14}}>✕</button></div>})}
+          {em.ingredients.map(function(g,i){return <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",fontSize:13}}><span style={{flex:1}}>{formatIng(g)}</span><button onClick={function(){setEm(function(m){return Object.assign({},m,{ingredients:m.ingredients.filter(function(_,j){return j!==i})})})} } style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={12} strokeWidth={2}/></button></div>})}
           <div style={{display:"flex",gap:4,marginTop:4}}>
             <input style={{width:50,padding:"8px 6px",borderRadius:8,border:"1px solid #ddd",fontSize:13,textAlign:"center"}} placeholder="Qty" value={nqty2} onChange={function(e){setNqty2(e.target.value)}}/>
             <select style={{padding:"8px 4px",borderRadius:8,border:"1px solid #ddd",fontSize:12}} value={nunit2} onChange={function(e){setNunit2(e.target.value)}}>{UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"unit")})}</select>
@@ -5609,31 +5663,35 @@ function App(){
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Instructions</label><textarea style={Object.assign({},inp,{minHeight:50,resize:"vertical"})} placeholder="Cooking instructions..." value={em.notes} onChange={function(e){setEm(function(m){return Object.assign({},m,{notes:e.target.value})})}}/></div>
         <div style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Recipe Source / Credit</label><input style={inp} placeholder="e.g. Grandma's recipe, AllRecipes.com, @foodblogger" value={em.credit||""} onChange={function(e){setEm(function(m){return Object.assign({},m,{credit:e.target.value})})}}/></div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button onClick={saveM} style={Object.assign({},btn(C.dark),{flex:1})}>💾 Save</button>
-          {em.name.trim()?<button onClick={function(){svR(recipes.concat([stampNewRecipe(em,userId,"manual")]))}} style={btn(C.blushMed,C.dark)}>📖 Recipe</button>:null}
-          {typeof editIdx==="number"?<button onClick={delM} style={btn("#ffe0e0","#c0392b")}>🗑️</button>:null}
+          <button onClick={saveM} style={Object.assign({},btn(C.dark),{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6})}><Icon name="check" size={13} strokeWidth={2}/>Save</button>
+          {em.name.trim()?<button onClick={function(){svR(recipes.concat([stampNewRecipe(em,userId,"manual")]))}} style={Object.assign({},btn(C.blushMed,C.dark),{display:"flex",alignItems:"center",gap:6})}><Icon name="book" size={13} strokeWidth={1.75}/>Recipe</button>:null}
+          {typeof editIdx==="number"?<button onClick={delM} style={Object.assign({},btn("#ffe0e0","#c0392b"),{display:"flex",alignItems:"center"})}><Icon name="trash" size={14} strokeWidth={1.75}/></button>:null}
         </div>
       </div></div>}
 
       {/* RECIPE PICKER */}
       {rpick&&<div style={ovl} onClick={function(){setRpick(null)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontWeight:700,fontSize:17}}>Add Meal for {new Date(rpick+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div><button onClick={function(){setRpick(null)}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}}>✕</button></div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontWeight:700,fontSize:17}}>Add Meal for {new Date(rpick+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div><button onClick={function(){setRpick(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button></div>
         <button onClick={function(){openEdit(rpick);setRpick(null)}} style={{width:"100%",padding:12,marginBottom:14,borderRadius:10,border:"1px dashed "+C.bdr,background:"transparent",cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark}}>+ Create New Meal</button>
-        {favorites.length>0?<div style={{marginBottom:12}}><div style={{fontSize:12,fontWeight:700,color:C.blushDark,marginBottom:6}}>❤️ Favorites</div>{recipes.filter(function(r){return favorites.includes(r.id)}).map(function(r){return <div key={r.id} onClick={function(){var u=Object.assign({},meals);var list=getMealsForDay(rpick).slice();list.push(Object.assign({},r));u[rpick]=list;svM(u);setRpick(null)}} style={{display:"flex",alignItems:"center",gap:10,padding:10,borderRadius:10,border:"1px solid #eee",marginBottom:6,cursor:"pointer",background:"#F5EBE6"}}><div><div style={{fontWeight:600,fontSize:14}}>{r.name}</div>{r.time?<div style={{fontSize:11,opacity:.5}}>{r.time}</div>:null}</div></div>})}</div>:null}
-        {recipes.length===0?<div style={{textAlign:"center",padding:20,opacity:.4}}>No saved recipes yet. Create one in the Recipes tab!</div>:null}
+        {favorites.length>0?<div style={{marginBottom:12}}><div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:700,color:C.blushDark,marginBottom:6}}><Icon name="heart" size={12} color={C.blushDark} filled={true} strokeWidth={2}/>Favorites</div>{recipes.filter(function(r){return favorites.includes(r.id)}).map(function(r){return <div key={r.id} onClick={function(){var u=Object.assign({},meals);var list=getMealsForDay(rpick).slice();list.push(Object.assign({},r));u[rpick]=list;svM(u);setRpick(null)}} style={{display:"flex",alignItems:"center",gap:10,padding:10,borderRadius:10,border:"1px solid #eee",marginBottom:6,cursor:"pointer",background:"#F5EBE6"}}><div><div style={{fontWeight:600,fontSize:14}}>{r.name}</div>{r.time?<div style={{fontSize:11,opacity:.5}}>{r.time}</div>:null}</div></div>})}</div>:null}
+        {recipes.length===0?<div style={{textAlign:"center",padding:"24px 20px"}}>
+          <div style={{marginBottom:8,opacity:.35}}><Icon name="book" size={28} color={C.dark} strokeWidth={1.25}/></div>
+          <div style={{fontSize:13,fontWeight:600,color:C.dark,marginBottom:4}}>No saved recipes yet</div>
+          <div style={{fontSize:11,color:C.light}}>Create one in the Recipes tab to add it here.</div>
+        </div>:null}
         {recipes.length>0?<div style={{fontSize:12,fontWeight:700,color:C.light,marginBottom:6}}>All Recipes</div>:null}
         {recipes.filter(function(r){return!favorites.includes(r.id)}).map(function(r){return <div key={r.id} onClick={function(){var u=Object.assign({},meals);var list=getMealsForDay(rpick).slice();list.push(Object.assign({},r));u[rpick]=list;svM(u);setRpick(null)}} style={{display:"flex",alignItems:"center",gap:10,padding:10,borderRadius:10,border:"1px solid #eee",marginBottom:6,cursor:"pointer",background:"#fafaff"}}><div><div style={{fontWeight:600,fontSize:14}}>{r.name}</div>{r.time?<div style={{fontSize:11,opacity:.5}}>{r.time}</div>:null}</div></div>})}
       </div></div>}
 
       {/* ADD RECIPE */}
       {showRF&&<div style={ovl} onClick={function(){setShowRF(false)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontWeight:700,fontSize:17}}>Add Recipe</div><button onClick={function(){setShowRF(false)}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}}>✕</button></div>
-        <div style={{marginBottom:12}}>{rf.photo?<img src={rf.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/>:<div onClick={function(){rfRef.current&&rfRef.current.click()}} style={{width:"100%",height:100,borderRadius:10,border:"2px dashed #ddd",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><span style={{fontSize:28}}>📷</span></div>}<input ref={rfRef} type="file" accept="image/*" style={{display:"none"}} onChange={function(e){handlePhoto(e,setRf)}}/></div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontWeight:700,fontSize:17}}>Add Recipe</div><button onClick={function(){setShowRF(false)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button></div>
+        <div style={{marginBottom:12}}>{rf.photo?<img src={rf.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/>:<div onClick={function(){rfRef.current&&rfRef.current.click()}} style={{width:"100%",height:100,borderRadius:10,border:"2px dashed #ddd",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon name="camera" size={26} color="#999" strokeWidth={1.5}/></div>}<input ref={rfRef} type="file" accept="image/*" style={{display:"none"}} onChange={function(e){handlePhoto(e,setRf)}}/></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Name *</label><input style={inp} value={rf.name} onChange={function(e){setRf(function(m){return Object.assign({},m,{name:e.target.value})})}}/></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Category <span style={{color:"#c0392b"}}>*</span></label><div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=rf.recipeType===t.id;return <button key={t.id} onClick={function(){setRf(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"4px 8px",borderRadius:8,border:active?"2px solid "+C.dark:"1px solid #eee",background:active?C.blushMed:"#fff",cursor:"pointer",fontSize:11,fontWeight:600}}><CatTag type={t}/></button>})}</div></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Time</label><input style={inp} value={rf.time} onChange={function(e){setRf(function(m){return Object.assign({},m,{time:e.target.value})})}}/></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Ingredients</label>
-          {rf.ingredients.map(function(g,i){return <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",fontSize:13}}><span style={{flex:1}}>{formatIng(g)}</span><button onClick={function(){setRf(function(m){return Object.assign({},m,{ingredients:m.ingredients.filter(function(_,j){return j!==i})})})}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4}}>✕</button></div>})}
+          {rf.ingredients.map(function(g,i){return <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",fontSize:13}}><span style={{flex:1}}>{formatIng(g)}</span><button onClick={function(){setRf(function(m){return Object.assign({},m,{ingredients:m.ingredients.filter(function(_,j){return j!==i})})})}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={12} strokeWidth={2}/></button></div>})}
           <div style={{display:"flex",gap:4,marginTop:4}}>
             <input style={{width:50,padding:"8px 6px",borderRadius:8,border:"1px solid #ddd",fontSize:13,textAlign:"center"}} placeholder="Qty" value={rqty} onChange={function(e){setRqty(e.target.value)}}/>
             <select style={{padding:"8px 4px",borderRadius:8,border:"1px solid #ddd",fontSize:12}} value={runit} onChange={function(e){setRunit(e.target.value)}}>{UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"unit")})}</select>
@@ -5647,24 +5705,24 @@ function App(){
           <label style={{fontSize:12,fontWeight:600,opacity:.6}}>Visibility</label>
           <div style={{display:"flex",gap:8,marginTop:6}}>
             <button onClick={function(){setRf(function(m){return Object.assign({},m,{isPublic:true})})}} style={{flex:1,padding:"10px 12px",borderRadius:10,border:rf.isPublic!==false?"2px solid "+C.dark:"1px solid "+C.bdr,background:rf.isPublic!==false?C.blushMed:"#fff",cursor:"pointer",textAlign:"center"}}>
-              <div style={{fontSize:16,marginBottom:2}}>👥</div>
+              <div style={{marginBottom:2,display:"flex",justifyContent:"center"}}><Icon name="users" size={15} color={C.dark} strokeWidth={1.75}/></div>
               <div style={{fontSize:12,fontWeight:600,color:C.dark}}>Public</div>
               <div style={{fontSize:10,color:C.light}}>Visible to followers</div>
             </button>
             <button onClick={function(){setRf(function(m){return Object.assign({},m,{isPublic:false})})}} style={{flex:1,padding:"10px 12px",borderRadius:10,border:rf.isPublic===false?"2px solid "+C.dark:"1px solid "+C.bdr,background:rf.isPublic===false?C.blushMed:"#fff",cursor:"pointer",textAlign:"center"}}>
-              <div style={{fontSize:16,marginBottom:2}}>🔒</div>
+              <div style={{marginBottom:2,display:"flex",justifyContent:"center"}}><Icon name="lock" size={15} color={C.dark} strokeWidth={1.75}/></div>
               <div style={{fontSize:12,fontWeight:600,color:C.dark}}>Private</div>
               <div style={{fontSize:10,color:C.light}}>Only you can see</div>
             </button>
           </div>
         </div>
-        <button onClick={function(){if(!rf.name.trim()){alert("Please enter a recipe name.");return;}if(!rf.recipeType||rf.recipeType==""){alert("Please choose a category for this recipe.");return;}svR(recipes.concat([stampNewRecipe(rf, userId, "manual")]));setRf(emptyMeal());setShowRF(false);setRni("");setRqty("");setRunit("")}} style={Object.assign({},btn(C.dark),{width:"100%"})}>📖 Save Recipe</button>
+        <button className="ft-card-tap" onClick={function(){if(!rf.name.trim()){alert("Please enter a recipe name.");return;}if(!rf.recipeType||rf.recipeType==""){alert("Please choose a category for this recipe.");return;}svR(recipes.concat([stampNewRecipe(rf, userId, "manual")]));setRf(emptyMeal());setShowRF(false);setRni("");setRqty("");setRunit("")}} style={Object.assign({},btn(C.dark),{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:7})}><Icon name="book" size={14} strokeWidth={1.75}/>Save Recipe</button>
       </div></div>}
 
       {/* EDIT RECIPE */}
       {editRecipe&&<div style={ovl} onClick={function(){setEditRecipe(null)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontWeight:700,fontSize:17}}>Edit Recipe</div><button onClick={function(){setEditRecipe(null)}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}}>✕</button></div>
-        <div style={{marginBottom:12}}>{editRecipe.photo?<div style={{position:"relative"}}><img src={editRecipe.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/><button onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){setEditRecipe(function(m){return Object.assign({},m,{photo:e.target.result})})};rd.readAsDataURL(f)};inp.click()}} style={Object.assign({},btn("rgba(0,0,0,0.6)"),{position:"absolute",bottom:8,right:8,fontSize:11,padding:"4px 10px"})}>📷</button></div>:<div onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){setEditRecipe(function(m){return Object.assign({},m,{photo:e.target.result})})};rd.readAsDataURL(f)};inp.click()}} style={{width:"100%",height:100,borderRadius:10,border:"2px dashed #ddd",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><span style={{fontSize:28}}>📷</span></div>}</div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontWeight:700,fontSize:17}}>Edit Recipe</div><button onClick={function(){setEditRecipe(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button></div>
+        <div style={{marginBottom:12}}>{editRecipe.photo?<div style={{position:"relative"}}><img src={editRecipe.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/><button onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){setEditRecipe(function(m){return Object.assign({},m,{photo:e.target.result})})};rd.readAsDataURL(f)};inp.click()}} style={Object.assign({},btn("rgba(0,0,0,0.6)"),{position:"absolute",bottom:8,right:8,padding:"4px 10px",display:"flex",alignItems:"center"})}><Icon name="camera" size={13} color="#fff" strokeWidth={1.75}/></button></div>:<div onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){setEditRecipe(function(m){return Object.assign({},m,{photo:e.target.result})})};rd.readAsDataURL(f)};inp.click()}} style={{width:"100%",height:100,borderRadius:10,border:"2px dashed #ddd",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon name="camera" size={26} color="#999" strokeWidth={1.5}/></div>}</div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Name *</label><input style={inp} value={editRecipe.name} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{name:e.target.value})})}}/></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Category <span style={{color:"#c0392b"}}>*</span></label><div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=editRecipe.recipeType===t.id;return <button key={t.id} onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"4px 8px",borderRadius:8,border:active?"2px solid "+C.dark:"1px solid #eee",background:active?C.blushMed:"#fff",cursor:"pointer",fontSize:11,fontWeight:600}}><CatTag type={t}/></button>})}</div></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Time</label><input style={inp} value={editRecipe.time} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{time:e.target.value})})}}/></div>
@@ -5677,9 +5735,9 @@ function App(){
                 setEditRecipeQty(g.qty||"");
                 setEditRecipeUnit(g.unit||"");
                 setEditRecipeIng(g.name||"");
-              }} style={{background:"none",border:"none",cursor:"pointer",opacity:.5,fontSize:12,padding:"4px"}}>✏️</button>
+              }} style={{background:"none",border:"none",cursor:"pointer",opacity:.5,padding:"4px",display:"flex",alignItems:"center"}}><Icon name="pencil" size={12} strokeWidth={1.75}/></button>
               <span style={{flex:1}}>{formatIng(g)}</span>
-              <button onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{ingredients:m.ingredients.filter(function(_,j){return j!==i})})})}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,fontSize:14}}>✕</button>
+              <button onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{ingredients:m.ingredients.filter(function(_,j){return j!==i})})})}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={12} strokeWidth={2}/></button>
             </div>
           })}
           <div style={{display:"flex",gap:4,marginTop:8}}>
@@ -5725,24 +5783,24 @@ function App(){
           <label style={{fontSize:12,fontWeight:600,opacity:.6}}>Visibility</label>
           <div style={{display:"flex",gap:8,marginTop:6}}>
             <button onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{isPublic:true})})}} style={{flex:1,padding:"10px 12px",borderRadius:10,border:editRecipe.isPublic!==false?"2px solid "+C.dark:"1px solid "+C.bdr,background:editRecipe.isPublic!==false?C.blushMed:"#fff",cursor:"pointer",textAlign:"center"}}>
-              <div style={{fontSize:16,marginBottom:2}}>👥</div>
+              <div style={{marginBottom:2,display:"flex",justifyContent:"center"}}><Icon name="users" size={15} color={C.dark} strokeWidth={1.75}/></div>
               <div style={{fontSize:12,fontWeight:600,color:C.dark}}>Public</div>
               <div style={{fontSize:10,color:C.light}}>Visible to followers</div>
             </button>
             <button onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{isPublic:false})})}} style={{flex:1,padding:"10px 12px",borderRadius:10,border:editRecipe.isPublic===false?"2px solid "+C.dark:"1px solid "+C.bdr,background:editRecipe.isPublic===false?C.blushMed:"#fff",cursor:"pointer",textAlign:"center"}}>
-              <div style={{fontSize:16,marginBottom:2}}>🔒</div>
+              <div style={{marginBottom:2,display:"flex",justifyContent:"center"}}><Icon name="lock" size={15} color={C.dark} strokeWidth={1.75}/></div>
               <div style={{fontSize:12,fontWeight:600,color:C.dark}}>Private</div>
               <div style={{fontSize:10,color:C.light}}>Only you can see</div>
             </button>
           </div>
         </div>
-        <button onClick={function(){if(!editRecipe.name.trim()){alert("Please enter a recipe name.");return;}if(!editRecipe.recipeType||editRecipe.recipeType==""){alert("Please choose a category for this recipe.");return;}var exists=recipes.some(function(r){return r.id===editRecipe.id});var stamped=exists?editRecipe:stampNewRecipe(editRecipe,userId,"manual");if(exists){svR(recipes.map(function(r){return r.id===editRecipe.id?stamped:r}))}else{svR(recipes.concat([stamped]))}setEditRecipe(null);setEditRecipeQty("");setEditRecipeUnit("")}} style={Object.assign({},btn(C.dark),{width:"100%"})}>{recipes.some(function(r){return r.id===editRecipe.id})?"💾 Save Changes":"📖 Save Recipe"}</button>
+        <button className="ft-card-tap" onClick={function(){if(!editRecipe.name.trim()){alert("Please enter a recipe name.");return;}if(!editRecipe.recipeType||editRecipe.recipeType==""){alert("Please choose a category for this recipe.");return;}var exists=recipes.some(function(r){return r.id===editRecipe.id});var stamped=exists?editRecipe:stampNewRecipe(editRecipe,userId,"manual");if(exists){svR(recipes.map(function(r){return r.id===editRecipe.id?stamped:r}))}else{svR(recipes.concat([stamped]))}setEditRecipe(null);setEditRecipeQty("");setEditRecipeUnit("")}} style={Object.assign({},btn(C.dark),{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:7})}>{recipes.some(function(r){return r.id===editRecipe.id})?<React.Fragment><Icon name="check" size={14} strokeWidth={2}/>Save Changes</React.Fragment>:<React.Fragment><Icon name="book" size={14} strokeWidth={1.75}/>Save Recipe</React.Fragment>}</button>
       </div></div>}
 
       {/* RECIPE TO CALENDAR */}
       {r2cal&&<div style={ovl} onClick={function(){setR2cal(null)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontWeight:700,fontSize:17}}>📅 Add to Calendar</div><button onClick={function(){setR2cal(null)}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}}>✕</button></div>
-        <div style={{display:"flex",alignItems:"center",gap:10,padding:12,background:C.blush,borderRadius:10,marginBottom:16}}>{r2cal.photo?<img src={r2cal.photo} style={{width:48,height:48,borderRadius:10,objectFit:"cover",background:C.blush}} alt=""/>:<span style={{fontSize:32}}>{r2cal.emoji}</span>}<div><div style={{fontWeight:700,fontSize:15}}>{r2cal.name}</div></div></div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:17}}><Icon name="calendar" size={17} strokeWidth={1.75}/> Add to Calendar</div><button onClick={function(){setR2cal(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button></div>
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:12,background:C.blush,borderRadius:10,marginBottom:16}}>{r2cal.photo?<img src={r2cal.photo} style={{width:48,height:48,borderRadius:10,objectFit:"cover",background:C.blush}} alt=""/>:<div style={{width:48,height:48,borderRadius:10,background:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="plate" size={21} color={C.dark} strokeWidth={1.25}/></div>}<div><div style={{fontWeight:700,fontSize:15}}>{r2cal.name}</div></div></div>
         <div style={{fontWeight:600,fontSize:13,marginBottom:8}}>This week</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:16}}>
           {wd.map(function(date,i){var k=dk(date),isT=k===todayK,hm=meals[k];return <button key={k} onClick={function(){var u=Object.assign({},meals);var list=getMealsForDay(k).slice();list.push({name:r2cal.name,emoji:r2cal.emoji,time:r2cal.time,ingredients:(r2cal.ingredients||[]).slice(),notes:r2cal.notes||"",photo:r2cal.photo||null});u[k]=list;svM(u);setR2cal(null)}} style={{padding:10,borderRadius:10,border:isT?"2px solid "+C.dark:"1px solid "+C.bdr,background:hm?C.blushMed:C.card,cursor:"pointer",textAlign:"center"}}><div style={{fontSize:11,fontWeight:700,color:C.light}}>{DAYS_FULL[i].slice(0,3)}</div><div style={{fontSize:16,fontWeight:800,color:isT?C.dark:"#8B7355"}}>{date.getDate()}</div>{hm?<div style={{fontSize:9,color:C.blushDark}}>has meal</div>:null}</button>})}
@@ -5753,7 +5811,7 @@ function App(){
       </div></div>}
 
       {/* SHARE RECIPE / COOKING VIEW */}
-      {shareR&&<div style={ovl} onClick={function(){setShareR(null);setShareExpandIng(true);setShareExpandInst(false);setShareToUser("");setShareToStatus("");setShareMode(null)}}><div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:480,maxHeight:"90vh",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={function(e){e.stopPropagation()}}>
+      {shareR&&<div style={ovl} onClick={function(){setShareR(null);setShareExpandIng(true);setShareExpandInst(false);setShareToUser("");setShareToStatus("");setShareMode(null)}}><div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:480,maxHeight:"90vh",display:"flex",flexDirection:"column",overflow:"hidden",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}} onClick={function(e){e.stopPropagation()}}>
         {/* Fixed Header */}
         <div style={{padding:"16px 20px",borderBottom:"1px solid "+C.bdr,background:"#fff",flexShrink:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -5761,14 +5819,14 @@ function App(){
               {shareR.photo?
                 <img src={shareR.photo} style={{width:50,height:50,borderRadius:10,objectFit:"cover"}} alt=""/>
               :
-                <div style={{width:50,height:50,borderRadius:10,background:C.blush,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>{shareR.emoji}</div>
+                <div style={{width:50,height:50,borderRadius:10,background:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="plate" size={22} color={C.dark} strokeWidth={1.25}/></div>
               }
               <div>
                 <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:18,color:C.ink}}>{shareR.name}</div>
-                {shareR.time?<div style={{fontSize:12,color:C.light}}>⏱ {shareR.time}</div>:null}
+                {shareR.time?<div style={{display:"flex",alignItems:"center",gap:4,fontSize:12,color:C.light}}><Icon name="clock" size={11} strokeWidth={1.75}/>{shareR.time}</div>:null}
               </div>
             </div>
-            <button onClick={function(){setShareR(null);setShareExpandIng(true);setShareExpandInst(false);setShareToUser("");setShareToStatus("");setShareMode(null)}} style={{background:"none",border:"none",fontSize:24,cursor:"pointer",opacity:.4,padding:8}}>✕</button>
+            <button onClick={function(){setShareR(null);setShareExpandIng(true);setShareExpandInst(false);setShareToUser("");setShareToStatus("");setShareMode(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,padding:8,display:"flex"}}><Icon name="x" size={20} strokeWidth={2}/></button>
           </div>
         </div>
         
@@ -5778,7 +5836,7 @@ function App(){
           {/* Ingredients Section - Expandable */}
           {shareR.ingredients&&shareR.ingredients.length>0?<div style={{marginBottom:16}}>
             <button onClick={function(){setShareExpandIng(!shareExpandIng)}} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:C.blush,border:"none",borderRadius:shareExpandIng?"12px 12px 0 0":12,cursor:"pointer"}}>
-              <span style={{fontSize:14,fontWeight:700,color:C.dark}}>🥗 Ingredients ({shareR.ingredients.length})</span>
+              <span style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark}}><Icon name="list" size={14} strokeWidth={1.75}/>Ingredients ({shareR.ingredients.length})</span>
               <span style={{fontSize:12,color:C.light}}>{shareExpandIng?"▲":"▼"}</span>
             </button>
             {shareExpandIng?<div style={{background:"#fff",border:"1px solid "+C.bdr,borderTop:"none",borderRadius:"0 0 12px 12px",padding:16}}>
@@ -5792,7 +5850,7 @@ function App(){
           {/* Instructions Section - Expandable */}
           {shareR.notes?<div style={{marginBottom:16}}>
             <button onClick={function(){setShareExpandInst(!shareExpandInst)}} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:C.blush,border:"none",borderRadius:shareExpandInst?"12px 12px 0 0":12,cursor:"pointer"}}>
-              <span style={{fontSize:14,fontWeight:700,color:C.dark}}>📝 Instructions</span>
+              <span style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark}}><Icon name="filetext" size={14} strokeWidth={1.75}/>Instructions</span>
               <span style={{fontSize:12,color:C.light}}>{shareExpandInst?"▲":"▼"}</span>
             </button>
             {shareExpandInst?<div style={{background:"#fff",border:"1px solid "+C.bdr,borderTop:"none",borderRadius:"0 0 12px 12px",padding:16}}>
@@ -5826,7 +5884,7 @@ function App(){
             {shareMode==="user"&&user?<div>
               {/* Success screen after sending */}
               {shareToStatus&&shareToStatus.startsWith("success:")?<div style={{textAlign:"center",padding:"30px 20px"}}>
-                <div style={{fontSize:48,marginBottom:16}}>✅</div>
+                <div style={{marginBottom:16,display:"flex",justifyContent:"center",color:"#27ae60"}}><Icon name="check" size={40} strokeWidth={2}/></div>
                 <div style={{fontSize:18,fontWeight:700,color:C.dark,marginBottom:8}}>Recipe Sent!</div>
                 <div style={{fontSize:14,color:C.light,marginBottom:24}}>{shareToStatus.replace("success:","")}</div>
                 <button onClick={function(){setShareR(null);setShareMode(null);setShareToUser("");setShareToStatus("")}} style={{padding:"14px 32px",borderRadius:10,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:15,cursor:"pointer"}}>Done</button>
@@ -5834,7 +5892,7 @@ function App(){
               
               /* User selection UI */
               <div>
-                <div style={{fontSize:14,fontWeight:700,color:C.dark,marginBottom:12}}>👤 Send to Family Table User</div>
+                <div style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark,marginBottom:12}}><Icon name="user" size={14} strokeWidth={1.75}/>Send to Family Table User</div>
                 
                 {/* Search input */}
                 <div style={{marginBottom:12}}>
@@ -5861,10 +5919,10 @@ function App(){
                       var isSelected=shareToUser.toLowerCase().replace(/^@/,"")===uname.toLowerCase();
                       return <div key={uname} onClick={function(){setShareToUser(uname)}} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",cursor:"pointer",borderBottom:i<filtered.length-1?"1px solid "+C.bdr:"none",background:isSelected?C.blush:"#fff"}}>
                         <div style={{width:32,height:32,borderRadius:16,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
-                          {pic?<img src={pic} style={{width:32,height:32,objectFit:"cover"}}/>:<span style={{fontSize:14}}>👤</span>}
+                          {pic?<img src={pic} style={{width:32,height:32,objectFit:"cover"}}/>:<Icon name="user" size={15} strokeWidth={1.75}/>}
                         </div>
                         <span style={{fontSize:14,fontWeight:isSelected?600:400,color:C.dark}}>@{uname}</span>
-                        {isSelected?<span style={{marginLeft:"auto",color:C.dark}}>✓</span>:null}
+                        {isSelected?<span style={{marginLeft:"auto",color:C.dark,display:"flex"}}><Icon name="check" size={14} strokeWidth={2.5}/></span>:null}
                       </div>
                     });
                   })()}
@@ -5874,9 +5932,9 @@ function App(){
                 </div>}
                 
                 {/* Send button */}
-                <button onClick={function(){shareToUserDirect(shareR,shareToUser)}} disabled={!shareToUser.trim()} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:shareToUser.trim()?C.dark:"#ccc",color:"#fff",fontWeight:600,fontSize:15,cursor:shareToUser.trim()?"pointer":"not-allowed"}}>Send to @{shareToUser||"..."}</button>
+                <button className="ft-card-tap" onClick={function(){shareToUserDirect(shareR,shareToUser)}} disabled={!shareToUser.trim()} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:shareToUser.trim()?C.dark:"#ccc",color:"#fff",fontWeight:600,fontSize:15,cursor:shareToUser.trim()?"pointer":"not-allowed"}}>Send to @{shareToUser||"..."}</button>
                 
-                {shareToStatus&&shareToStatus.startsWith("error")?<div style={{fontSize:13,marginTop:12,textAlign:"center",fontWeight:600,color:"#c0392b"}}>{shareToStatus.replace("error:","❌ ")}</div>:null}
+                {shareToStatus&&shareToStatus.startsWith("error")?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,fontSize:13,marginTop:12,textAlign:"center",fontWeight:600,color:"#c0392b"}}><Icon name="x" size={13} strokeWidth={2.5}/>{shareToStatus.replace("error:","")}</div>:null}
               </div>}
             </div>:null}
           </div>:
@@ -5884,7 +5942,7 @@ function App(){
           /* Share Button - Shows Options */
           <div style={{padding:16}}>
             <button onClick={function(){setShareMode("options")}} style={{width:"100%",padding:"16px",borderRadius:12,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-              📤 Share Recipe
+              <Icon name="send" size={15} strokeWidth={2}/> Share Recipe
             </button>
           </div>}
           
@@ -5892,7 +5950,7 @@ function App(){
           {shareMode==="options"?<div style={{padding:"0 16px 16px"}}>
             <div style={{display:"flex",gap:10}}>
               {user?<button onClick={function(){setShareMode("user")}} style={{flex:1,padding:"16px",borderRadius:12,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",textAlign:"center"}}>
-                <div style={{fontSize:24,marginBottom:6}}>👤</div>
+                <div style={{marginBottom:6,display:"flex",justifyContent:"center"}}><Icon name="user" size={22} strokeWidth={1.5}/></div>
                 <div style={{fontSize:13,fontWeight:600,color:C.dark}}>Send to User</div>
                 <div style={{fontSize:11,color:C.light,marginTop:2}}>@username</div>
               </button>:null}
@@ -5913,7 +5971,7 @@ function App(){
                   setTimeout(function(){setCopyFeedback("")},2000);
                 }
               }} style={{flex:1,padding:"16px",borderRadius:12,border:"1px solid "+C.bdr,background:copyFeedback==="text"?"#d4edda":"#fff",cursor:"pointer",textAlign:"center"}}>
-                <div style={{fontSize:24,marginBottom:6}}>{copyFeedback==="text"?"✓":"📋"}</div>
+                <div style={{marginBottom:6,display:"flex",justifyContent:"center"}}>{copyFeedback==="text"?<Icon name="check" size={22} strokeWidth={2}/>:<Icon name="clipboard" size={22} strokeWidth={1.5}/>}</div>
                 <div style={{fontSize:13,fontWeight:600,color:copyFeedback==="text"?"#155724":C.dark}}>{copyFeedback==="text"?"Copied!":"Copy Text"}</div>
                 <div style={{fontSize:11,color:C.light,marginTop:2}}>Full recipe</div>
               </button>
@@ -5926,8 +5984,8 @@ function App(){
       {/* Scan Photos Modal */}
       {showScanModal&&<div style={ovl} onClick={function(){if(!aiScanLoading){setShowScanModal(false);setScanPhotos([])}}}><div style={Object.assign({},mdl,{maxWidth:440,padding:0,overflow:"hidden",maxHeight:"90vh",display:"flex",flexDirection:"column"})} onClick={function(e){e.stopPropagation()}}>
         <div style={{padding:"16px 20px",borderBottom:"1px solid "+C.bdr,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{fontWeight:700,fontSize:18,color:C.dark}}>📷 Photo</div>
-          <button onClick={function(){setShowScanModal(false);setScanPhotos([])}} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",opacity:.4}} disabled={aiScanLoading}>✕</button>
+          <div style={{display:"flex",alignItems:"center",gap:9,fontWeight:700,fontSize:18,color:C.dark}}><Icon name="camera" size={17} strokeWidth={1.75}/>Photo</div>
+          <button onClick={function(){setShowScanModal(false);setScanPhotos([])}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}} disabled={aiScanLoading}><Icon name="x" size={20} strokeWidth={2}/></button>
         </div>
         
         <div style={{flex:1,overflowY:"auto",padding:16}}>
@@ -5940,14 +5998,14 @@ function App(){
             {scanPhotos.map(function(photo,idx){
               return <div key={idx} style={{position:"relative",aspectRatio:"1",borderRadius:10,overflow:"hidden",border:"2px solid "+C.bdr}}>
                 <img src={photo} style={{width:"100%",height:"100%",objectFit:"cover"}} alt={"Photo "+(idx+1)}/>
-                <button onClick={function(){setScanPhotos(function(prev){return prev.filter(function(_,i){return i!==idx})})}} style={{position:"absolute",top:4,right:4,width:24,height:24,borderRadius:12,border:"none",background:"rgba(0,0,0,0.6)",color:"#fff",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+                <button onClick={function(){setScanPhotos(function(prev){return prev.filter(function(_,i){return i!==idx})})}} style={{position:"absolute",top:4,right:4,width:24,height:24,borderRadius:12,border:"none",background:"rgba(0,0,0,0.6)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="x" size={12} color="#fff" strokeWidth={2.5}/></button>
                 <div style={{position:"absolute",bottom:4,left:4,background:"rgba(0,0,0,0.6)",color:"#fff",fontSize:10,padding:"2px 6px",borderRadius:4}}>{idx+1}</div>
               </div>
             })}
             
             {/* Add photo button */}
             <label htmlFor="scanPhotoInput" style={{aspectRatio:"1",borderRadius:10,border:"2px dashed "+C.bdr,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",background:C.blush}}>
-              <span style={{fontSize:28}}>📷</span>
+              <Icon name="camera" size={26} color="#999" strokeWidth={1.5}/>
               <span style={{fontSize:11,color:C.dark,marginTop:4}}>{scanPhotos.length===0?"Add Photo":"Add More"}</span>
             </label>
             <input id="scanPhotoInput" type="file" accept="image/*" multiple style={{display:"none"}} onChange={function(ev){
@@ -5984,22 +6042,22 @@ function App(){
       {showImport&&<div style={ovl} onClick={function(){if(!importLoading){setShowImport(false);setImportUrl("");setImportCode("");setImportStatus("");setImportPasteName("");setImportPasteIngredients("");setImportPasteDirections("")}}}><div style={Object.assign({},mdl,{maxWidth:440,padding:0,overflow:"hidden",maxHeight:"90vh",display:"flex",flexDirection:"column"})} onClick={function(e){e.stopPropagation()}}>
         {/* Header */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px 20px",borderBottom:"1px solid "+C.bdr,flexShrink:0}}>
-          <div style={{fontWeight:700,fontSize:17,color:C.dark}}>📥 Import Recipe</div>
-          <button onClick={function(){if(!importLoading){setShowImport(false);setImportUrl("");setImportCode("");setImportStatus("");setImportPasteName("");setImportPasteIngredients("");setImportPasteDirections("")}}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}}>✕</button>
+          <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:17,color:C.dark}}><Icon name="inbox" size={17} strokeWidth={1.75}/>Import Recipe</div>
+          <button onClick={function(){if(!importLoading){setShowImport(false);setImportUrl("");setImportCode("");setImportStatus("");setImportPasteName("");setImportPasteIngredients("");setImportPasteDirections("")}}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button>
         </div>
         
         {/* Tabs */}
         <div style={{display:"flex",borderBottom:"1px solid "+C.bdr,flexShrink:0}}>
-          {[["text","📝 Text"],["url","🌐 URL"],["pdf","📄 PDF"]].map(function(t){
+          {[["text","filetext","Text"],["url","globe","URL"],["pdf","filetext","PDF"]].map(function(t){
             var active=importTab===t[0];
-            return <button key={t[0]} onClick={function(){setImportTab(t[0])}} style={{flex:1,padding:"12px",border:"none",borderBottom:active?"2px solid "+C.dark:"2px solid transparent",background:active?C.blush:"#fff",cursor:"pointer",fontSize:13,fontWeight:active?700:500,color:active?C.dark:C.light}}>{t[1]}</button>
+            return <button key={t[0]} onClick={function(){setImportTab(t[0])}} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,flex:1,padding:"12px",border:"none",borderBottom:active?"2px solid "+C.dark:"2px solid transparent",background:active?C.blush:"#fff",cursor:"pointer",fontSize:13,fontWeight:active?700:500,color:active?C.dark:C.light}}><Icon name={t[1]} size={13} strokeWidth={1.75}/>{t[2]}</button>
           })}
         </div>
         
         <div style={{padding:20,overflowY:"auto",flex:1}}>
           {/* Loading state */}
           {importLoading?<div style={{textAlign:"center",padding:30}}>
-            <div style={{fontSize:32,marginBottom:12}}>⏳</div>
+            <div style={{marginBottom:12}}><Icon name="hourglass" size={28} color="#8B7355" strokeWidth={1.75}/></div>
             <div style={{fontSize:14,fontWeight:600,color:C.dark,marginBottom:4}}>Importing Recipe...</div>
             <div style={{fontSize:12,color:C.light}}>{importStatus}</div>
           </div>:null}
@@ -6065,14 +6123,15 @@ function App(){
                   alert("Import failed: " + err.message);
                 });
               }} 
-              disabled={!importPasteAll.trim()} 
-              style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:importPasteAll.trim()?C.dark:"#ccc",color:"#fff",fontSize:15,fontWeight:600,cursor:importPasteAll.trim()?"pointer":"not-allowed"}}
+              disabled={!importPasteAll.trim()}
+              className="ft-card-tap"
+              style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",padding:"14px",borderRadius:10,border:"none",background:importPasteAll.trim()?C.dark:"#ccc",color:"#fff",fontSize:15,fontWeight:600,cursor:importPasteAll.trim()?"pointer":"not-allowed"}}
             >
-              ✨ Parse & Save Recipe
+              <Icon name="sparkle" size={15} strokeWidth={2}/> Parse & Save Recipe
             </button>
             
             <div style={{marginTop:16,padding:12,background:C.blush,borderRadius:10}}>
-              <div style={{fontSize:12,fontWeight:600,color:C.dark,marginBottom:6}}>💡 Or enter manually:</div>
+              <div style={{fontSize:12,fontWeight:600,color:C.dark,marginBottom:6}}>Or enter manually:</div>
               <button 
                 onClick={function(){setImportTab("manual")}}
                 style={{fontSize:13,color:C.dark,background:"none",border:"none",textDecoration:"underline",cursor:"pointer",padding:0}}
@@ -6179,16 +6238,16 @@ function App(){
                       alert("Could not access clipboard. Please paste manually.");
                     });
                   }}
-                  style={{padding:"14px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:C.blush,cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark,whiteSpace:"nowrap"}}
+                  style={{display:"flex",alignItems:"center",gap:6,padding:"14px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:C.blush,cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark,whiteSpace:"nowrap"}}
                 >
-                  📋 Paste
+                  <Icon name="clipboard" size={14} strokeWidth={1.75}/> Paste
                 </button>
               </div>
               <div style={{fontSize:13,color:C.light,marginTop:10,lineHeight:1.5}}>
-                ✅ <strong>Works with:</strong> AllRecipes, Food Network, Bon Appétit, recipe blogs, etc.
+                <strong>Works with:</strong> AllRecipes, Food Network, Bon Appétit, recipe blogs, etc.
               </div>
               <div style={{fontSize:13,color:C.light,marginTop:6,lineHeight:1.5,background:C.blush,padding:"10px 12px",borderRadius:8}}>
-                📱 <strong>Instagram/TikTok?</strong> Screenshot the recipe and use <strong>Scan</strong> instead!
+                <strong>Instagram/TikTok?</strong> Screenshot the recipe and use <strong>Scan</strong> instead!
               </div>
             </div>
             <button 
@@ -6216,7 +6275,7 @@ function App(){
               onClick={function(){pdfImportRef.current&&pdfImportRef.current.click()}}
               style={{width:"100%",padding:"40px 20px",borderRadius:12,border:"2px dashed "+C.bdr,background:C.blush,textAlign:"center",cursor:"pointer"}}
             >
-              <div style={{fontSize:40,marginBottom:8}}>📄</div>
+              <div style={{marginBottom:8,display:"flex",justifyContent:"center",opacity:.5}}><Icon name="filetext" size={34} strokeWidth={1.5}/></div>
               <div style={{fontSize:14,fontWeight:600,color:C.dark,marginBottom:4}}>Click to upload PDF</div>
               <div style={{fontSize:12,color:C.light}}>or drag and drop</div>
             </div>
