@@ -4069,15 +4069,16 @@ function App(){
     reader.readAsDataURL(file);
   }
 
-  // A chat reply is only "save"-able once it's ONE fully detailed recipe (numbered
-  // steps + quantities), not a menu of 2-4 bolded idea names with one-line blurbs.
+  // A chat reply is only "save"-able once it's ONE fully detailed recipe (multiple
+  // numbered steps + multiple quantity lines), not a menu of 2-4 bolded idea names
+  // with one-line blurbs. Bold-marker counting was tried and dropped: real recipes
+  // often bold more than just the dish name (a technique, a time), which made
+  // genuine full recipes get misclassified as idea lists.
   function chefReplyIsFullRecipe(text){
     if(!text)return false;
-    var boldCount=(text.match(/\*\*/g)||[]).length/2;
-    if(boldCount>1)return false; // multiple bolded names = an idea list, not one recipe
-    var hasNumberedSteps=/(^|\n)\s*\d+\.\s/.test(text);
-    var hasQtyLine=/(^|\n)\s*[-•]?\s*\d+(\/\d+)?\s*(cup|cups|tbsp|tsp|oz|lb|g|kg|ml|clove|cloves)?\b/i.test(text);
-    return hasNumberedSteps&&hasQtyLine;
+    var stepMatches=text.match(/(^|\n)\s*\d+\.\s/g)||[];
+    var qtyMatches=text.match(/(^|\n)\s*[-•]?\s*\d+(\/\d+)?\s*(cup|cups|tbsp|tablespoons?|tsp|teaspoons?|oz|ounces?|lbs?|pounds?|g|kg|ml|clove|cloves|can|cans|slice|slices|pinch)\b/gi)||[];
+    return stepMatches.length>=2&&qtyMatches.length>=2;
   }
 
   // Chef chat: recipe-idea brainstorming
