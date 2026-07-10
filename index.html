@@ -1774,10 +1774,10 @@ function GroceryTab(p){
     React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},
       React.createElement("div",{style:{fontSize:12,color:C.light}},all.length+" items · "+tc+" checked"+(hiddenCount>0?" · "+hiddenCount+" hidden":"")),
       React.createElement("div",{style:{display:"flex",gap:8}},
-        tc>0?React.createElement("button",{onClick:clr,style:{fontSize:12,padding:"7px 12px",borderRadius:8,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm}},"Clear ✓"):null,
-        all.length>0?React.createElement("button",{onClick:clearAllItems,style:{display:"flex",alignItems:"center",gap:5,fontSize:12,padding:"7px 12px",borderRadius:8,border:"1px solid rgba(192,57,43,0.25)",background:"#fdf2f1",cursor:"pointer",fontWeight:600,color:"#c0392b"}},React.createElement(Icon,{name:"trash",size:12,strokeWidth:2}),"Clear All"):null,
-        hiddenCount>0?React.createElement("button",{onClick:unhideAllItems,style:{fontSize:12,padding:"7px 12px",borderRadius:8,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm}},"Restore "+hiddenCount):null,
-        all.length>0?React.createElement("button",{onClick:function(){setShowSaveLists(true)},style:{display:"flex",alignItems:"center",gap:5,fontSize:12,padding:"7px 12px",borderRadius:8,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:C.shadowSm}},React.createElement(Icon,{name:"bookmark",size:12,strokeWidth:2}),"Save"):null
+        tc>0?React.createElement("button",{onClick:clr,style:{display:"flex",alignItems:"center",height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm}},"Clear ✓"):null,
+        all.length>0?React.createElement("button",{onClick:clearAllItems,style:{display:"flex",alignItems:"center",gap:5,height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid rgba(192,57,43,0.25)",background:"#fdf2f1",cursor:"pointer",fontWeight:600,color:"#c0392b"}},React.createElement(Icon,{name:"trash",size:12,strokeWidth:2}),"Clear All"):null,
+        hiddenCount>0?React.createElement("button",{onClick:unhideAllItems,style:{display:"flex",alignItems:"center",height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm}},"Restore "+hiddenCount):null,
+        all.length>0?React.createElement("button",{onClick:function(){setShowSaveLists(true)},style:{display:"flex",alignItems:"center",gap:5,height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:C.shadowSm}},React.createElement(Icon,{name:"bookmark",size:12,strokeWidth:2}),"Save"):null
       )
     ),
 
