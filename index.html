@@ -381,6 +381,15 @@ function Icon(p){
   if(name==="check")return React.createElement("svg",cp,
     React.createElement("polyline",{points:"20 6 9 17 4 12"})
   );
+  if(name==="refresh")return React.createElement("svg",cp,
+    React.createElement("polyline",{points:"23 4 23 10 17 10"}),
+    React.createElement("polyline",{points:"1 20 1 14 7 14"}),
+    React.createElement("path",{d:"M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"})
+  );
+  if(name==="search")return React.createElement("svg",cp,
+    React.createElement("circle",{cx:11,cy:11,r:8}),
+    React.createElement("line",{x1:21,y1:21,x2:16.65,y2:16.65})
+  );
   return null;
 }
 
@@ -1754,7 +1763,7 @@ function GroceryTab(p){
             setShowWeekPicker(false);
             setSelectedWeeks([]);
             if(count===0){alert("No new ingredients to add (already in list or no meals planned).");}
-          },style:{flex:1,padding:"10px",borderRadius:8,border:"1px solid #8B7355",background:"#fff",color:"#8B7355",fontWeight:600,fontSize:13,cursor:"pointer"}},"➕ Add to List"),
+          },style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,flex:1,padding:"10px",borderRadius:8,border:"1px solid #8B7355",background:"#fff",color:"#8B7355",fontWeight:600,fontSize:13,cursor:"pointer"}},React.createElement(Icon,{name:"plus",size:14,color:"#8B7355",strokeWidth:2}),"Add to List"),
           React.createElement("button",{onClick:function(){
             if(selectedWeeks.length===0){alert("Select at least one week first!");return;}
             if(generatedItems.length>0 && !confirm("This will replace your current grocery list. Continue?")) return;
@@ -1762,7 +1771,7 @@ function GroceryTab(p){
             setShowWeekPicker(false);
             setSelectedWeeks([]);
             if(count===0){alert("No ingredients found in the selected weeks. Add some meals to the calendar first!");}
-          },style:{flex:1,padding:"10px",borderRadius:8,border:"none",background:"#8B7355",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}},"🔄 Replace List")
+          },style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,flex:1,padding:"10px",borderRadius:8,border:"none",background:"#8B7355",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}},React.createElement(Icon,{name:"refresh",size:14,color:"#fff",strokeWidth:2}),"Replace List")
         )
       ):null,
       generatedWeekLabel?React.createElement("div",{style:{textAlign:"center",fontSize:11,color:"#96806C",marginTop:6}},
@@ -1880,9 +1889,9 @@ function GroceryTab(p){
     React.createElement("div",{style:{marginBottom:10}},
       React.createElement("button",{onClick:function(){setShowGroceryFilters(!showGroceryFilters)},style:{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"10px 14px",borderRadius:12,border:"1px solid rgba(139,115,85,0.2)",background:"#F5EBE6",cursor:"pointer"}},
         React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
-          React.createElement("span",{style:{fontSize:14}},"🔍"),
+          React.createElement(Icon,{name:"search",size:14,color:"#8B7355",strokeWidth:2}),
           React.createElement("span",{style:{fontWeight:600,fontSize:14,color:"#8B7355"}},
-            (fCat||fStore)?(fCat||"All Categories")+(fStore?" · "+((p.stores.find(function(s){return s.id===fStore})||{}).name||""):""):"All Items"
+            (fCat||fStore)?(fCat?fCat.replace(/^\S+\s*/,""):"All Categories")+(fStore?" · "+((p.stores.find(function(s){return s.id===fStore})||{}).name||""):""):"All Items"
           ),
           (fCat||fStore)?React.createElement("span",{style:{fontSize:12,color:"#96806C"}},"("+vis.length+")"):null
         ),
@@ -1893,7 +1902,7 @@ function GroceryTab(p){
         React.createElement("div",{style:{fontSize:12,fontWeight:700,color:"#6a6a7a",marginBottom:6}},"FILTER BY CATEGORY"),
         React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12}},
           React.createElement("button",{onClick:function(){setFCat(null);setShowGroceryFilters(false)},style:{padding:"8px 10px",borderRadius:8,border:fCat===null?"2px solid #8B7355":"1px solid #ddd",background:fCat===null?"#8B7355":"#fff",color:fCat===null?"#fff":"#8B7355",fontSize:12,fontWeight:600,cursor:"pointer"}},"All Categories"),
-          Object.keys(cats).sort().map(function(c){return React.createElement("button",{key:c,onClick:function(){setFCat(fCat===c?null:c);setShowGroceryFilters(false)},style:{padding:"8px 10px",borderRadius:8,border:fCat===c?"2px solid #8B7355":"1px solid #ddd",background:fCat===c?"#8B7355":"#fff",color:fCat===c?"#fff":"#8B7355",fontSize:12,fontWeight:500,cursor:"pointer",textAlign:"left"}},c)})
+          Object.keys(cats).sort().map(function(c){return React.createElement("button",{key:c,onClick:function(){setFCat(fCat===c?null:c);setShowGroceryFilters(false)},style:{display:"flex",alignItems:"center",gap:7,padding:"8px 10px",borderRadius:8,border:fCat===c?"2px solid #8B7355":"1px solid #ddd",background:fCat===c?"#8B7355":"#fff",color:fCat===c?"#fff":"#8B7355",fontSize:12,fontWeight:500,cursor:"pointer",textAlign:"left"}},React.createElement("span",{style:{display:"inline-block",width:6,height:6,minWidth:6,borderRadius:3,background:fCat===c?"#fff":"#B4823D"}}),c.replace(/^\S+\s*/,""))})
         ),
         React.createElement("div",{style:{fontSize:12,fontWeight:700,color:"#6a6a7a",marginBottom:6}},"FILTER BY STORE"),
         React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
@@ -2064,12 +2073,12 @@ function GroceryTab(p){
     showImportGrocery?React.createElement("div",{onClick:function(){setShowImportGrocery(false);setImportGroceryText("")},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:1000}},
       React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:420}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
-          React.createElement("div",{style:{fontWeight:700,fontSize:16}},"📝 Create Grocery List"),
+          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16}},React.createElement(Icon,{name:"list",size:16,color:"#333",strokeWidth:1.75}),"Create Grocery List"),
           React.createElement("button",{onClick:function(){setShowImportGrocery(false);setImportGroceryText("")},style:{background:"none",border:"none",fontSize:20,cursor:"pointer",opacity:.4}},"✕")
         ),
         
         importGroceryLoading?React.createElement("div",{style:{textAlign:"center",padding:40}},
-          React.createElement("div",{style:{fontSize:32,marginBottom:12}},"🔄"),
+          React.createElement("div",{style:{marginBottom:12}},React.createElement(Icon,{name:"refresh",size:28,color:"#8B7355",strokeWidth:1.75})),
           React.createElement("div",{style:{fontSize:14,color:"#666"}},"Processing...")
         ):React.createElement("div",null,
           // Text input only
