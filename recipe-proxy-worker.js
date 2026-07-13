@@ -232,7 +232,7 @@ For photo, include the main recipe image URL if found.`;
   // Only add web search tool if we didn't get page content
   if (!pageContent) {
     requestBody.tools = [{
-      type: "web_search_20250305",
+      type: "web_search_20260209",
       name: "web_search",
       max_uses: 3
     }];
