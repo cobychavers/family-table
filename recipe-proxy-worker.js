@@ -95,7 +95,7 @@ async function scanImages(images, apiKey) {
       "anthropic-version": "2023-06-01"
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-6",
+      model: "claude-sonnet-5",
       max_tokens: 2000,
       messages: [{ role: "user", content }]
     })
@@ -224,7 +224,7 @@ For photo, include the main recipe image URL if found.`;
   }
 
   const requestBody = {
-    model: "claude-sonnet-4-6",
+    model: "claude-sonnet-5",
     max_tokens: 4000,
     messages: [{ role: "user", content: prompt }]
   };
@@ -278,7 +278,7 @@ async function importFromPdf(imageData, mimeType, apiKey) {
       "anthropic-version": "2023-06-01"
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-6",
+      model: "claude-sonnet-5",
       max_tokens: 2000,
       messages: [{
         role: "user",
@@ -364,7 +364,7 @@ Important:
       "anthropic-version": "2023-06-01"
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-6",
+      model: "claude-sonnet-5",
       max_tokens: 4000,
       messages: [{ role: "user", content: prompt }]
     })
@@ -414,7 +414,7 @@ Keep tone practical and friendly. No long preambles, no markdown headers, no emo
       "anthropic-version": "2023-06-01"
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-6",
+      model: "claude-sonnet-5",
       max_tokens: 1200,
       system: systemPrompt,
       messages: anthropicMessages
