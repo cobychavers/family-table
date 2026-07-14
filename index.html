@@ -812,6 +812,20 @@ function tryMergeQty(aQty,aUnit,bQty,bUnit){
   return null;
 }
 
+// Formats an ingredient at a given scale multiplier (1 = unscaled), reusing
+// the same parse/format machinery as grocery consolidation. Falls back to
+// the plain unscaled display for ingredients with no parseable quantity
+// (e.g. "salt to taste") rather than showing a broken/blank amount.
+function formatScaledIng(ing,scale){
+  if(typeof ing==="string")ing=parseIng(ing);
+  if(!scale||scale===1)return formatIng(ing);
+  var num=parseQtyNum(ing.qty);
+  if(num===null)return formatIng(ing);
+  var q=formatQtyNum(num*scale);
+  var u=ing.unit?ing.unit+" ":"";
+  return(q?q+" ":"")+u+ing.name;
+}
+
 var RECIPE_TYPES = [
   {id:"all",label:"All",icon:"📋"},
   {id:"favorites",label:"Favorites",icon:"❤️"},
@@ -2315,6 +2329,7 @@ function App(){
   var [runit,setRunit]=useState("");
   var [expR,setExpR]=useState(null);
   var [viewRecipe,setViewRecipe]=useState(null);
+  var [recipeScale,setRecipeScale]=useState(1);
   var [viewRecipeHideIng,setViewRecipeHideIng]=useState(false);
   var [viewRecipeHideInst,setViewRecipeHideInst]=useState(false);
   var [expInstructions,setExpInstructions]=useState({});
@@ -2376,6 +2391,9 @@ function App(){
   var [viewProfileRecipes,setViewProfileRecipes]=useState([]);
   var [loadingProfileRecipes,setLoadingProfileRecipes]=useState(false);
   var [viewFriendRecipe,setViewFriendRecipe]=useState(null); // Recipe from following to view
+  // Reset the scale multiplier whenever a different recipe is opened, so it
+  // doesn't silently carry over from the last recipe someone scaled.
+  useEffect(function(){setRecipeScale(1)},[viewRecipe,viewFriendRecipe]);
   var [friendRecipeExpInst,setFriendRecipeExpInst]=useState(false);
   var [expandedSection,setExpandedSection]=useState(null); // "followers" or "following"
   var [r2cal,setR2cal]=useState(null);
@@ -4889,10 +4907,16 @@ function App(){
               <div style={{fontSize:16,fontWeight:700,color:C.dark,letterSpacing:1,textTransform:"uppercase"}}>Ingredients</div>
               <div style={{flex:1,height:1,background:C.bdr}}/>
             </div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+              <span style={{fontSize:12,fontWeight:600,color:C.light}}>Scale:</span>
+              <div style={{display:"flex",gap:6}}>
+                {[0.5,1,2,3].map(function(s){return <button key={s} className="ft-card-tap" onClick={function(){setRecipeScale(s)}} style={tab(recipeScale===s)}>{s===0.5?"½×":s+"×"}</button>})}
+              </div>
+            </div>
             <div style={{background:C.blush,borderRadius:12,padding:14}}>
               {viewFriendRecipe.ingredients.map(function(g,j){return <div key={j} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:j<viewFriendRecipe.ingredients.length-1?"1px solid "+C.bdr:"none"}}>
                 <div style={{width:6,height:6,borderRadius:3,background:C.blushDark,flexShrink:0}}/>
-                <span style={{fontSize:17,color:C.dark}}>{formatIng(g)}</span>
+                <span style={{fontSize:17,color:C.dark}}>{formatScaledIng(g,recipeScale)}</span>
               </div>})}
             </div>
           </div>:null}
@@ -5323,11 +5347,19 @@ function App(){
                 <div style={{flex:1,height:1,background:C.bdr}}/>
                 <div style={{fontSize:13,color:C.light,padding:"4px 10px",background:C.blush,borderRadius:8}}>{viewRecipeHideIng?"▼ Show":"▲ Hide"}</div>
               </div>
-              {!viewRecipeHideIng?<div style={{background:C.blush,borderRadius:12,padding:14}}>
-                {viewRecipe.ingredients.map(function(g,j){return <div key={j} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:j<viewRecipe.ingredients.length-1?"1px solid "+C.bdr:"none"}}>
-                  <div style={{width:6,height:6,borderRadius:3,background:C.blushDark,flexShrink:0}}/>
-                  <span style={{fontSize:17,color:C.ink}}>{formatIng(g)}</span>
-                </div>})}
+              {!viewRecipeHideIng?<div>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+                  <span style={{fontSize:12,fontWeight:600,color:C.light}}>Scale:</span>
+                  <div style={{display:"flex",gap:6}}>
+                    {[0.5,1,2,3].map(function(s){return <button key={s} className="ft-card-tap" onClick={function(){setRecipeScale(s)}} style={tab(recipeScale===s)}>{s===0.5?"½×":s+"×"}</button>})}
+                  </div>
+                </div>
+                <div style={{background:C.blush,borderRadius:12,padding:14}}>
+                  {viewRecipe.ingredients.map(function(g,j){return <div key={j} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:j<viewRecipe.ingredients.length-1?"1px solid "+C.bdr:"none"}}>
+                    <div style={{width:6,height:6,borderRadius:3,background:C.blushDark,flexShrink:0}}/>
+                    <span style={{fontSize:17,color:C.ink}}>{formatScaledIng(g,recipeScale)}</span>
+                  </div>})}
+                </div>
               </div>:null}
             </div>:null}
 
