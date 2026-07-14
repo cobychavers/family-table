@@ -1257,7 +1257,6 @@ function GroceryTab(p){
     items.forEach(function(it){
       var n=(it.name||"").trim().toLowerCase();
       if(!n)return;
-      if(!it.mealNames)it.mealNames=it.mealName?[it.mealName]:[];
       if(!seenNames[n])seenNames[n]=[];
       seenNames[n].push(it);
     });
@@ -1292,14 +1291,13 @@ function GroceryTab(p){
                   if(mergeResult){
                     v.qty=mergeResult.qty;
                     v.unit=mergeResult.unit;
-                    if(v.mealNames.indexOf(m.name)===-1)v.mealNames.push(m.name);
                     merged=true;
                     break;
                   }
                 }
               }
               if(!merged){
-                var newItem={id:"gen-"+idx,name:ing.name||"",qty:ing.qty||"",unit:ing.unit||"",mealNames:[m.name]};
+                var newItem={id:"gen-"+idx,name:ing.name||"",qty:ing.qty||"",unit:ing.unit||""};
                 items.push(newItem);
                 if(!seenNames[name])seenNames[name]=[];
                 seenNames[name].push(newItem);
@@ -1777,7 +1775,7 @@ function GroceryTab(p){
   // Build items list from generated items + manual items
   var all=[];
   generatedItems.forEach(function(x){
-    all.push({id:x.id,name:x.name,qty:x.qty||"",unit:x.unit||"",source:"generated",mealNames:x.mealNames||(x.mealName?[x.mealName]:[])});
+    all.push({id:x.id,name:x.name,qty:x.qty||"",unit:x.unit||"",source:"generated"});
   });
   manual.forEach(function(x){
     all.push({id:x.id,name:x.name,qty:x.qty||"",unit:x.unit||"",source:"manual"});
@@ -1836,10 +1834,7 @@ function GroceryTab(p){
         React.createElement("button",{onClick:function(){tog(it.id)},style:{width:24,height:24,borderRadius:6,border:ic?"none":"1.5px solid "+C.blushDeep,background:ic?C.dark:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},ic?React.createElement(Icon,{name:"check",size:14,color:"#fff",strokeWidth:2.5}):null),
         React.createElement("button",{onClick:function(){setPickStore(pickStore===it.id?null:it.id)},style:{width:26,height:26,borderRadius:6,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}},renderStoreIcon(st,16)),
         React.createElement("div",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{flex:1,minWidth:0,cursor:"pointer"}},
-          React.createElement("span",{style:{fontSize:15,color:C.ink,textDecoration:ic?"line-through":"none",fontWeight:500,display:"block"}},display),
-          it.source==="generated"&&it.mealNames&&it.mealNames.length?React.createElement("span",{style:{fontSize:12,color:C.light}},
-            it.mealNames.length===1?it.mealNames[0]:it.mealNames.length===2?it.mealNames[0]+" + "+it.mealNames[1]:it.mealNames[0]+" + "+(it.mealNames.length-1)+" more"
-          ):null
+          React.createElement("span",{style:{fontSize:15,color:C.ink,textDecoration:ic?"line-through":"none",fontWeight:500,display:"block"}},display)
         )
       )
     );
