@@ -4829,7 +4829,7 @@ function App(){
               var cookTime = shortTime(recipe.time);
               return <div key={recipe.id} className="ft-card-tap" onClick={function(){setViewFriendRecipe(Object.assign({},recipe,{ownerUsername:viewProfileUser,ownerProfilePic:viewProfileData?viewProfileData.profilePic:null}))}} style={{background:"#fff",borderRadius:20,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
                 {/* Hero image with heart */}
-                <div style={{position:"relative",width:"100%",height:recipe.photo?200:56,background:recipe.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
+                <div style={{position:"relative",width:"100%",aspectRatio:recipe.photo?"4 / 3":undefined,height:recipe.photo?undefined:56,background:recipe.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
                   {recipe.photo?<img src={recipe.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.3}}><Icon name="plate" size={28} color={C.dark} strokeWidth={1.25}/></div>}
                   <button onClick={function(e){
                     e.stopPropagation();
@@ -4897,7 +4897,7 @@ function App(){
         <div style={{flex:1,overflowY:"auto",padding:16}}>
           {/* Photo if exists and not shown in header */}
           {viewFriendRecipe.photo?<div style={{marginBottom:16}}>
-            <img src={viewFriendRecipe.photo} style={{width:"100%",height:220,objectFit:"cover",borderRadius:12,background:C.blush}} alt=""/>
+            <img src={viewFriendRecipe.photo} style={{width:"100%",aspectRatio:"4 / 3",objectFit:"cover",borderRadius:12,background:C.blush}} alt=""/>
           </div>:null}
           
           {/* Ingredients */}
@@ -5286,7 +5286,7 @@ function App(){
         }).map(function(r){var rtype=r.recipeType||detectRecipeType(r);var typeInfo=RECIPE_TYPES.find(function(t){return t.id===rtype})||RECIPE_TYPES[RECIPE_TYPES.length-1];var isFav=favorites.includes(r.id);var isPrivate=r.isPublic===false;return(
           <div key={r.id} className="ft-card-tap" style={{background:"#fff",borderRadius:20,border:"none",marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}}>
             {/* Hero image */}
-            <div style={{position:"relative",width:"100%",height:r.photo?200:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
+            <div style={{position:"relative",width:"100%",aspectRatio:r.photo?"4 / 3":undefined,height:r.photo?undefined:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
               {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.3}}><Icon name="plate" size={28} color={C.dark} strokeWidth={1.25}/></div>}
               {/* Privacy badge - top left only if private */}
               {isPrivate?<div style={{position:"absolute",top:14,left:14,display:"flex",alignItems:"center",gap:5,background:"rgba(0,0,0,0.75)",borderRadius:20,padding:"6px 12px",fontSize:10,fontWeight:600,color:"#fff"}}><Icon name="lock" size={10} color="#fff" strokeWidth={2}/>Private</div>:null}
@@ -5327,7 +5327,7 @@ function App(){
           <div style={{flex:1,overflowY:"auto",padding:16}}>
             {/* Photo - only display if exists */}
             {viewRecipe.photo?<div style={{marginBottom:16}}>
-              <img src={viewRecipe.photo} style={{width:"100%",height:220,objectFit:"cover",borderRadius:12,background:C.blush}} alt=""/>
+              <img src={viewRecipe.photo} style={{width:"100%",aspectRatio:"4 / 3",objectFit:"cover",borderRadius:12,background:C.blush}} alt=""/>
             </div>:null}
             
             {/* Action buttons */}
@@ -5515,7 +5515,7 @@ function App(){
               
               return <div key={r.id} className="ft-card-tap" onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}} style={{background:"#fff",borderRadius:20,marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
                 {/* Hero image with heart save button overlaid */}
-                <div style={{position:"relative",width:"100%",height:r.photo?200:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
+                <div style={{position:"relative",width:"100%",aspectRatio:r.photo?"4 / 3":undefined,height:r.photo?undefined:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
                   {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.3}}><Icon name="plate" size={28} color={C.dark} strokeWidth={1.25}/></div>}
                   {user?<button onClick={function(e){
                     e.stopPropagation();
