@@ -696,7 +696,7 @@ function parseIng(str){
   str=str.trim();
   if(!str)return{qty:"",unit:"",name:""};
   // Try to match: "2 cups flour", "1/2 tsp salt", "3 large eggs", "salt and pepper"
-  var match=str.match(/^([\d.\/\s½¼¾⅓⅔⅛]+)?\s*(ct|oz|lbs|lb|g|kg|cups|cup|tbsp|tsp|teaspoons|teaspoon|tablespoons|tablespoon|ml|pkg|package|bag|cans|can|jars|jar|box|bunch|head|cloves|clove|slices|slice|pieces|piece|small|medium|large|sticks?|pounds?|L)?\s*[,.]?\s*(.+)$/i);
+  var match=str.match(/^([\d.\/\s½¼¾⅓⅔⅛]+)?\s*(ct|oz|lbs|lb|g|kg|cups|cup|tbsp|tsp|teaspoons|teaspoon|tablespoons|tablespoon|ml|pkg|package|bag|cans|can|jars|jar|box|bunch|head|cloves|clove|slices|slice|pieces|piece|small|medium|large|sticks?|pounds?|L)?\b\s*[,.]?\s*(.+)$/i);
   if(match&&(match[1]||match[2])){
     var qty=(match[1]||"").trim();
     var unit=(match[2]||"").trim();
