@@ -709,6 +709,109 @@ function parseIng(str){
 }
 function hashPass(p){var h=0;for(var i=0;i<p.length;i++){h=((h<<5)-h)+p.charCodeAt(i);h=h&h}return h.toString(16)}
 
+// --- Ingredient consolidation helpers (grocery list merge) ---
+function normalizeUnit(u){
+  u=(u||"").trim().toLowerCase();
+  var map={
+    "lbs":"lb","pound":"lb","pounds":"lb",
+    "tablespoon":"tbsp","tablespoons":"tbsp",
+    "teaspoon":"tsp","teaspoons":"tsp",
+    "cups":"cup",
+    "cans":"can",
+    "clove":"clove","cloves":"clove",
+    "slices":"slice",
+    "pieces":"piece",
+    "package":"pkg","packages":"pkg",
+    "jars":"jar",
+    "stick":"stick","sticks":"stick",
+    "bags":"bag",
+    "boxes":"box",
+    "bunches":"bunch",
+    "heads":"head",
+    "l":"l","ml":"ml"
+  };
+  return map[u]||u;
+}
+var UNIT_FAMILIES=[
+  {tsp:1,tbsp:3,cup:48},   // volume (US)
+  {ml:1,l:1000},           // volume (metric)
+  {oz:1,lb:16},            // weight (US)
+  {g:1,kg:1000}            // weight (metric)
+];
+function unitFamilyFactor(u){
+  for(var i=0;i<UNIT_FAMILIES.length;i++){
+    if(UNIT_FAMILIES[i].hasOwnProperty(u))return UNIT_FAMILIES[i];
+  }
+  return null;
+}
+var UNICODE_FRACTIONS={"½":0.5,"¼":0.25,"¾":0.75,"⅓":1/3,"⅔":2/3,"⅛":0.125};
+function parseQtyNum(str){
+  str=(str||"").trim();
+  if(!str)return null;
+  var total=0,matchedAny=false;
+  // Pull off a trailing/standalone unicode fraction char first
+  var fracChar=null;
+  Object.keys(UNICODE_FRACTIONS).forEach(function(f){
+    if(str.indexOf(f)!==-1){fracChar=f;str=str.replace(f,"").trim()}
+  });
+  if(fracChar){total+=UNICODE_FRACTIONS[fracChar];matchedAny=true}
+  if(str){
+    // remaining could be "1", "1.5", "1/2", or "1 1/2" (mixed, minus the unicode part)
+    var parts=str.split(/\s+/);
+    for(var i=0;i<parts.length;i++){
+      var part=parts[i];
+      if(/^\d+\/\d+$/.test(part)){
+        var f=part.split("/");
+        var n=parseFloat(f[0]),d=parseFloat(f[1]);
+        if(d===0)return matchedAny?total:null;
+        total+=n/d;matchedAny=true;
+      }else if(/^\d+(\.\d+)?$/.test(part)){
+        total+=parseFloat(part);matchedAny=true;
+      }else{
+        // Unparseable token present alongside otherwise-numeric content - bail
+        return matchedAny?null:null;
+      }
+    }
+  }
+  return matchedAny?total:null;
+}
+function formatQtyNum(num){
+  if(num===null||isNaN(num))return"";
+  var whole=Math.floor(num);
+  var frac=num-whole;
+  if(frac<0.01)return String(whole);
+  var denoms=[2,3,4,8];
+  var best=null,bestErr=1;
+  denoms.forEach(function(d){
+    var n=Math.round(frac*d);
+    if(n===0||n===d)return;
+    var err=Math.abs(frac-n/d);
+    if(err<bestErr){bestErr=err;best={n:n,d:d}}
+  });
+  if(!best)return String(Math.round(num));
+  var g=function gcd(a,b){return b?gcd(b,a%b):a}(best.n,best.d);
+  var n=best.n/g,d=best.d/g;
+  return(whole>0?whole+" ":"")+n+"/"+d;
+}
+function tryMergeQty(aQty,aUnit,bQty,bUnit){
+  // Both genuinely blank (e.g. "salt" with no qty in either recipe) - nothing
+  // to sum, just keep one row, same as the old dedup-by-name behavior.
+  if(!(aQty||"").trim()&&!(bQty||"").trim())return{qty:aQty,unit:aUnit};
+  var nu1=normalizeUnit(aUnit),nu2=normalizeUnit(bUnit);
+  var an=parseQtyNum(aQty),bn=parseQtyNum(bQty);
+  if(an===null||bn===null)return null;
+  if(nu1===nu2){
+    return{qty:formatQtyNum(an+bn),unit:aUnit};
+  }
+  var fam1=unitFamilyFactor(nu1),fam2=unitFamilyFactor(nu2);
+  if(fam1&&fam2&&fam1===fam2){
+    var combined=an*fam1[nu1]+bn*fam1[nu2];
+    var total=combined/fam1[nu1];
+    return{qty:formatQtyNum(total),unit:aUnit};
+  }
+  return null;
+}
+
 var RECIPE_TYPES = [
   {id:"all",label:"All",icon:"📋"},
   {id:"favorites",label:"Favorites",icon:"❤️"},
@@ -1149,11 +1252,14 @@ function GroceryTab(p){
     // mode: "replace" (default) starts fresh, "append" adds to existing list
     mode = mode || "replace";
     var items = mode==="append" ? generatedItems.slice() : [];
-    var seenNames = {};
-    // Seed dedup with existing item names so we don't add duplicates
+    var seenNames = {}; // name -> array of item refs ("variants") that share this name
+    // Seed with existing items so regenerating can still merge into them
     items.forEach(function(it){
       var n=(it.name||"").trim().toLowerCase();
-      if(n) seenNames[n] = true;
+      if(!n)return;
+      if(!it.mealNames)it.mealNames=it.mealName?[it.mealName]:[];
+      if(!seenNames[n])seenNames[n]=[];
+      seenNames[n].push(it);
     });
     // Find the next available index for new gen-X ids
     var idx = 0;
@@ -1176,11 +1282,29 @@ function GroceryTab(p){
               var ing=typeof g==="string"?parseIng(g):g;
               var name=(ing.name||"").trim().toLowerCase();
               if(GROCERY_EXCLUDE.some(function(ex){return name===ex||name.replace(/\s+/g," ")===ex})) return;
-              // Dedup: skip if already seen this ingredient name
-              if(seenNames[name]) return;
-              seenNames[name]=true;
-              items.push({id:"gen-"+idx,name:ing.name||"",qty:ing.qty||"",unit:ing.unit||"",mealName:m.name});
-              idx++;
+              // Try to merge into an existing variant of this ingredient name
+              var variants=seenNames[name];
+              var merged=false;
+              if(variants){
+                for(var vi=0;vi<variants.length;vi++){
+                  var v=variants[vi];
+                  var mergeResult=tryMergeQty(v.qty,v.unit,ing.qty||"",ing.unit||"");
+                  if(mergeResult){
+                    v.qty=mergeResult.qty;
+                    v.unit=mergeResult.unit;
+                    if(v.mealNames.indexOf(m.name)===-1)v.mealNames.push(m.name);
+                    merged=true;
+                    break;
+                  }
+                }
+              }
+              if(!merged){
+                var newItem={id:"gen-"+idx,name:ing.name||"",qty:ing.qty||"",unit:ing.unit||"",mealNames:[m.name]};
+                items.push(newItem);
+                if(!seenNames[name])seenNames[name]=[];
+                seenNames[name].push(newItem);
+                idx++;
+              }
             });
           }
         });
@@ -1653,7 +1777,7 @@ function GroceryTab(p){
   // Build items list from generated items + manual items
   var all=[];
   generatedItems.forEach(function(x){
-    all.push({id:x.id,name:x.name,qty:x.qty||"",unit:x.unit||"",source:"generated",mealName:x.mealName});
+    all.push({id:x.id,name:x.name,qty:x.qty||"",unit:x.unit||"",source:"generated",mealNames:x.mealNames||(x.mealName?[x.mealName]:[])});
   });
   manual.forEach(function(x){
     all.push({id:x.id,name:x.name,qty:x.qty||"",unit:x.unit||"",source:"manual"});
@@ -1713,7 +1837,9 @@ function GroceryTab(p){
         React.createElement("button",{onClick:function(){setPickStore(pickStore===it.id?null:it.id)},style:{width:26,height:26,borderRadius:6,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}},renderStoreIcon(st,16)),
         React.createElement("div",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{flex:1,minWidth:0,cursor:"pointer"}},
           React.createElement("span",{style:{fontSize:15,color:C.ink,textDecoration:ic?"line-through":"none",fontWeight:500,display:"block"}},display),
-          it.source==="generated"&&it.mealName?React.createElement("span",{style:{fontSize:12,color:C.light}},it.mealName):null
+          it.source==="generated"&&it.mealNames&&it.mealNames.length?React.createElement("span",{style:{fontSize:12,color:C.light}},
+            it.mealNames.length===1?it.mealNames[0]:it.mealNames.length===2?it.mealNames[0]+" + "+it.mealNames[1]:it.mealNames[0]+" + "+(it.mealNames.length-1)+" more"
+          ):null
         )
       )
     );
