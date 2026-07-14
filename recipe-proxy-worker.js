@@ -328,6 +328,18 @@ async function importFromUrl(url, apiKey) {
       if (pageContent.length > 15000) {
         pageContent = pageContent.substring(0, 15000);
       }
+
+      // If the fetch succeeded but returned almost no real text, this is
+      // very likely a JS-rendered page whose content hadn't loaded yet in
+      // the server-side response (just an empty shell). Treat it the same
+      // as a failed fetch so we fall back to the AI's own web search
+      // instead of quietly asking it to extract a recipe from a page that
+      // has none of the actual content - a class of failure that
+      // otherwise happens silently with no error and no useful log.
+      if (pageContent.length < 500) {
+        console.log("Page content suspiciously short (" + pageContent.length + " chars) - likely JS-rendered, falling back to web search");
+        pageContent = "";
+      }
     }
   } catch (fetchError) {
     // If direct fetch fails, we'll rely on web search
