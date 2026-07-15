@@ -2710,6 +2710,34 @@ function App(){
   var [showProfileMenu,setShowProfileMenu]=useState(false);
   var [showChangePassword,setShowChangePassword]=useState(false);
   var [showEditProfile,setShowEditProfile]=useState(false);
+  // Lock background scroll whenever any full-screen modal is open. Without
+  // this, iOS Safari can "chain" a scroll gesture from the modal's own
+  // content past its scroll boundary into the page underneath (position:fixed
+  // doesn't stop touch-scroll chaining on iOS the way it does on desktop),
+  // which looks like the modal isn't full-screen at all - you scroll through
+  // the recipe and the Recipes tab list behind it becomes visible. Pinning
+  // the body via position:fixed at its current scroll offset removes any
+  // scrollable ancestor for the gesture to chain into, and is restored to
+  // the exact same scroll position when the modal closes.
+  useEffect(function(){
+    var anyModalOpen=!!(showChangePassword||showEditProfile||showMyQR||showScanQR||viewFriendRecipe||viewRecipe||showSwapPicker||showPlaceholder||(selDate&&em)||rpick||showRF||editRecipe||r2cal||shareR||showScanModal||showImport);
+    if(anyModalOpen){
+      var scrollY=window.scrollY;
+      document.body.style.position="fixed";
+      document.body.style.top="-"+scrollY+"px";
+      document.body.style.left="0";
+      document.body.style.right="0";
+      document.body.style.width="100%";
+    }else if(document.body.style.position==="fixed"){
+      var savedTop=document.body.style.top;
+      document.body.style.position="";
+      document.body.style.top="";
+      document.body.style.left="";
+      document.body.style.right="";
+      document.body.style.width="";
+      window.scrollTo(0,-parseInt(savedTop||"0",10));
+    }
+  },[showChangePassword,showEditProfile,showMyQR,showScanQR,viewFriendRecipe,viewRecipe,showSwapPicker,showPlaceholder,selDate,em,rpick,showRF,editRecipe,r2cal,shareR,showScanModal,showImport]);
   var [currentPassword,setCurrentPassword]=useState("");
   var [newPassword,setNewPassword]=useState("");
   var [confirmNewPassword,setConfirmNewPassword]=useState("");
