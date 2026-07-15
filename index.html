@@ -1488,10 +1488,22 @@ function GroceryTab(p){
     var n=(name||"").trim();
     var pepperDesc="((?:freshly )?(?:cracked|ground)\\s+)?(black|white)?\\s*pepper";
     var saltPepper=n.match(new RegExp("^salt\\s*(?:and|&|\\/|,)\\s*"+pepperDesc+"$","i"));
-    if(saltPepper)return["salt",(saltPepper[1]||"")+(saltPepper[2]?saltPepper[2]+" ":"")+"pepper"];
+    if(saltPepper)return["salt",(saltPepper[2]?saltPepper[2]+" ":"")+"pepper"];
     var pepperSalt=n.match(new RegExp("^"+pepperDesc+"\\s*(?:and|&|\\/|,)\\s*salt$","i"));
-    if(pepperSalt)return[(pepperSalt[1]||"")+(pepperSalt[2]?pepperSalt[2]+" ":"")+"pepper","salt"];
+    if(pepperSalt)return[(pepperSalt[2]?pepperSalt[2]+" ":"")+"pepper","salt"];
     return[n];
+  }
+  // "Ground black pepper", "freshly cracked black pepper", "cracked pepper",
+  // etc. are all the same product to a shopper - "cracked"/"ground"/"freshly"
+  // describe how it's prepped at the table, not a different item to buy. Only
+  // pepper is handled specially (not folded into GROCERY_PREP_WORD) because
+  // "ground" isn't a prep word everywhere - "ground beef"/"ground cinnamon"
+  // are genuinely distinct products, so this stays anchored to whole-string
+  // pepper phrasing rather than stripping "ground" from any ingredient.
+  function normalizeGroceryPepperName(name){
+    var m=(name||"").trim().match(/^(?:freshly\s+)?(?:cracked|ground)?\s*(black|white)?\s*pepper$/i);
+    if(!m)return name;
+    return m[1]?m[1].toLowerCase()+" pepper":"pepper";
   }
   // Some ingredients are functionally interchangeable for shopping purposes -
   // merge them under one name so they don't show up as separate list items.
@@ -1548,7 +1560,7 @@ function GroceryTab(p){
               var ing=typeof g==="string"?parseIng(g):g;
               var cleanedName=cleanGroceryItemName(ing.name||"");
               // "Salt and pepper" is shorthand for two items, not one line
-              var itemNames=splitGroceryItemNames(cleanedName);
+              var itemNames=splitGroceryItemNames(cleanedName).map(normalizeGroceryPepperName);
               itemNames.forEach(function(itemName){
                 var name=grocerySynonymKey(itemName.trim().toLowerCase());
                 if(GROCERY_EXCLUDE.some(function(ex){return name===ex||name.replace(/\s+/g," ")===ex})) return;
