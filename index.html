@@ -228,6 +228,15 @@
         console.warn("Firebase not connected - data may not save!");
       }
     }, 1000);
+
+    // Register the service worker for offline app-shell support
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function() {
+        navigator.serviceWorker.register("sw.js")
+          .then(function(reg) { console.log("Service worker registered:", reg.scope); })
+          .catch(function(err) { console.warn("Service worker registration failed:", err); });
+      });
+    }
   </script>
   
   <script type="text/babel" data-presets="react">
@@ -430,6 +439,15 @@ function Icon(p){
   if(name==="plate")return React.createElement("svg",cp,
     React.createElement("circle",{cx:12,cy:12,r:9}),
     React.createElement("circle",{cx:12,cy:12,r:4})
+  );
+  if(name==="offline")return React.createElement("svg",cp,
+    React.createElement("line",{x1:1,y1:1,x2:23,y2:23}),
+    React.createElement("path",{d:"M16.72 11.06A10.94 10.94 0 0 1 19 12.55"}),
+    React.createElement("path",{d:"M5 12.55a10.94 10.94 0 0 1 5.17-2.39"}),
+    React.createElement("path",{d:"M10.71 5.05A16 16 0 0 1 22.58 9"}),
+    React.createElement("path",{d:"M1.42 9a15.91 15.91 0 0 1 4.7-2.88"}),
+    React.createElement("path",{d:"M8.53 16.11a6 6 0 0 1 6.95 0"}),
+    React.createElement("line",{x1:12,y1:20,x2:12.01,y2:20})
   );
   return null;
 }
@@ -2282,6 +2300,17 @@ function GroceryTab(p){
 function App(){
   var [user,setUser]=useState(null);
   var [authChecked,setAuthChecked]=useState(false);
+  var [isOnline,setIsOnline]=useState(navigator.onLine);
+  useEffect(function(){
+    function goOnline(){setIsOnline(true)}
+    function goOffline(){setIsOnline(false)}
+    window.addEventListener("online",goOnline);
+    window.addEventListener("offline",goOffline);
+    return function(){
+      window.removeEventListener("online",goOnline);
+      window.removeEventListener("offline",goOffline);
+    };
+  },[]);
   var [meals,setMeals]=useState({});
   var [swipedMeal,setSwipedMeal]=useState(null); // {dateKey, mealIndex} of swiped meal
   var [swipeStart,setSwipeStart]=useState(null); // {x, y, dateKey, mealIndex}
@@ -2447,6 +2476,18 @@ function App(){
       return;
     }
     
+    // Firebase Auth's own session is cached locally and resolves instantly even
+    // offline. The dm_users lookup below is a separate Firestore read though -
+    // if that specific doc was never cached (e.g. first-ever offline session),
+    // fall back to the last-known local session rather than bouncing a
+    // genuinely authenticated user to the login screen.
+    function restoreFromLocalSession(){
+      try{
+        var cached = localStorage.getItem("dm_session_local");
+        if(cached){ setUser(cached); }
+      }catch(e){}
+    }
+
     // Listen for Firebase Auth state changes (the source of truth)
     var unsubscribe = auth.onAuthStateChanged(function(firebaseUser){
       if(firebaseUser){
@@ -2479,9 +2520,13 @@ function App(){
             // Don't auto-sign-out if no match - let user re-attempt login
             setAuthChecked(true);
           } else {
+            // dm_users doc not found locally (e.g. offline with no cache yet)
+            restoreFromLocalSession();
             setAuthChecked(true);
           }
         }).catch(function(){
+          // Lookup genuinely failed (offline, no cache available)
+          restoreFromLocalSession();
           setAuthChecked(true);
         });
       } else {
@@ -4045,7 +4090,8 @@ function App(){
   
   function processScanPhotos(photos) {
     if (photos.length === 0) return;
-    
+    if (!isOnline) { alert("Scanning a recipe requires an internet connection. Please try again once you're back online."); return; }
+
     setAiScanLoading(true);
     setAiScanStatus("Preparing " + photos.length + " photo" + (photos.length > 1 ? "s" : "") + "...");
     
@@ -4106,7 +4152,9 @@ function App(){
       setImportLoading(false);
       return;
     }
-    
+
+    if (!isOnline) { alert("Importing a recipe requires an internet connection. Please try again once you're back online."); setImportLoading(false); return; }
+
     setImportLoading(true);
     setImportStatus("Fetching recipe from URL...");
     
@@ -4207,6 +4255,7 @@ function App(){
   // Import recipe from PDF
   function importFromPdf(file) {
     if (!file) return;
+    if (!isOnline) { alert("Importing a recipe requires an internet connection. Please try again once you're back online."); return; }
     setImportLoading(true);
     setImportStatus("Reading PDF...");
     
@@ -4288,8 +4337,14 @@ function App(){
     var history=(isStale?[]:chefMessages).concat([userMsg]);
     setChefMessages(history);
     setChefInput("");
-    setChefLoading(true);
     setChefLastActive(Date.now());
+
+    if(!isOnline){
+      setChefMessages(history.concat([{role:"assistant",text:"I need an internet connection for that - try again once you're back online."}]));
+      return;
+    }
+
+    setChefLoading(true);
 
     fetch(RECIPE_PROXY_URL,{
       method:"POST",
@@ -4311,6 +4366,7 @@ function App(){
   }
 
   function saveChefIdeaAsRecipe(text){
+    if(!isOnline){ alert("Saving this idea as a recipe requires an internet connection. Please try again once you're back online."); return; }
     setChefLoading(true);
     fetch(RECIPE_PROXY_URL,{
       method:"POST",
@@ -4504,6 +4560,11 @@ function App(){
         setPullStart(null);
       }}
       style={{fontFamily:"'Inter',-apple-system,sans-serif",maxWidth:600,margin:"0 auto",padding:"12px 8px",color:C.dark}}>
+      {/* Offline indicator */}
+      {!isOnline?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:12,fontWeight:600,color:"#8B6914",background:"#FBF0D9",border:"1px solid #EAD9A8",borderRadius:8,padding:"8px 12px",marginBottom:8,animation:"ft-fade-in .22s ease-out"}}>
+        <Icon name="offline" size={13} color="#8B6914" strokeWidth={2}/>
+        You're offline — changes will save once you're back online
+      </div>:null}
       {/* Pull-to-refresh indicator */}
       {pullDistance>0?<div style={{textAlign:"center",fontSize:13,color:C.light,height:pullDistance,overflow:"hidden",transition:(refreshing||pullStart===null)?"height 0.3s":"none",display:"flex",alignItems:"center",justifyContent:"center"}}>
         {refreshing?<React.Fragment><Icon name="refresh" size={12} strokeWidth={2}/>&nbsp;Refreshing...</React.Fragment>:pullDistance>50?"↑ Release to refresh":"↓ Pull to refresh"}
@@ -6231,6 +6292,7 @@ function App(){
             <button 
               onClick={function(){
                 if(!importPasteAll.trim())return;
+                if(!isOnline){ alert("Importing a recipe requires an internet connection. Please try again once you're back online."); return; }
                 setImportLoading(true);
                 setImportStatus("Organizing recipe with AI...");
                 
