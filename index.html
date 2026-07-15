@@ -731,6 +731,21 @@ function parseIng(str){
   }
   return{qty:"",unit:"",name:str}
 }
+// Normalizes an ingredient from an AI response into a clean {qty,unit,name}
+// with guaranteed string fields. AI-returned JSON sometimes uses a numeric
+// qty (e.g. 2 instead of "2")  despite the prompt asking for a string -
+// storing that as-is crashes recipe scaling later (parseQtyNum expects a
+// string), so every import path normalizes through this instead of
+// building the object by hand.
+function sanitizeIng(i){
+  if(typeof i==="string")return parseIng(i);
+  if(!i||typeof i!=="object")return{qty:"",unit:"",name:""};
+  return{
+    qty:i.qty==null?"":String(i.qty),
+    unit:i.unit==null?"":String(i.unit),
+    name:i.name==null?"":String(i.name)
+  };
+}
 function hashPass(p){var h=0;for(var i=0;i<p.length;i++){h=((h<<5)-h)+p.charCodeAt(i);h=h&h}return h.toString(16)}
 
 // --- Ingredient consolidation helpers (grocery list merge) ---
@@ -773,7 +788,10 @@ function unitFamilyFactor(u){
 }
 var UNICODE_FRACTIONS={"½":0.5,"¼":0.25,"¾":0.75,"⅓":1/3,"⅔":2/3,"⅛":0.125};
 function parseQtyNum(str){
-  str=(str||"").trim();
+  // AI-imported recipes sometimes return qty as a JSON number (e.g. 2)
+  // instead of a string ("2") despite the prompt asking for a string -
+  // coerce defensively so scaling doesn't crash on those recipes.
+  str=(str==null?"":String(str)).trim();
   if(!str)return null;
   var total=0,matchedAny=false;
   // Pull off a trailing/standalone unicode fraction char first
@@ -4185,7 +4203,7 @@ function App(){
       name: parsed.name || "Untitled",
       emoji: parsed.emoji || "🍽️",
       time: parsed.time || "",
-      ingredients: (parsed.ingredients || []).map(function(i) { return typeof i === "string" ? parseIng(i) : i; }),
+      ingredients: (parsed.ingredients || []).map(sanitizeIng),
       notes: parsed.notes || "",
       recipeType: parsed.recipeType || "other",
       photo: photo,
@@ -4290,10 +4308,7 @@ function App(){
           emoji: "🍽️",
           photo: photoData,
           time: parsed.time || "",
-          ingredients: (parsed.ingredients || []).map(function(i) { 
-            if (typeof i === "string") return parseIng(i);
-            return { qty: i.qty || "", unit: i.unit || "", name: i.name || "" };
-          }),
+          ingredients: (parsed.ingredients || []).map(sanitizeIng),
           notes: parsed.notes || "",
           recipeType: parsed.recipeType || "other",
           credit: "Imported from " + sourceType
@@ -4401,10 +4416,7 @@ function App(){
           name: parsed.name || "Imported Recipe",
           emoji: "🍽️",
           time: parsed.time || "",
-          ingredients: (parsed.ingredients || []).map(function(i) { 
-            if (typeof i === "string") return parseIng(i);
-            return { qty: i.qty || "", unit: i.unit || "", name: i.name || "" };
-          }),
+          ingredients: (parsed.ingredients || []).map(sanitizeIng),
           notes: parsed.notes || "",
           recipeType: parsed.recipeType || "other",
           credit: "Imported from PDF: " + file.name
@@ -4615,10 +4627,7 @@ function App(){
         name:parsed.name||"Chef idea",
         emoji:"🍽️",
         time:parsed.time||"",
-        ingredients:(parsed.ingredients||[]).map(function(i){
-          if(typeof i==="string")return parseIng(i);
-          return {qty:i.qty||"",unit:i.unit||"",name:i.name||""};
-        }),
+        ingredients:(parsed.ingredients||[]).map(sanitizeIng),
         notes:parsed.notes||"",
         recipeType:parsed.recipeType||"other",
         credit:"Suggested by AI Chef"
@@ -6608,10 +6617,7 @@ function App(){
                     name: parsed.name || "Imported Recipe",
                     time: parsed.time || "",
                     emoji: "🍽️",
-                    ingredients: (parsed.ingredients || []).map(function(ing) {
-                      if (typeof ing === "string") return parseIng(ing);
-                      return ing;
-                    }),
+                    ingredients: (parsed.ingredients || []).map(sanitizeIng),
                     notes: parsed.notes || "",
                     recipeType: parsed.recipeType || "other",
                     credit: parsed.credit || "",
