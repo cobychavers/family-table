@@ -204,7 +204,75 @@
         }
       }
     };
-    
+
+    // Favorite counters live in their own real Firestore collection (not the
+    // flat "data" blob store) so counts are atomic (FieldValue.increment,
+    // safe under concurrent favorites from many users) and queryable/
+    // batch-fetchable by document id - neither is possible when everything
+    // is JSON-stringified into one opaque field.
+    window.favCounts = {
+      key: (originalOwner, recipeId) => (originalOwner || "").toLowerCase() + "_" + recipeId,
+      increment: async (recipe) => {
+        if (!db || !recipe || !recipe.originalOwner || !recipe.recipeId) return null;
+        const key = window.favCounts.key(recipe.originalOwner, recipe.recipeId);
+        try {
+          // set(...,{merge:true}) with FieldValue.increment handles both the
+          // first-ever favorite (field starts at 0) and every one after in
+          // a single atomic write - no separate create-vs-increment branch.
+          await db.collection("favoriteCounts").doc(key).set({
+            count: firebase.firestore.FieldValue.increment(1),
+            recipeId: recipe.recipeId,
+            originalOwner: (recipe.originalOwner || "").toLowerCase(),
+            name: recipe.name || "",
+            photo: recipe.photo || "",
+            emoji: recipe.emoji || "",
+            time: recipe.time || "",
+            recipeType: recipe.recipeType || "other",
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+          return true;
+        } catch (e) {
+          console.error("favCounts increment error:", key, e);
+          return null;
+        }
+      },
+      decrement: async (recipe) => {
+        if (!db || !recipe || !recipe.originalOwner || !recipe.recipeId) return null;
+        const key = window.favCounts.key(recipe.originalOwner, recipe.recipeId);
+        try {
+          await db.collection("favoriteCounts").doc(key).set({
+            count: firebase.firestore.FieldValue.increment(-1),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+          return true;
+        } catch (e) {
+          console.error("favCounts decrement error:", key, e);
+          return null;
+        }
+      },
+      // pairs: [{originalOwner, recipeId}, ...] -> {key: count}. Chunked into
+      // groups of 30 (Firestore's max for an "in" query) so this stays a
+      // handful of queries no matter how many recipes are on screen.
+      fetchMany: async (pairs) => {
+        if (!db || !pairs || pairs.length === 0) return {};
+        const uniqueKeys = Array.from(new Set(pairs.map((p) => window.favCounts.key(p.originalOwner, p.recipeId))));
+        const result = {};
+        const chunks = [];
+        for (let i = 0; i < uniqueKeys.length; i += 30) chunks.push(uniqueKeys.slice(i, i + 30));
+        try {
+          await Promise.all(chunks.map(async (chunk) => {
+            const snap = await db.collection("favoriteCounts")
+              .where(firebase.firestore.FieldPath.documentId(), "in", chunk)
+              .get();
+            snap.forEach((doc) => { result[doc.id] = doc.data().count || 0; });
+          }));
+        } catch (e) {
+          console.error("favCounts fetchMany error:", e);
+        }
+        return result;
+      }
+    };
+
     const DEFAULT_FIREBASE_CONFIG = {
       apiKey: "AIzaSyA36eS5Dv0WfkU6RZoE9NLWVhf0SacmMFI",
       authDomain: "the-family-table-81b4d.firebaseapp.com",
@@ -2516,6 +2584,8 @@ function App(){
   var [sharedRecipes,setSharedRecipes]=useState([]);
   var [publicRecipes,setPublicRecipes]=useState([]);
   var [publicRecipesLoaded,setPublicRecipesLoaded]=useState(false);
+  var [favCounts,setFavCounts]=useState({}); // "owner_recipeId" -> count, batch-fetched for Explore
+  var [exploreSort,setExploreSort]=useState("newest"); // "newest" | "favorited"
   var [pullStart,setPullStart]=useState(null);
   var [pullDistance,setPullDistance]=useState(0);
   var [refreshing,setRefreshing]=useState(false);
@@ -4012,6 +4082,20 @@ function App(){
   }
   
   function svF(f){setFavorites(f);sv("dm_favorites",f)}
+  // Fire-and-forget the atomic Firestore counter write, plus an immediate
+  // optimistic local update so the badge on screen reflects the change
+  // right away instead of waiting on a network round-trip.
+  function bumpFavCount(recipe,delta){
+    if(!recipe||!recipe.originalOwner||!recipe.recipeId)return;
+    var key=(recipe.originalOwner||"").toLowerCase()+"_"+recipe.recipeId;
+    setFavCounts(function(prev){
+      var next=Object.assign({},prev);
+      next[key]=Math.max(0,(next[key]||0)+delta);
+      return next;
+    });
+    if(delta>0){window.favCounts.increment(recipe).catch(function(){})}
+    else{window.favCounts.decrement(recipe).catch(function(){})}
+  }
   function svSP(items,d,catStores){
     setStorePrefs(items);
     setDefStore(d);
@@ -4114,6 +4198,11 @@ function App(){
         });
         console.log("Loaded", allPublicRecipes.length, "unique public recipes");
         setPublicRecipes(allPublicRecipes);
+        // Batch-fetch favorite counts for everything just loaded - chunked
+        // "in" queries, so this is a handful of reads regardless of how many
+        // public recipes exist, not one read per recipe.
+        window.favCounts.fetchMany(allPublicRecipes.map(function(r){return{originalOwner:r.originalOwner,recipeId:r.recipeId}}))
+          .then(function(counts){setFavCounts(function(prev){return Object.assign({},prev,counts)})});
       });
     }).catch(function(e){
       console.error("Error loading public recipes:", e);
@@ -5149,12 +5238,14 @@ function App(){
                         var newRecipes=recipes.filter(function(r){return r.id!==savedCopy.id});
                         svR(newRecipes);
                         svF(favorites.filter(function(id){return id!==savedCopy.id}));
+                        bumpFavCount(savedCopy,-1);
                       }
                     } else {
                       var newRecipe = copyRecipeFor(recipe, userId, viewProfileUser);
                       var newRecipes=recipes.concat([newRecipe]);
                       svR(newRecipes);
                       svF(favorites.concat([newRecipe.id]));
+                      bumpFavCount(newRecipe,1);
                     }
                   }} style={{position:"absolute",top:12,right:12,width:40,height:40,borderRadius:20,border:"none",background:"rgba(255,255,255,0.92)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.1)"}}><Icon name="heart" size={17} color={alreadySaved?"#c0392b":"#3A2A1D"} strokeWidth={2} filled={alreadySaved}/></button>
                 </div>
@@ -5843,7 +5934,14 @@ function App(){
             var matchesUser=!exploreUser||r.ownerUsername.toLowerCase()===exploreUser.toLowerCase();
             return matchesSearch&&matchesFilter&&matchesUser;
           });
-          
+          if(exploreSort==="favorited"){
+            filtered=filtered.slice().sort(function(a,b){
+              var ac=favCounts[(a.originalOwner||"").toLowerCase()+"_"+a.recipeId]||0;
+              var bc=favCounts[(b.originalOwner||"").toLowerCase()+"_"+b.recipeId]||0;
+              return bc-ac;
+            });
+          }
+
           return <div>
             {/* Show user filter banner if viewing specific user */}
             {exploreUser?<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:C.blush,borderRadius:10,marginBottom:16}}>
@@ -5857,14 +5955,20 @@ function App(){
             </div>
             
             {/* Category filter dropdown */}
-            <div style={{marginBottom:16}}>
+            <div style={{marginBottom:12}}>
               <select value={exploreFilter} onChange={function(e){setExploreFilter(e.target.value)}} style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,background:"#fff",color:C.dark,cursor:"pointer"}}>
                 {RTYPES.map(function(rt){
                   return <option key={rt.v} value={rt.v}>{rt.l}</option>
                 })}
               </select>
             </div>
-            
+
+            {/* Sort control */}
+            <div style={{display:"flex",gap:8,marginBottom:16}}>
+              <button className="ft-card-tap" onClick={function(){setExploreSort("newest")}} style={tab(exploreSort==="newest")}>Newest</button>
+              <button className="ft-card-tap" onClick={function(){setExploreSort("favorited")}} style={tab(exploreSort==="favorited")}><Icon name="heart" size={12} color={exploreSort==="favorited"?"#fff":C.light} strokeWidth={2} filled={exploreSort==="favorited"}/> Most Favorited</button>
+            </div>
+
             {/* Results count */}
             <div style={{fontSize:12,color:C.light,marginBottom:12}}>{filtered.length} recipe{filtered.length!==1?"s":""} found</div>
             
@@ -5884,7 +5988,8 @@ function App(){
               });
               var alreadySaved = !!savedCopy;
               var cookTime = shortTime(r.time);
-              
+              var favCount = favCounts[(r.originalOwner||"").toLowerCase()+"_"+r.recipeId] || 0;
+
               return <div key={r.id} className="ft-card-tap" onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}} style={{background:"#fff",borderRadius:20,marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
                 {/* Hero image with heart save button overlaid */}
                 <div style={{position:"relative",width:"100%",aspectRatio:r.photo?"4 / 3":undefined,height:r.photo?undefined:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
@@ -5898,6 +6003,7 @@ function App(){
                         setRecipes(updated);
                         saveRecipesIndividually(updated);
                         svF(favorites.filter(function(id){return id!==savedCopy.id}));
+                        bumpFavCount(savedCopy,-1);
                       }
                     } else {
                       var newRecipe = copyRecipeFor(r, userId, r.ownerUsername);
@@ -5905,6 +6011,7 @@ function App(){
                       var updated=recipes.concat([newRecipe]);
                       setRecipes(updated);
                       saveRecipesIndividually(updated);
+                      bumpFavCount(newRecipe,1);
                       svF(favorites.concat([newRecipe.id]));
                     }
                   }} style={{position:"absolute",top:12,right:12,width:40,height:40,borderRadius:20,border:"none",background:"rgba(255,255,255,0.92)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.1)"}}><Icon name="heart" size={17} color={alreadySaved?"#c0392b":"#3A2A1D"} strokeWidth={2} filled={alreadySaved}/></button>:null}
@@ -5923,11 +6030,13 @@ function App(){
                   {/* Title */}
                   <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink,marginBottom:10,lineHeight:1.2}}>{r.name}</div>
                   
-                  {/* Meta row: cook time | type */}
-                  {(cookTime || typeInfo)?<div style={{display:"flex",alignItems:"center",gap:10,fontSize:13,color:C.light}}>
+                  {/* Meta row: cook time | type | favorite count */}
+                  {(cookTime || typeInfo || favCount>0)?<div style={{display:"flex",alignItems:"center",gap:10,fontSize:13,color:C.light}}>
                     {cookTime?<span style={{display:"inline-flex",alignItems:"center",gap:4}}><Icon name="clock" size={11} strokeWidth={1.75}/>{cookTime}</span>:null}
                     {cookTime && typeInfo?<span style={{opacity:.4}}>|</span>:null}
                     {typeInfo?<span><CatTag type={typeInfo}/></span>:null}
+                    {(cookTime||typeInfo) && favCount>0?<span style={{opacity:.4}}>|</span>:null}
+                    {favCount>0?<span style={{display:"inline-flex",alignItems:"center",gap:4}}><Icon name="heart" size={11} strokeWidth={1.75} color="#B5525F" filled={true}/>{favCount}</span>:null}
                   </div>:null}
                 </div>
               </div>
@@ -6320,6 +6429,17 @@ function App(){
           </div>
         </div>
         <button className="ft-card-tap" onClick={function(){if(!editRecipe.name.trim()){alert("Please enter a recipe name.");return;}if(!editRecipe.recipeType||editRecipe.recipeType==""){alert("Please choose a category for this recipe.");return;}var exists=recipes.some(function(r){return r.id===editRecipe.id});var stamped=exists?editRecipe:stampNewRecipe(editRecipe,userId,"manual");if(exists){svR(recipes.map(function(r){return r.id===editRecipe.id?stamped:r}))}else{svR(recipes.concat([stamped]))}setEditRecipe(null);setEditRecipeQty("");setEditRecipeUnit("")}} style={Object.assign({},btn(C.dark),{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:7})}>{recipes.some(function(r){return r.id===editRecipe.id})?<React.Fragment><Icon name="check" size={14} strokeWidth={2}/>Save Changes</React.Fragment>:<React.Fragment><Icon name="book" size={14} strokeWidth={1.75}/>Save Recipe</React.Fragment>}</button>
+        {recipes.some(function(r){return r.id===editRecipe.id})?
+          <button className="ft-card-tap" title="Keep the original recipe (and its favorites) untouched, and save these changes as a brand-new recipe instead." onClick={function(){
+            if(!editRecipe.name.trim()){alert("Please enter a recipe name.");return;}
+            if(!editRecipe.recipeType||editRecipe.recipeType===""){alert("Please choose a category for this recipe.");return;}
+            var forked=Object.assign({},editRecipe);
+            delete forked.id;delete forked.recipeId;delete forked.originalOwner;delete forked.originalCreatedAt;delete forked.savedAt;delete forked.savedFrom;
+            var stamped=stampNewRecipe(forked,userId,"manual");
+            svR(recipes.concat([stamped]));
+            setEditRecipe(null);setEditRecipeQty("");setEditRecipeUnit("");
+          }} style={{width:"100%",marginTop:8,padding:"10px 12px",borderRadius:10,border:"1px solid "+C.bdr,background:"#fff",color:C.dark,fontWeight:600,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}><Icon name="swap" size={13} strokeWidth={1.75}/>Save as New Recipe</button>
+        :null}
       </div></div>}
 
       {/* RECIPE TO CALENDAR */}
