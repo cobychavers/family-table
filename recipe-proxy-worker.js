@@ -116,7 +116,7 @@ async function scanImages(images, apiKey) {
     throw new Error(data.error.message || "API error");
   }
 
-  const text = data.content?.[0]?.text || "";
+  const text = data.content?.find(b => b.type === "text")?.text || "";
   const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
   const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
 
@@ -497,7 +497,7 @@ Valid recipeType: chicken, beef, pork, seafood, pasta, mexican, asian, soup, sal
     throw new Error(data.error.message || "API error");
   }
 
-  const text = data.content?.[0]?.text || "";
+  const text = data.content?.find(b => b.type === "text")?.text || "";
   const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
   const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
 
@@ -557,7 +557,7 @@ Important:
     throw new Error(data.error.message || "API error");
   }
 
-  const responseText = data.content?.[0]?.text || "";
+  const responseText = data.content?.find(b => b.type === "text")?.text || "";
   const cleaned = responseText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
   const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
 
@@ -608,7 +608,7 @@ Keep tone practical and friendly. No long preambles, no markdown headers, no emo
     throw new Error(data.error.message || "API error");
   }
 
-  const text = data.content?.[0]?.text || "";
+  const text = data.content?.find(b => b.type === "text")?.text || "";
   if (!text.trim()) {
     throw new Error("No reply from assistant");
   }
@@ -643,13 +643,10 @@ ${recipeContext}
 
 Their request: "${request}"
 
-Figure out which single ingredient from the recipe above they mean, even if their wording doesn't exactly match it, then suggest 2-3 good substitutes for it. Each suggestion needs a short, practical note (ratio adjustments, flavor or texture differences, etc).
+Figure out which single ingredient from the recipe above they mean, even if their wording doesn't exactly match it, then suggest 2-3 good substitutes for it. Each suggestion needs a short, practical note (ratio adjustments, flavor or texture differences, etc). If you can't confidently tell which ingredient they mean (e.g. nothing in the recipe matches their request), set "success" to false and put a short friendly clarifying question in "message" - leave "original" and "suggestions" empty in that case.
 
-If you can't confidently tell which ingredient they mean (e.g. nothing in the recipe matches their request), respond with the "success":false shape below instead, with a short friendly clarifying message.
-
-Return ONLY valid JSON with no other text, in exactly one of these two shapes:
-{"success":true,"original":"the exact ingredient name as it appears in the recipe","suggestions":[{"substitute":"name","note":"short practical note"}]}
-{"success":false,"message":"short friendly message"}`;
+Return ONLY this JSON object with no other text, no markdown code fences, and no explanation before or after it:
+{"success":true,"original":"the exact ingredient name as it appears in the recipe (empty string if success is false)","suggestions":[{"substitute":"name","note":"short practical note"}],"message":"only used when success is false"}`;
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -660,7 +657,7 @@ Return ONLY valid JSON with no other text, in exactly one of these two shapes:
     },
     body: JSON.stringify({
       model: "claude-sonnet-5",
-      max_tokens: 700,
+      max_tokens: 1000,
       messages: [{ role: "user", content: prompt }]
     })
   });
@@ -671,12 +668,12 @@ Return ONLY valid JSON with no other text, in exactly one of these two shapes:
     throw new Error(data2.error.message || "API error");
   }
 
-  const replyText = data2.content?.[0]?.text || "";
+  const replyText = data2.content?.find(b => b.type === "text")?.text || "";
   const cleaned = replyText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
   const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
 
   if (!jsonMatch) {
-    throw new Error("Could not get substitution suggestions");
+    throw new Error("Could not get substitution suggestions" + (replyText ? (": " + replyText.slice(0, 200)) : " (empty response)"));
   }
 
   return JSON.parse(jsonMatch[0]);
