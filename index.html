@@ -886,6 +886,8 @@ var RECIPE_TYPES = [
   {id:"vegetarian",label:"Vegetarian",icon:"🥬"},
   {id:"breakfast",label:"Breakfast",icon:"🥞"},
   {id:"dessert",label:"Dessert",icon:"🍰"},
+  {id:"drinks",label:"Drinks",icon:"🍹"},
+  {id:"cocktails",label:"Cocktails",icon:"🍸"},
   {id:"other",label:"Other",icon:"🍽️"},
 ];
 
@@ -902,6 +904,11 @@ var RECIPE_TYPE_KEYWORDS = {
   vegetarian:["vegetarian","vegan","tofu","tempeh","lentil","chickpea","bean burger"],
   breakfast:["breakfast","pancake","waffle","omelet","omelette","french toast","eggs","frittata"],
   dessert:["cake","pie","cookie","brownie","ice cream","dessert","cobbler","pudding","cheesecake"],
+  // Bare short spirit names ("gin","rum") are deliberately excluded - "gin" is
+  // a substring of "original" and "rum" of "drumstick", both common words
+  // that have nothing to do with cocktails.
+  cocktails:["cocktail","margarita","martini","mojito","daiquiri","mimosa","sangria","old fashioned","whiskey sour","spritz","negroni","bourbon","tequila","vodka"],
+  drinks:["smoothie","lemonade","mocktail","iced tea","punch","milkshake","juice","hot chocolate","cider","lemon water","infused water"],
 };
 
 function detectRecipeType(recipe) {
@@ -5824,7 +5831,9 @@ function App(){
           // Load public recipes when tab is viewed
           if(!publicRecipesLoaded)loadPublicRecipes();
           
-          var RTYPES=[{v:"",l:"All"},{v:"breakfast",l:"Breakfast"},{v:"chicken",l:"Chicken"},{v:"beef",l:"Beef"},{v:"pork",l:"Pork"},{v:"seafood",l:"Seafood"},{v:"pasta",l:"Pasta"},{v:"mexican",l:"Mexican"},{v:"asian",l:"Asian"},{v:"soup",l:"Soup"},{v:"salad",l:"Salad"},{v:"vegetarian",l:"Vegetarian"},{v:"dessert",l:"Dessert"},{v:"other",l:"Other"}];
+          // Derived from RECIPE_TYPES (rather than a hand-maintained duplicate
+          // list) so new categories only need to be added in one place.
+          var RTYPES=[{v:"",l:"All"}].concat(RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){return{v:t.id,l:t.label}}));
           
           var filtered=publicRecipes.filter(function(r){
             // Don't show my own recipes in Explore (check originalOwner)

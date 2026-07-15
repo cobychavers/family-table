@@ -91,8 +91,8 @@ async function scanImages(images, apiKey) {
 
   // Add the prompt
   const prompt = images.length > 1
-    ? "These images show different parts of the same recipe (e.g. front and back of a recipe card). Extract the complete recipe combining information from all images. Return ONLY valid JSON with no other text: {\"name\":\"Recipe Name\",\"time\":\"30 min\",\"ingredients\":[{\"qty\":\"2\",\"unit\":\"cup\",\"name\":\"flour\"}],\"notes\":\"1. First step\\n2. Second step\\n3. Third step\",\"recipeType\":\"other\"} IMPORTANT: The 'name' field should ONLY contain the recipe title (e.g. 'Crockpot Italian Sausage Pasta'), NOT cooking times or instructions. Put ALL cooking time info in the 'time' field (e.g. 'LOW 6 hours or HIGH 3.5-4 hours'). Format the notes as NUMBERED STEPS (1. 2. 3.) each on its own line. Valid recipeType values: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, other"
-    : "Extract the recipe from this image. Return ONLY valid JSON with no other text: {\"name\":\"Recipe Name\",\"time\":\"30 min\",\"ingredients\":[{\"qty\":\"2\",\"unit\":\"cup\",\"name\":\"flour\"}],\"notes\":\"1. First step\\n2. Second step\\n3. Third step\",\"recipeType\":\"other\"} IMPORTANT: The 'name' field should ONLY contain the recipe title (e.g. 'Crockpot Italian Sausage Pasta'), NOT cooking times or instructions. Put ALL cooking time info in the 'time' field (e.g. 'LOW 6 hours or HIGH 3.5-4 hours'). Format the notes as NUMBERED STEPS (1. 2. 3.) each on its own line. Valid recipeType values: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, other";
+    ? "These images show different parts of the same recipe (e.g. front and back of a recipe card). Extract the complete recipe combining information from all images. Return ONLY valid JSON with no other text: {\"name\":\"Recipe Name\",\"time\":\"30 min\",\"ingredients\":[{\"qty\":\"2\",\"unit\":\"cup\",\"name\":\"flour\"}],\"notes\":\"1. First step\\n2. Second step\\n3. Third step\",\"recipeType\":\"other\"} IMPORTANT: The 'name' field should ONLY contain the recipe title (e.g. 'Crockpot Italian Sausage Pasta'), NOT cooking times or instructions. Put ALL cooking time info in the 'time' field (e.g. 'LOW 6 hours or HIGH 3.5-4 hours'). Format the notes as NUMBERED STEPS (1. 2. 3.) each on its own line. Valid recipeType values: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, drinks, cocktails, other"
+    : "Extract the recipe from this image. Return ONLY valid JSON with no other text: {\"name\":\"Recipe Name\",\"time\":\"30 min\",\"ingredients\":[{\"qty\":\"2\",\"unit\":\"cup\",\"name\":\"flour\"}],\"notes\":\"1. First step\\n2. Second step\\n3. Third step\",\"recipeType\":\"other\"} IMPORTANT: The 'name' field should ONLY contain the recipe title (e.g. 'Crockpot Italian Sausage Pasta'), NOT cooking times or instructions. Put ALL cooking time info in the 'time' field (e.g. 'LOW 6 hours or HIGH 3.5-4 hours'). Format the notes as NUMBERED STEPS (1. 2. 3.) each on its own line. Valid recipeType values: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, drinks, cocktails, other";
 
   content.push({ type: "text", text: prompt });
 
@@ -240,7 +240,12 @@ function classifyRecipeType(recipe) {
     { type: "salad", kws: ["salad"] },
     { type: "breakfast", kws: ["breakfast", "brunch", "pancake", "waffle", "omelet"] },
     { type: "dessert", kws: ["dessert", "cake", "cookie", "pie", "brownie", "sweet"] },
-    { type: "vegetarian", kws: ["vegetarian", "vegan", "plant-based", "meatless"] }
+    { type: "vegetarian", kws: ["vegetarian", "vegan", "plant-based", "meatless"] },
+    // Bare short spirit names ("gin", "rum") are deliberately excluded - "gin"
+    // is a substring of "original" and "rum" of "drumstick", neither of
+    // which has anything to do with cocktails.
+    { type: "cocktails", kws: ["cocktail", "margarita", "martini", "mojito", "daiquiri", "mimosa", "sangria", "old fashioned", "whiskey sour", "spritz", "negroni", "bourbon", "tequila", "vodka"] },
+    { type: "drinks", kws: ["smoothie", "lemonade", "mocktail", "iced tea", "punch", "milkshake", "juice", "hot chocolate", "cider"] }
   ];
   for (const c of checks) {
     if (c.kws.some(k => text.includes(k))) return c.type;
@@ -375,7 +380,7 @@ Return ONLY valid JSON with no other text:
 
 IMPORTANT: The "name" field should ONLY contain the recipe title (e.g. "Crockpot Italian Sausage Pasta"), NOT cooking times or instructions.
 Put ALL cooking time info in the "time" field (e.g. "LOW 6 hours or HIGH 3.5-4 hours").
-Valid recipeType: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, other
+Valid recipeType: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, drinks, cocktails, other
 Format the notes as NUMBERED STEPS (1. 2. 3.) each on its own line.
 For photo, use the provided photo URL if available, or extract from the content if found.`;
   } else {
@@ -394,7 +399,7 @@ Return ONLY valid JSON with no other text:
 
 IMPORTANT: The "name" field should ONLY contain the recipe title (e.g. "Crockpot Italian Sausage Pasta"), NOT cooking times or instructions.
 Put ALL cooking time info in the "time" field (e.g. "LOW 6 hours or HIGH 3.5-4 hours").
-Valid recipeType: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, other
+Valid recipeType: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, drinks, cocktails, other
 Format the notes as NUMBERED STEPS (1. 2. 3.) each on its own line.
 For photo, include the main recipe image URL if found.`;
   }
@@ -479,7 +484,7 @@ async function importFromPdf(imageData, mimeType, apiKey) {
 }
 
 Format the notes as NUMBERED STEPS (1. 2. 3.) each on its own line.
-Valid recipeType: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, other`
+Valid recipeType: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, drinks, cocktails, other`
           }
         ]
       }]
@@ -529,7 +534,7 @@ Important:
 - Put ALL cooking time info in the "time" field (e.g. "LOW 6 hours or HIGH 3.5-4 hours, plus 25-35 min for pasta")
 - Parse each ingredient into qty, unit, and name
 - For the "notes" field, format instructions as NUMBERED STEPS (1. 2. 3. etc), each on its own line separated by \\n
-- Valid recipeType: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, other
+- Valid recipeType: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, drinks, cocktails, other
 - If a source/credit is mentioned, include it`;
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
