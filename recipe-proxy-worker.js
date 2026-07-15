@@ -176,7 +176,7 @@ function isoDurationToReadable(iso) {
 function parseIngredientLine(str) {
   str = (str || "").trim();
   if (!str) return { qty: "", unit: "", name: "" };
-  const match = str.match(/^([\d.\/\s½¼¾⅓⅔⅛]+)?\s*(ct|oz|lbs|lb|g|kg|cups|cup|tbsp|tsp|teaspoons|teaspoon|tablespoons|tablespoon|ml|pkg|package|bag|cans|can|jars|jar|box|bunch|head|cloves|clove|slices|slice|pieces|piece|small|medium|large|sticks?|pounds?|L)?\b\s*[,.]?\s*(.+)$/i);
+  const match = str.match(/^([\d.\/\s½¼¾⅓⅔⅛]+)?\s*(ct|oz|lbs|lb|g|kg|cups|cup|tbsp|tsp|teaspoons|teaspoon|tablespoons|tablespoon|ml|pkg|package|bag|cans|can|jars|jar|box|bunch|head|cloves|clove|slices|slice|pieces|piece|stalks|stalk|sprigs|sprig|ribs|rib|small|medium|large|sticks?|pounds?|L)?\b\s*[,.]?\s*(.+)$/i);
   if (match && (match[1] || match[2])) {
     let qty = (match[1] || "").trim();
     let unit = (match[2] || "").trim();

@@ -714,7 +714,7 @@ function parseIng(str){
   str=str.trim();
   if(!str)return{qty:"",unit:"",name:""};
   // Try to match: "2 cups flour", "1/2 tsp salt", "3 large eggs", "salt and pepper"
-  var match=str.match(/^([\d.\/\s½¼¾⅓⅔⅛]+)?\s*(ct|oz|lbs|lb|g|kg|cups|cup|tbsp|tsp|teaspoons|teaspoon|tablespoons|tablespoon|ml|pkg|package|bag|cans|can|jars|jar|box|bunch|head|cloves|clove|slices|slice|pieces|piece|small|medium|large|sticks?|pounds?|L)?\b\s*[,.]?\s*(.+)$/i);
+  var match=str.match(/^([\d.\/\s½¼¾⅓⅔⅛]+)?\s*(ct|oz|lbs|lb|g|kg|cups|cup|tbsp|tsp|teaspoons|teaspoon|tablespoons|tablespoon|ml|pkg|package|bag|cans|can|jars|jar|box|bunch|head|cloves|clove|slices|slice|pieces|piece|stalks|stalk|sprigs|sprig|ribs|rib|small|medium|large|sticks?|pounds?|L)?\b\s*[,.]?\s*(.+)$/i);
   if(match&&(match[1]||match[2])){
     var qty=(match[1]||"").trim();
     var unit=(match[2]||"").trim();
@@ -746,6 +746,9 @@ function normalizeUnit(u){
     "boxes":"box",
     "bunches":"bunch",
     "heads":"head",
+    "stalk":"stalk","stalks":"stalk",
+    "sprig":"sprig","sprigs":"sprig",
+    "rib":"stalk","ribs":"stalk",
     "l":"l","ml":"ml"
   };
   return map[u]||u;
@@ -1279,7 +1282,53 @@ function GroceryTab(p){
   // Generate grocery list from current week's meals
   // Items to exclude from grocery list (common pantry staples everyone has)
   var GROCERY_EXCLUDE = ["water","tap water","cold water","warm water","hot water","boiling water","ice water"];
-  
+
+  // Grocery items don't need recipe prep instructions - "celery, diced" and
+  // "celery, chopped" are both just "celery" on a shopping list, and merging
+  // on the cleaned name lets those two recipes' celery consolidate together.
+  var GROCERY_PREP_WORD=/^(diced|minced|chopped|sliced|shredded|grated|crushed|julienned|cubed|peeled|seeded|deveined|halved|quartered|trimmed|rinsed|drained|softened|melted|packed|divided|separated|cored|stemmed|zested|juiced|toasted|beaten|whisked|and|into|to|at|the|small|large|thin|thinly|finely|roughly|coarsely|pieces|piece|cubes|cube|strips|chunks|room|temperature)$/i;
+  function isGroceryPrepClause(tail){
+    if(!tail)return false;
+    var words=tail.replace(/\.+$/,"").split(/\s+/).filter(Boolean);
+    if(!words.length)return false;
+    return words.every(function(w){return GROCERY_PREP_WORD.test(w)});
+  }
+  function cleanGroceryItemName(rawName){
+    var name=(rawName||"").trim();
+    if(!name)return name;
+    var commaIdx=name.indexOf(",");
+    if(commaIdx!==-1){
+      var head=name.slice(0,commaIdx).trim();
+      var tail=name.slice(commaIdx+1).trim();
+      if(head&&isGroceryPrepClause(tail))name=head;
+    }
+    // Trailing "for serving/garnish/..." doesn't need a comma to strip
+    name=name.replace(/\s+for\s+(serving|garnish(?:ing)?|topping|frying|greasing|dusting|drizzling|brushing|dipping)\s*$/i,"");
+    // "to taste" is a seasoning instruction, not part of the shopping item -
+    // strip it whether it leads ("to taste, black pepper") or trails
+    // ("black pepper, to taste" / "black pepper to taste").
+    name=name.replace(/^to\s+taste\s*,?\s*/i,"").replace(/\s*,?\s*to\s+taste\s*$/i,"");
+    return name.trim();
+  }
+  // "Salt and pepper" (with or without "to taste") is shorthand for two
+  // separate items - a shopper needs to grab both, not look for one product
+  // called "salt and pepper".
+  function splitGroceryItemNames(name){
+    var n=(name||"").trim();
+    var pepperDesc="((?:freshly )?(?:cracked|ground)\\s+)?(black|white)?\\s*pepper";
+    var saltPepper=n.match(new RegExp("^salt\\s*(?:and|&|\\/|,)\\s*"+pepperDesc+"$","i"));
+    if(saltPepper)return["salt",(saltPepper[1]||"")+(saltPepper[2]?saltPepper[2]+" ":"")+"pepper"];
+    var pepperSalt=n.match(new RegExp("^"+pepperDesc+"\\s*(?:and|&|\\/|,)\\s*salt$","i"));
+    if(pepperSalt)return[(pepperSalt[1]||"")+(pepperSalt[2]?pepperSalt[2]+" ":"")+"pepper","salt"];
+    return[n];
+  }
+  // Some ingredients are functionally interchangeable for shopping purposes -
+  // merge them under one name so they don't show up as separate list items.
+  var GROCERY_SYNONYMS={"chicken stock":"chicken broth","beef stock":"beef broth","vegetable stock":"vegetable broth"};
+  function grocerySynonymKey(nameLower){
+    return GROCERY_SYNONYMS[nameLower]||nameLower;
+  }
+
   function generateFromWeeks(weekStartDates, mode){
     // mode: "replace" (default) starts fresh, "append" adds to existing list
     mode = mode || "replace";
@@ -1287,7 +1336,7 @@ function GroceryTab(p){
     var seenNames = {}; // name -> array of item refs ("variants") that share this name
     // Seed with existing items so regenerating can still merge into them
     items.forEach(function(it){
-      var n=(it.name||"").trim().toLowerCase();
+      var n=grocerySynonymKey((it.name||"").trim().toLowerCase());
       if(!n)return;
       if(!seenNames[n])seenNames[n]=[];
       seenNames[n].push(it);
@@ -1311,30 +1360,35 @@ function GroceryTab(p){
           if(m&&m.ingredients){
             m.ingredients.forEach(function(g){
               var ing=typeof g==="string"?parseIng(g):g;
-              var name=(ing.name||"").trim().toLowerCase();
-              if(GROCERY_EXCLUDE.some(function(ex){return name===ex||name.replace(/\s+/g," ")===ex})) return;
-              // Try to merge into an existing variant of this ingredient name
-              var variants=seenNames[name];
-              var merged=false;
-              if(variants){
-                for(var vi=0;vi<variants.length;vi++){
-                  var v=variants[vi];
-                  var mergeResult=tryMergeQty(v.qty,v.unit,ing.qty||"",ing.unit||"");
-                  if(mergeResult){
-                    v.qty=mergeResult.qty;
-                    v.unit=mergeResult.unit;
-                    merged=true;
-                    break;
+              var cleanedName=cleanGroceryItemName(ing.name||"");
+              // "Salt and pepper" is shorthand for two items, not one line
+              var itemNames=splitGroceryItemNames(cleanedName);
+              itemNames.forEach(function(itemName){
+                var name=grocerySynonymKey(itemName.trim().toLowerCase());
+                if(GROCERY_EXCLUDE.some(function(ex){return name===ex||name.replace(/\s+/g," ")===ex})) return;
+                // Try to merge into an existing variant of this ingredient name
+                var variants=seenNames[name];
+                var merged=false;
+                if(variants){
+                  for(var vi=0;vi<variants.length;vi++){
+                    var v=variants[vi];
+                    var mergeResult=tryMergeQty(v.qty,v.unit,ing.qty||"",ing.unit||"");
+                    if(mergeResult){
+                      v.qty=mergeResult.qty;
+                      v.unit=mergeResult.unit;
+                      merged=true;
+                      break;
+                    }
                   }
                 }
-              }
-              if(!merged){
-                var newItem={id:"gen-"+idx,name:ing.name||"",qty:ing.qty||"",unit:ing.unit||""};
-                items.push(newItem);
-                if(!seenNames[name])seenNames[name]=[];
-                seenNames[name].push(newItem);
-                idx++;
-              }
+                if(!merged){
+                  var newItem={id:"gen-"+idx,name:itemName||ing.name||"",qty:ing.qty||"",unit:ing.unit||""};
+                  items.push(newItem);
+                  if(!seenNames[name])seenNames[name]=[];
+                  seenNames[name].push(newItem);
+                  idx++;
+                }
+              });
             });
           }
         });
