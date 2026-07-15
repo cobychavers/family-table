@@ -4634,7 +4634,7 @@ function App(){
   // the structured picker (ingredientName already known) and the free-typed
   // chat path (ingredientName left blank - the AI infers it from `request`).
   function requestIngredientSwap(opt,ingredientName,note,displayUserText,baseHistory){
-    var recipeName=opt.source==="saved"?opt.recipe.name:extractChefRecipeTitle(opt.text);
+    var recipeName=opt.source==="saved"?opt.recipe.name:opt.source==="chef"?extractChefRecipeTitle(opt.text):"";
     var ingredients=opt.source==="saved"?opt.recipe.ingredients:null;
     var recipeText=opt.source==="chef"?opt.text:null;
     var request=ingredientName?('Suggest substitutes for "'+ingredientName+'"'+(note?(" - "+note):"")):(note||displayUserText);
@@ -4661,17 +4661,17 @@ function App(){
       setChefLastActive(Date.now());
       if(data.error)throw new Error(data.error);
       if(data.success===false){
-        setChefMessages(history.concat([{role:"assistant",text:data.message||"I couldn't find a matching ingredient in that recipe."}]));
+        setChefMessages(history.concat([{role:"assistant",text:data.message||(recipeName?"I couldn't find a matching ingredient in that recipe.":"I couldn't tell which ingredient you meant - want to try rephrasing?")}]));
         return;
       }
       if(!data.success||!data.suggestions||!data.suggestions.length)throw new Error("No suggestions found");
       setChefMessages(history.concat([{
         role:"assistant",
         kind:"swap",
-        text:"Here's what I'd swap for "+data.original+" in "+recipeName+":",
+        text:"Here's what I'd swap for "+data.original+(recipeName?(" in "+recipeName):"")+":",
         original:data.original,
         suggestions:data.suggestions,
-        applyTarget:opt.source==="saved"?{type:"saved",recipeId:opt.recipe.id}:{type:"chef",msgIndex:opt.msgIndex}
+        applyTarget:opt.source==="saved"?{type:"saved",recipeId:opt.recipe.id}:opt.source==="chef"?{type:"chef",msgIndex:opt.msgIndex}:{type:"none"}
       }]));
     })
     .catch(function(err){
@@ -4680,10 +4680,13 @@ function App(){
     });
   }
 
-  // Natural-language detection: "replace/substitute/swap X" style phrasing,
-  // matched against a recipe name mentioned in the same message. Heuristic,
-  // not exhaustive - when it can't confidently match exactly one recipe,
-  // callers fall back to the normal free-form chat.
+  // Natural-language detection: "replace/substitute/swap X" style phrasing.
+  // First tries to match a recipe name mentioned in the same message (for
+  // "swap the butter in my cookies" precision); if none matches, it still
+  // counts as a swap request for a standalone ingredient with no recipe
+  // context ("what can I use instead of buttermilk") - the worker itself
+  // decides whether the message is really about an ingredient substitution
+  // and degrades to a plain clarifying reply (success:false) if not.
   // No trailing \b: "replace"/"substitut"/"swap" are prefixes meant to also
   // catch "replacement", "substitution", "swapping", etc.
   var SWAP_TRIGGER=/\b(replace|substitut|swap|instead of|alternative (for|to)|what can i use (for|instead)|something else for)/i;
@@ -4694,7 +4697,9 @@ function App(){
       var name=(o.source==="saved"?o.recipe.name:extractChefRecipeTitle(o.text))||"";
       return name.length>2&&lower.indexOf(name.toLowerCase())!==-1;
     });
-    return matches.length===1?matches[0]:null;
+    if(matches.length===1)return matches[0];
+    if(matches.length===0)return{source:"none",key:"__any__",label:"Any ingredient"};
+    return null;
   }
 
   function applySwapSuggestion(applyTarget,original,substitute){
@@ -5885,7 +5890,7 @@ function App(){
             <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}}>AI Chef</div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:14}}>
-            {getSwapRecipeOptions().length>0?<button onClick={function(){setSwapPickerRecipeKey("");setSwapPickerIngredient("");setSwapPickerNote("");setShowSwapPicker(true)}} style={{display:"flex",alignItems:"center",gap:5,background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.gold,cursor:"pointer"}}><Icon name="swap" size={13} color={C.gold} strokeWidth={2}/>Swap an ingredient</button>:null}
+            <button onClick={function(){setSwapPickerRecipeKey("");setSwapPickerIngredient("");setSwapPickerNote("");setShowSwapPicker(true)}} style={{display:"flex",alignItems:"center",gap:5,background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.gold,cursor:"pointer"}}><Icon name="swap" size={13} color={C.gold} strokeWidth={2}/>Swap an ingredient</button>
             {chefMessages.length>0?<button onClick={function(){setChefMessages([]);setChefSwaps({})}} style={{background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.light,cursor:"pointer"}}>New Chat</button>:null}
           </div>
         </div>
@@ -5899,7 +5904,7 @@ function App(){
               {["What can I make with what I have?","Something quick and easy tonight","Kid-friendly dinner ideas","Easy meals for busy family","Surprise me with an idea"].map(function(sug){
                 return <button key={sug} onClick={function(){sendChefMessage(sug)}} style={{padding:"12px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:"#fff",color:C.ink,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",boxShadow:C.shadowSm}}>{sug}</button>
               })}
-              {getSwapRecipeOptions().length>0?<button onClick={function(){setSwapPickerRecipeKey("");setSwapPickerIngredient("");setSwapPickerNote("");setShowSwapPicker(true)}} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:"#fff",color:C.ink,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",boxShadow:C.shadowSm}}><Icon name="swap" size={14} color={C.gold} strokeWidth={2}/>Swap an ingredient in a recipe</button>:null}
+              <button onClick={function(){setSwapPickerRecipeKey("");setSwapPickerIngredient("");setSwapPickerNote("");setShowSwapPicker(true)}} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:"#fff",color:C.ink,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",boxShadow:C.shadowSm}}><Icon name="swap" size={14} color={C.gold} strokeWidth={2}/>Swap an ingredient</button>
             </div>
           </div>
         :
@@ -5921,7 +5926,7 @@ function App(){
                     {m.suggestions.map(function(s,si){return <div key={si} style={{background:"#fff",border:"1px solid "+C.bdr,borderRadius:10,padding:"10px 12px",boxShadow:C.shadowSm}}>
                       <div style={{fontSize:14,fontWeight:700,color:C.ink,marginBottom:2}}>{s.substitute}</div>
                       {s.note?<div style={{fontSize:12,color:C.light,marginBottom:8,lineHeight:1.4}}>{s.note}</div>:null}
-                      <button className="ft-card-tap" onClick={function(){applySwapSuggestion(m.applyTarget,m.original,s.substitute)}} style={{background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.gold,cursor:"pointer"}}>Use this{m.applyTarget.type==="saved"?" in recipe":""}</button>
+                      {m.applyTarget.type!=="none"?<button className="ft-card-tap" onClick={function(){applySwapSuggestion(m.applyTarget,m.original,s.substitute)}} style={{background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.gold,cursor:"pointer"}}>Use this{m.applyTarget.type==="saved"?" in recipe":""}</button>:null}
                     </div>})}
                   </div>:null}
                 </div>
@@ -5946,30 +5951,36 @@ function App(){
         </div>
         {(function(){
           var options=getSwapRecipeOptions();
-          var selectedOpt=options.find(function(o){return o.key===swapPickerRecipeKey});
-          var ingredientNames=getSwapIngredientNames(selectedOpt);
+          var isAny=swapPickerRecipeKey==="__any__";
+          var selectedOpt=isAny?{source:"none",key:"__any__",label:"Any ingredient"}:options.find(function(o){return o.key===swapPickerRecipeKey});
+          var ingredientNames=isAny?[]:getSwapIngredientNames(selectedOpt);
           return <div>
             <label style={{display:"block",fontSize:12,fontWeight:600,color:C.light,marginBottom:6}}>Recipe</label>
             <select value={swapPickerRecipeKey} onChange={function(e){setSwapPickerRecipeKey(e.target.value);setSwapPickerIngredient("")}} style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,background:"#fff",color:C.dark,marginBottom:14,boxSizing:"border-box"}}>
               <option value="">Choose a recipe...</option>
+              <option value="__any__">Any ingredient (no recipe)</option>
               {options.map(function(o){return <option key={o.key} value={o.key}>{o.label}</option>})}
             </select>
 
             <label style={{display:"block",fontSize:12,fontWeight:600,color:C.light,marginBottom:6}}>Ingredient</label>
-            <select value={swapPickerIngredient} onChange={function(e){setSwapPickerIngredient(e.target.value)}} disabled={!selectedOpt} style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,background:selectedOpt?"#fff":C.blush,color:C.dark,marginBottom:14,cursor:selectedOpt?"pointer":"default",boxSizing:"border-box"}}>
-              <option value="">{selectedOpt?"Choose an ingredient...":"Pick a recipe first"}</option>
-              {ingredientNames.map(function(n,ni){return <option key={ni} value={n}>{n}</option>})}
-            </select>
+            {isAny?
+              <input value={swapPickerIngredient} onChange={function(e){setSwapPickerIngredient(e.target.value)}} placeholder="e.g. buttermilk, cilantro, brown sugar" style={Object.assign({},inp,{marginBottom:14})}/>
+            :
+              <select value={swapPickerIngredient} onChange={function(e){setSwapPickerIngredient(e.target.value)}} disabled={!selectedOpt} style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,background:selectedOpt?"#fff":C.blush,color:C.dark,marginBottom:14,cursor:selectedOpt?"pointer":"default",boxSizing:"border-box"}}>
+                <option value="">{selectedOpt?"Choose an ingredient...":"Pick a recipe first"}</option>
+                {ingredientNames.map(function(n,ni){return <option key={ni} value={n}>{n}</option>})}
+              </select>
+            }
 
             <label style={{display:"block",fontSize:12,fontWeight:600,color:C.light,marginBottom:6}}>Anything specific? (optional)</label>
             <input value={swapPickerNote} onChange={function(e){setSwapPickerNote(e.target.value)}} placeholder="e.g. no dairy, don't have it" style={Object.assign({},inp,{marginBottom:16})}/>
 
-            <button className="ft-card-tap" disabled={!selectedOpt||!swapPickerIngredient||chefLoading} onClick={function(){
+            <button className="ft-card-tap" disabled={!selectedOpt||!swapPickerIngredient.trim()||chefLoading} onClick={function(){
               var opt=selectedOpt;
-              var ingredientName=swapPickerIngredient;
+              var ingredientName=swapPickerIngredient.trim();
               var note=swapPickerNote;
               setShowSwapPicker(false);
-              var displayText="Swap "+ingredientName+" in "+opt.label.replace(" (this chat)","")+(note?(" - "+note):"");
+              var displayText=isAny?("Swap "+ingredientName+(note?(" - "+note):"")):("Swap "+ingredientName+" in "+opt.label.replace(" (this chat)","")+(note?(" - "+note):""));
               requestIngredientSwap(opt,ingredientName,note,displayText,chefMessages);
             }} style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:(!selectedOpt||!swapPickerIngredient||chefLoading)?C.blushDeep:C.dark,color:"#fff",fontWeight:600,fontSize:14,cursor:(!selectedOpt||!swapPickerIngredient||chefLoading)?"not-allowed":"pointer"}}>Get Suggestions</button>
           </div>;

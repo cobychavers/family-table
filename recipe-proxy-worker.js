@@ -621,37 +621,41 @@ Keep tone practical and friendly. No long preambles, no markdown headers, no emo
   return text.trim();
 }
 
-// Ingredient substitution suggestions for one ingredient in a recipe. The
-// caller may not know the exact ingredient name (e.g. a free-typed chat
-// request like "replace the butter in my cookies") - the model itself
-// matches `request` against the recipe's ingredients and reports back which
-// one it picked, so the app can apply the swap precisely.
+// Ingredient substitution suggestions for one ingredient, optionally in the
+// context of a recipe. The caller may not know the exact ingredient name
+// (e.g. a free-typed chat request like "replace the butter in my cookies")
+// - the model matches `request` against the recipe's ingredients and reports
+// back which one it picked, so the app can apply the swap precisely. When no
+// recipe context is given at all (ingredients/recipeText both absent), this
+// falls back to a standalone-ingredient prompt for requests like "what can I
+// use instead of buttermilk" that aren't tied to any saved recipe.
 async function ingredientSwap(recipeName, ingredients, recipeText, request, apiKey) {
   if (!request || !request.trim()) {
     throw new Error("No request provided");
-  }
-  if ((!ingredients || ingredients.length === 0) && (!recipeText || !recipeText.trim())) {
-    throw new Error("No recipe context provided");
   }
 
   const ingredientsList = ingredients && ingredients.length
     ? ingredients.map(i => "- " + [i.qty, i.unit, i.name].filter(Boolean).join(" ")).join("\n")
     : null;
+  const hasRecipeContext = !!(ingredientsList || (recipeText && recipeText.trim()));
 
-  const recipeContext = ingredientsList
-    ? `Recipe: ${recipeName || "Untitled"}\nIngredients:\n${ingredientsList}`
-    : `Recipe: ${recipeName || "Untitled"}\nRecipe text:\n${recipeText}`;
+  const prompt = hasRecipeContext ? `A user is looking at this recipe and wants an ingredient substitution.
 
-  const prompt = `A user is looking at this recipe and wants an ingredient substitution.
-
-${recipeContext}
+${ingredientsList ? `Recipe: ${recipeName || "Untitled"}\nIngredients:\n${ingredientsList}` : `Recipe: ${recipeName || "Untitled"}\nRecipe text:\n${recipeText}`}
 
 Their request: "${request}"
 
 Figure out which single ingredient from the recipe above they mean, even if their wording doesn't exactly match it, then suggest 2-3 good substitutes for it. Each suggestion needs a short, practical note (ratio adjustments, flavor or texture differences, etc). If you can't confidently tell which ingredient they mean (e.g. nothing in the recipe matches their request), set "success" to false and put a short friendly clarifying question in "message" - leave "original" and "suggestions" empty in that case.
 
 Return ONLY this JSON object with no other text, no markdown code fences, and no explanation before or after it:
-{"success":true,"original":"the exact ingredient name as it appears in the recipe (empty string if success is false)","suggestions":[{"substitute":"name","note":"short practical note"}],"message":"only used when success is false"}`;
+{"success":true,"original":"the exact ingredient name as it appears in the recipe (empty string if success is false)","suggestions":[{"substitute":"name","note":"short practical note"}],"message":"only used when success is false"}` : `A user wants an ingredient substitution suggestion. This request is NOT tied to any specific recipe.
+
+Their request: "${request}"
+
+Identify the single ingredient they're asking about - it may be named directly ("substitute for buttermilk") or embedded in a longer question - then suggest 2-3 good general-purpose substitutes for it. Each suggestion needs a short, practical note (ratio adjustments, flavor or texture differences, etc). If the request isn't actually about substituting an ingredient, set "success" to false and put a short friendly clarifying question in "message" - leave "original" and "suggestions" empty in that case.
+
+Return ONLY this JSON object with no other text, no markdown code fences, and no explanation before or after it:
+{"success":true,"original":"the ingredient name you identified (empty string if success is false)","suggestions":[{"substitute":"name","note":"short practical note"}],"message":"only used when success is false"}`;
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
