@@ -1286,28 +1286,48 @@ function GroceryTab(p){
   // Grocery items don't need recipe prep instructions - "celery, diced" and
   // "celery, chopped" are both just "celery" on a shopping list, and merging
   // on the cleaned name lets those two recipes' celery consolidate together.
-  var GROCERY_PREP_WORD=/^(diced|minced|chopped|sliced|shredded|grated|crushed|julienned|cubed|peeled|seeded|deveined|halved|quartered|trimmed|rinsed|drained|softened|melted|packed|divided|separated|cored|stemmed|zested|juiced|toasted|beaten|whisked|and|into|to|at|the|small|large|thin|thinly|finely|roughly|coarsely|pieces|piece|cubes|cube|strips|chunks|room|temperature)$/i;
+  var GROCERY_PREP_WORD=/^(diced|minced|chopped|sliced|shredded|grated|crushed|julienned|cubed|peeled|seeded|deveined|halved|quartered|trimmed|rinsed|drained|softened|melted|packed|divided|separated|cored|stemmed|zested|juiced|toasted|beaten|whisked|smashed|pitted|browned|cooled|warmed|chilled|thawed|cooked|sifted|boneless|skinless|deboned|unpeeled|freshly|lightly|gently|evenly|well|extra|very|fine|coarse|half|quarter|third|and|into|to|at|the|small|large|thin|thinly|finely|roughly|coarsely|pieces|piece|cubes|cube|cut|size|sized|bite|wedges|wedge|strips|strip|chunks|chunk|room|temp|temperature)$/i;
+  // Matches size tokens like "1-inch", "2-inches", "1/2-inch", "inch" on their own
+  function isNumericSizeToken(w){
+    return /^[\d.\/]*-?(inch(es)?|in|cm|mm|centimeters?)$/i.test(w);
+  }
+  function isGroceryPrepWord(w){
+    if(!w)return false;
+    if(GROCERY_PREP_WORD.test(w))return true;
+    if(isNumericSizeToken(w))return true;
+    if(w.indexOf("-")!==-1){
+      // Hyphenated compound like "bite-sized" or "half-inch" - every part must qualify
+      var parts=w.split("-").filter(Boolean);
+      return parts.length>1 && parts.every(function(p){return GROCERY_PREP_WORD.test(p)||isNumericSizeToken(p)||/^\d+$/.test(p)});
+    }
+    return false;
+  }
   function isGroceryPrepClause(tail){
     if(!tail)return false;
     var words=tail.replace(/\.+$/,"").split(/\s+/).filter(Boolean);
     if(!words.length)return false;
-    return words.every(function(w){return GROCERY_PREP_WORD.test(w)});
+    return words.every(isGroceryPrepWord);
   }
   function cleanGroceryItemName(rawName){
     var name=(rawName||"").trim();
     if(!name)return name;
+    // Strip a standalone "(optional)" tag anywhere in the name
+    name=name.replace(/\s*\(\s*optional\s*\)\s*/gi," ").trim();
+    // Trailing "for serving/garnish/..." doesn't need a comma to strip
+    name=name.replace(/\s+for\s+(serving|garnish(?:ing)?|topping|frying|greasing|dusting|drizzling|brushing|dipping)\s*$/i,"");
+    // "to taste" / "as needed" are seasoning instructions, not shopping items -
+    // strip them whether they lead ("to taste, black pepper") or trail
+    // ("black pepper, to taste" / "black pepper to taste").
+    name=name.replace(/^(to\s+taste|as\s+needed)\s*,?\s*/i,"").replace(/\s*,?\s*(to\s+taste|as\s+needed)\s*$/i,"");
+    // Strip a trailing comma-separated prep clause, e.g. "celery, diced" -> "celery".
+    // Runs last so the phrase-strips above have already cleared out anything
+    // that would otherwise make an all-prep-word tail check fail.
     var commaIdx=name.indexOf(",");
     if(commaIdx!==-1){
       var head=name.slice(0,commaIdx).trim();
       var tail=name.slice(commaIdx+1).trim();
       if(head&&isGroceryPrepClause(tail))name=head;
     }
-    // Trailing "for serving/garnish/..." doesn't need a comma to strip
-    name=name.replace(/\s+for\s+(serving|garnish(?:ing)?|topping|frying|greasing|dusting|drizzling|brushing|dipping)\s*$/i,"");
-    // "to taste" is a seasoning instruction, not part of the shopping item -
-    // strip it whether it leads ("to taste, black pepper") or trails
-    // ("black pepper, to taste" / "black pepper to taste").
-    name=name.replace(/^to\s+taste\s*,?\s*/i,"").replace(/\s*,?\s*to\s+taste\s*$/i,"");
     return name.trim();
   }
   // "Salt and pepper" (with or without "to taste") is shorthand for two
@@ -1324,7 +1344,22 @@ function GroceryTab(p){
   }
   // Some ingredients are functionally interchangeable for shopping purposes -
   // merge them under one name so they don't show up as separate list items.
-  var GROCERY_SYNONYMS={"chicken stock":"chicken broth","beef stock":"beef broth","vegetable stock":"vegetable broth"};
+  // Deliberately excludes anything where the "synonym" might actually be a
+  // different product a recipe author chose on purpose - e.g. onion varieties
+  // (yellow/white/sweet are genuinely different) and cilantro/coriander (in
+  // US recipes "coriander" often means the dried seed, not the fresh leaf).
+  var GROCERY_SYNONYMS={
+    "chicken stock":"chicken broth","beef stock":"beef broth","vegetable stock":"vegetable broth",
+    "green onions":"scallions",
+    "corn starch":"cornstarch",
+    "garbanzo beans":"chickpeas",
+    "half-and-half":"half and half",
+    "confectioners sugar":"powdered sugar","confectioners' sugar":"powdered sugar","icing sugar":"powdered sugar",
+    "flour":"all-purpose flour","ap flour":"all-purpose flour",
+    "granulated sugar":"sugar",
+    "heavy whipping cream":"heavy cream",
+    "parmesan cheese":"parmesan"
+  };
   function grocerySynonymKey(nameLower){
     return GROCERY_SYNONYMS[nameLower]||nameLower;
   }
