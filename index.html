@@ -972,6 +972,25 @@ function formatScaledIng(ing,scale){
   return(q?q+" ":"")+u+ing.name;
 }
 
+// Splits an instructions blob into individual steps, tolerating whatever
+// numbering/bullet style the source used (AI-generated "1. 2. 3.", manual
+// bullets, "Step 1:", inconsistent spacing, or none at all) so it can be
+// re-rendered with clean, consistent numbering no matter how it was typed.
+function parseInstructionSteps(text){
+  if(!text)return[];
+  var raw=String(text).trim();
+  if(!raw)return[];
+  var STEP_MARKER=/^(?:step\s*)?\d+\s*[.):]\s*|^[•●▪▸*]\s*|^-\s+/i;
+  var lines=raw.split(/\r?\n+/).map(function(l){return l.trim();}).filter(Boolean);
+  // Some sources cram every step onto one line/paragraph with no real
+  // newlines ("1. Preheat oven. 2. Mix batter.") - if a numbered marker
+  // repeats within a single chunk, split on it instead.
+  if(lines.length<=1 && /\d+\s*[.):]\s+\S.*\d+\s*[.):]\s+\S/.test(raw)){
+    lines=raw.split(/\s*(?=\d+\s*[.):]\s)/).map(function(l){return l.trim();}).filter(Boolean);
+  }
+  return lines.map(function(l){return l.replace(STEP_MARKER,"").trim();}).filter(Boolean);
+}
+
 var RECIPE_TYPES = [
   {id:"all",label:"All",icon:"📋"},
   {id:"favorites",label:"Favorites",icon:"❤️"},
@@ -5370,7 +5389,12 @@ function App(){
               <div style={{fontSize:13,color:C.light,padding:"4px 10px",background:C.blush,borderRadius:8}}>{friendRecipeExpInst?"▲ Hide":"▼ Show"}</div>
             </div>
             {friendRecipeExpInst?<div style={{background:C.blush,borderRadius:12,padding:14}}>
-              <div style={{fontSize:17,lineHeight:1.7,color:C.dark,whiteSpace:"pre-wrap"}}>{viewFriendRecipe.notes}</div>
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                {parseInstructionSteps(viewFriendRecipe.notes).map(function(step,i){return <div key={i} style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                  <div style={{flexShrink:0,width:26,height:26,borderRadius:13,background:C.gold,color:"#fff",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{i+1}</div>
+                  <div style={{fontSize:17,lineHeight:1.6,color:C.dark,paddingTop:2}}>{step}</div>
+                </div>})}
+              </div>
             </div>:null}
           </div>:null}
           
@@ -5817,7 +5841,12 @@ function App(){
                 <div style={{fontSize:13,color:C.light,padding:"4px 10px",background:C.blush,borderRadius:8}}>{viewRecipeHideInst?"▼ Show":"▲ Hide"}</div>
               </div>
               {!viewRecipeHideInst?<div style={{background:C.blush,borderRadius:12,padding:14}}>
-                <div style={{fontSize:17,lineHeight:1.7,color:C.ink,whiteSpace:"pre-wrap"}}>{viewRecipe.notes}</div>
+                <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                  {parseInstructionSteps(viewRecipe.notes).map(function(step,i){return <div key={i} style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                    <div style={{flexShrink:0,width:26,height:26,borderRadius:13,background:C.gold,color:"#fff",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{i+1}</div>
+                    <div style={{fontSize:17,lineHeight:1.6,color:C.ink,paddingTop:2}}>{step}</div>
+                  </div>})}
+                </div>
               </div>:null}
             </div>:null}
             
@@ -6538,7 +6567,12 @@ function App(){
               <span style={{fontSize:12,color:C.light}}>{shareExpandInst?"▲":"▼"}</span>
             </button>
             {shareExpandInst?<div style={{background:"#fff",border:"1px solid "+C.bdr,borderTop:"none",borderRadius:"0 0 12px 12px",padding:16}}>
-              <div style={{fontSize:15,color:C.dark,lineHeight:1.8,whiteSpace:"pre-wrap"}}>{shareR.notes}</div>
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                {parseInstructionSteps(shareR.notes).map(function(step,i){return <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+                  <div style={{flexShrink:0,width:22,height:22,borderRadius:11,background:C.gold,color:"#fff",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{i+1}</div>
+                  <div style={{fontSize:15,lineHeight:1.6,color:C.dark,paddingTop:1}}>{step}</div>
+                </div>})}
+              </div>
             </div>:null}
           </div>:null}
           
