@@ -449,6 +449,12 @@ function Icon(p){
     React.createElement("path",{d:"M8.53 16.11a6 6 0 0 1 6.95 0"}),
     React.createElement("line",{x1:12,y1:20,x2:12.01,y2:20})
   );
+  if(name==="swap")return React.createElement("svg",cp,
+    React.createElement("polyline",{points:"17 1 21 5 17 9"}),
+    React.createElement("path",{d:"M3 11V9a4 4 0 0 1 4-4h14"}),
+    React.createElement("polyline",{points:"7 23 3 19 7 15"}),
+    React.createElement("path",{d:"M21 13v2a4 4 0 0 1-4 4H3"})
+  );
   return null;
 }
 
@@ -2448,6 +2454,7 @@ function App(){
   var [expR,setExpR]=useState(null);
   var [viewRecipe,setViewRecipe]=useState(null);
   var [recipeScale,setRecipeScale]=useState(1);
+  var [recipeSwap,setRecipeSwap]=useState(null); // {recipeId, original, substitute} - ephemeral, view-only ingredient swap
   var [viewRecipeHideIng,setViewRecipeHideIng]=useState(false);
   var [viewRecipeHideInst,setViewRecipeHideInst]=useState(false);
   var [expInstructions,setExpInstructions]=useState({});
@@ -2492,10 +2499,16 @@ function App(){
   var [chefInput,setChefInput]=useState("");
   var [chefLoading,setChefLoading]=useState(false);
   var [chefLastActive,setChefLastActive]=useState(null);
+  var [chefSwaps,setChefSwaps]=useState({}); // msgIndex -> {original, substitute} - ephemeral display overlay for un-saved Chef-suggested recipes
+  var [showSwapPicker,setShowSwapPicker]=useState(false);
+  var [swapPickerRecipeKey,setSwapPickerRecipeKey]=useState("");
+  var [swapPickerIngredient,setSwapPickerIngredient]=useState("");
+  var [swapPickerNote,setSwapPickerNote]=useState("");
   var CHEF_IDLE_CLEAR_MS=30*60*1000; // clear the conversation after 30 min away
   useEffect(function(){
     if(view==="chef"&&chefMessages.length>0&&chefLastActive&&(Date.now()-chefLastActive>CHEF_IDLE_CLEAR_MS)){
       setChefMessages([]);
+      setChefSwaps({});
     }
   },[view]);
   var [exploreSearch,setExploreSearch]=useState("");
@@ -2512,6 +2525,14 @@ function App(){
   // Reset the scale multiplier whenever a different recipe is opened, so it
   // doesn't silently carry over from the last recipe someone scaled.
   useEffect(function(){setRecipeScale(1)},[viewRecipe,viewFriendRecipe]);
+  // Ephemeral ingredient swap: clears when the modal closes, or when a
+  // different recipe is opened without an active matching swap. Left alone
+  // when viewRecipe changes TO the recipe a just-applied swap targets (the
+  // Chef's "Use this" button sets both in the same event).
+  useEffect(function(){
+    if(!viewRecipe){setRecipeSwap(null);return}
+    if(recipeSwap&&recipeSwap.recipeId!==viewRecipe.id)setRecipeSwap(null);
+  },[viewRecipe]);
   var [friendRecipeExpInst,setFriendRecipeExpInst]=useState(false);
   var [expandedSection,setExpandedSection]=useState(null); // "followers" or "following"
   var [r2cal,setR2cal]=useState(null);
@@ -4416,16 +4437,139 @@ function App(){
     return stepMatches.length>=2&&qtyMatches.length>=2;
   }
 
+  // --- Ingredient swap: recipe-source helpers ---
+  // A "Chef-suggested recipe" is a full-recipe assistant reply in the current
+  // conversation that hasn't been saved yet - the swap picker and the
+  // natural-language detector both need its title/ingredients without a
+  // network round-trip, so these are pulled locally from chefMessages.
+  function extractChefRecipeTitle(text){
+    var firstLine=(text||"").split("\n").map(function(l){return l.trim()}).filter(Boolean)[0]||"";
+    return firstLine.replace(/^#+\s*/,"").replace(/\*\*/g,"").replace(/:$/,"").trim()||"Chef suggestion";
+  }
+  function extractChefIngredientLines(text){
+    var lines=(text||"").split("\n").map(function(l){return l.replace(/^[-•*]\s*/,"").trim()}).filter(Boolean);
+    return lines.filter(function(l){
+      if(/^\d+\.\s/.test(l))return false; // numbered instruction step, not an ingredient - parseIng would otherwise mistake "1." for a quantity
+      var p=parseIng(l);
+      return !!(p.qty||p.unit);
+    });
+  }
+  function getSwapRecipeOptions(){
+    var mine=recipes.map(function(r){return {key:"saved:"+r.id,label:r.name,source:"saved",recipe:r}});
+    var chef=[];
+    chefMessages.forEach(function(m,i){
+      if(m.role==="assistant"&&chefReplyIsFullRecipe(m.text)){
+        chef.push({key:"chef:"+i,label:extractChefRecipeTitle(m.text)+" (this chat)",source:"chef",msgIndex:i,text:m.text});
+      }
+    });
+    return mine.concat(chef);
+  }
+  function getSwapIngredientNames(opt){
+    if(!opt)return[];
+    if(opt.source==="saved")return (opt.recipe.ingredients||[]).map(function(i){return i.name}).filter(Boolean);
+    return extractChefIngredientLines(opt.text).map(function(l){return parseIng(l).name}).filter(Boolean);
+  }
+
+  // Ask the Chef for substitutes for one ingredient in a recipe. Shared by
+  // the structured picker (ingredientName already known) and the free-typed
+  // chat path (ingredientName left blank - the AI infers it from `request`).
+  function requestIngredientSwap(opt,ingredientName,note,displayUserText,baseHistory){
+    var recipeName=opt.source==="saved"?opt.recipe.name:extractChefRecipeTitle(opt.text);
+    var ingredients=opt.source==="saved"?opt.recipe.ingredients:null;
+    var recipeText=opt.source==="chef"?opt.text:null;
+    var request=ingredientName?('Suggest substitutes for "'+ingredientName+'"'+(note?(" - "+note):"")):(note||displayUserText);
+
+    var userMsg={role:"user",text:displayUserText};
+    var history=(baseHistory||chefMessages).concat([userMsg]);
+    setChefMessages(history);
+    setChefLastActive(Date.now());
+
+    if(!isOnline){
+      setChefMessages(history.concat([{role:"assistant",text:"I need an internet connection for that - try again once you're back online."}]));
+      return;
+    }
+
+    setChefLoading(true);
+    fetch(RECIPE_PROXY_URL,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({type:"ingredient_swap",recipeName:recipeName,ingredients:ingredients,recipeText:recipeText,request:request})
+    })
+    .then(function(r){return r.json()})
+    .then(function(data){
+      setChefLoading(false);
+      setChefLastActive(Date.now());
+      if(data.error)throw new Error(data.error);
+      if(data.success===false){
+        setChefMessages(history.concat([{role:"assistant",text:data.message||"I couldn't find a matching ingredient in that recipe."}]));
+        return;
+      }
+      if(!data.success||!data.suggestions||!data.suggestions.length)throw new Error("No suggestions found");
+      setChefMessages(history.concat([{
+        role:"assistant",
+        kind:"swap",
+        text:"Here's what I'd swap for "+data.original+" in "+recipeName+":",
+        original:data.original,
+        suggestions:data.suggestions,
+        applyTarget:opt.source==="saved"?{type:"saved",recipeId:opt.recipe.id}:{type:"chef",msgIndex:opt.msgIndex}
+      }]));
+    })
+    .catch(function(err){
+      setChefLoading(false);
+      setChefMessages(history.concat([{role:"assistant",text:"Sorry, I had trouble finding substitutes - "+err.message+". Try again?"}]));
+    });
+  }
+
+  // Natural-language detection: "replace/substitute/swap X" style phrasing,
+  // matched against a recipe name mentioned in the same message. Heuristic,
+  // not exhaustive - when it can't confidently match exactly one recipe,
+  // callers fall back to the normal free-form chat.
+  // No trailing \b: "replace"/"substitut"/"swap" are prefixes meant to also
+  // catch "replacement", "substitution", "swapping", etc.
+  var SWAP_TRIGGER=/\b(replace|substitut|swap|instead of|alternative (for|to)|what can i use (for|instead)|something else for)/i;
+  function detectSwapRequest(text){
+    if(!SWAP_TRIGGER.test(text||""))return null;
+    var lower=text.toLowerCase();
+    var matches=getSwapRecipeOptions().filter(function(o){
+      var name=(o.source==="saved"?o.recipe.name:extractChefRecipeTitle(o.text))||"";
+      return name.length>2&&lower.indexOf(name.toLowerCase())!==-1;
+    });
+    return matches.length===1?matches[0]:null;
+  }
+
+  function applySwapSuggestion(applyTarget,original,substitute){
+    if(applyTarget.type==="saved"){
+      var recipe=recipes.find(function(r){return r.id===applyTarget.recipeId});
+      if(!recipe)return;
+      setRecipeSwap({recipeId:recipe.id,original:original,substitute:substitute});
+      setViewRecipe(recipe);
+    }else{
+      setChefSwaps(function(prev){
+        var next=Object.assign({},prev);
+        next[applyTarget.msgIndex]={original:original,substitute:substitute};
+        return next;
+      });
+    }
+  }
+
   // Chef chat: recipe-idea brainstorming
   function sendChefMessage(text){
     if(!text||!text.trim())return;
     // Start fresh if the last exchange was too long ago, rather than bolting
     // a new question onto a stale, forgotten conversation
     var isStale=chefLastActive&&(Date.now()-chefLastActive>CHEF_IDLE_CLEAR_MS);
-    var userMsg={role:"user",text:text.trim()};
-    var history=(isStale?[]:chefMessages).concat([userMsg]);
-    setChefMessages(history);
+    var baseHistory=isStale?[]:chefMessages;
     setChefInput("");
+
+    var swapOpt=detectSwapRequest(text);
+    if(swapOpt){
+      requestIngredientSwap(swapOpt,null,null,text.trim(),baseHistory);
+      return;
+    }
+
+    var userMsg={role:"user",text:text.trim()};
+    var history=baseHistory.concat([userMsg]);
+    setChefMessages(history);
     setChefLastActive(Date.now());
 
     if(!isOnline){
@@ -5505,10 +5649,15 @@ function App(){
                   </div>
                 </div>
                 <div style={{background:C.blush,borderRadius:12,padding:14}}>
-                  {viewRecipe.ingredients.map(function(g,j){return <div key={j} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:j<viewRecipe.ingredients.length-1?"1px solid "+C.bdr:"none"}}>
-                    <div style={{width:6,height:6,borderRadius:3,background:C.blushDark,flexShrink:0}}/>
-                    <span style={{fontSize:17,color:C.ink}}>{formatScaledIng(g,recipeScale)}</span>
-                  </div>})}
+                  {viewRecipe.ingredients.map(function(g,j){
+                    var isSwapped=recipeSwap&&recipeSwap.recipeId===viewRecipe.id&&(g.name||"").trim().toLowerCase()===recipeSwap.original.trim().toLowerCase();
+                    var displayIng=isSwapped?Object.assign({},g,{name:recipeSwap.substitute}):g;
+                    return <div key={j} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:j<viewRecipe.ingredients.length-1?"1px solid "+C.bdr:"none"}}>
+                      <div style={{width:6,height:6,borderRadius:3,background:C.blushDark,flexShrink:0}}/>
+                      <span style={{fontSize:17,color:C.ink,flex:1}}>{formatScaledIng(displayIng,recipeScale)}</span>
+                      {isSwapped?<button onClick={function(){setRecipeSwap(null)}} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:"none",padding:0,cursor:"pointer",fontSize:11,fontWeight:600,color:C.gold,flexShrink:0}}><Icon name="swap" size={11} color={C.gold} strokeWidth={2}/>Swapped</button>:null}
+                    </div>
+                  })}
                 </div>
               </div>:null}
             </div>:null}
@@ -5560,7 +5709,10 @@ function App(){
             <Icon name="sparkle" size={19} color={C.gold} strokeWidth={1.75}/>
             <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}}>AI Chef</div>
           </div>
-          {chefMessages.length>0?<button onClick={function(){setChefMessages([])}} style={{background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.light,cursor:"pointer"}}>New Chat</button>:null}
+          <div style={{display:"flex",alignItems:"center",gap:14}}>
+            {getSwapRecipeOptions().length>0?<button onClick={function(){setSwapPickerRecipeKey("");setSwapPickerIngredient("");setSwapPickerNote("");setShowSwapPicker(true)}} style={{display:"flex",alignItems:"center",gap:5,background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.gold,cursor:"pointer"}}><Icon name="swap" size={13} color={C.gold} strokeWidth={2}/>Swap an ingredient</button>:null}
+            {chefMessages.length>0?<button onClick={function(){setChefMessages([]);setChefSwaps({})}} style={{background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.light,cursor:"pointer"}}>New Chat</button>:null}
+          </div>
         </div>
 
         {chefMessages.length===0?
@@ -5577,11 +5729,25 @@ function App(){
         :
           <div style={{marginBottom:16}}>
             {chefMessages.map(function(m,i){
+              var swapOverlay=chefSwaps[i];
+              var displayText=m.text;
+              if(swapOverlay&&swapOverlay.original){
+                var esc=swapOverlay.original.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+                displayText=displayText.replace(new RegExp(esc,"i"),swapOverlay.substitute);
+              }
               return <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",marginBottom:14}}>
                 <div style={{maxWidth:"85%"}}>
                   {m.role==="assistant"?<div style={{display:"flex",alignItems:"center",gap:5,marginBottom:5}}><Icon name="sparkle" size={11} color={C.gold} strokeWidth={2}/><span style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.5}}>AI Chef</span></div>:null}
-                  <div style={{padding:"11px 14px",borderRadius:14,background:m.role==="user"?C.dark:"#fff",color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.5,boxShadow:m.role==="user"?"none":C.shadowSm,whiteSpace:"pre-wrap"}}>{m.text}</div>
-                  {m.role==="assistant"&&chefReplyIsFullRecipe(m.text)?<button onClick={function(){saveChefIdeaAsRecipe(m.text)}} disabled={chefLoading} style={{marginTop:6,background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.gold,cursor:chefLoading?"default":"pointer"}}>Save as Recipe</button>:null}
+                  <div style={{padding:"11px 14px",borderRadius:14,background:m.role==="user"?C.dark:"#fff",color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.5,boxShadow:m.role==="user"?"none":C.shadowSm,whiteSpace:"pre-wrap"}}>{displayText}</div>
+                  {swapOverlay?<button onClick={function(){setChefSwaps(function(prev){var next=Object.assign({},prev);delete next[i];return next})}} style={{display:"flex",alignItems:"center",gap:4,marginTop:6,background:"none",border:"none",padding:0,fontSize:11,fontWeight:600,color:C.gold,cursor:"pointer"}}><Icon name="swap" size={11} color={C.gold} strokeWidth={2}/>Swapped - tap to revert</button>:null}
+                  {m.role==="assistant"&&m.kind!=="swap"&&chefReplyIsFullRecipe(m.text)?<button onClick={function(){saveChefIdeaAsRecipe(m.text)}} disabled={chefLoading} style={{marginTop:6,background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.gold,cursor:chefLoading?"default":"pointer"}}>Save as Recipe</button>:null}
+                  {m.role==="assistant"&&m.kind==="swap"?<div style={{marginTop:8,display:"flex",flexDirection:"column",gap:8}}>
+                    {m.suggestions.map(function(s,si){return <div key={si} style={{background:"#fff",border:"1px solid "+C.bdr,borderRadius:10,padding:"10px 12px",boxShadow:C.shadowSm}}>
+                      <div style={{fontSize:14,fontWeight:700,color:C.ink,marginBottom:2}}>{s.substitute}</div>
+                      {s.note?<div style={{fontSize:12,color:C.light,marginBottom:8,lineHeight:1.4}}>{s.note}</div>:null}
+                      <button className="ft-card-tap" onClick={function(){applySwapSuggestion(m.applyTarget,m.original,s.substitute)}} style={{background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.gold,cursor:"pointer"}}>Use this{m.applyTarget.type==="saved"?" in recipe":""}</button>
+                    </div>})}
+                  </div>:null}
                 </div>
               </div>
             })}
@@ -5596,6 +5762,43 @@ function App(){
           <button onClick={function(){sendChefMessage(chefInput)}} disabled={chefLoading||!chefInput.trim()} style={{width:44,height:44,borderRadius:10,border:"none",background:(chefLoading||!chefInput.trim())?C.blushDeep:C.dark,color:"#fff",cursor:(chefLoading||!chefInput.trim())?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="send" size={18} strokeWidth={2}/></button>
         </div>
       </div>}
+
+      {showSwapPicker&&<div style={ovl} onClick={function(){setShowSwapPicker(false)}}><div style={Object.assign({},mdl,{maxWidth:400})} onClick={function(e){e.stopPropagation()}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:19,color:C.ink}}>Swap an ingredient</div>
+          <button onClick={function(){setShowSwapPicker(false)}} style={{background:"none",border:"none",padding:4,cursor:"pointer"}}><Icon name="x" size={18} color={C.light} strokeWidth={2}/></button>
+        </div>
+        {(function(){
+          var options=getSwapRecipeOptions();
+          var selectedOpt=options.find(function(o){return o.key===swapPickerRecipeKey});
+          var ingredientNames=getSwapIngredientNames(selectedOpt);
+          return <div>
+            <label style={{display:"block",fontSize:12,fontWeight:600,color:C.light,marginBottom:6}}>Recipe</label>
+            <select value={swapPickerRecipeKey} onChange={function(e){setSwapPickerRecipeKey(e.target.value);setSwapPickerIngredient("")}} style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,background:"#fff",color:C.dark,marginBottom:14,boxSizing:"border-box"}}>
+              <option value="">Choose a recipe...</option>
+              {options.map(function(o){return <option key={o.key} value={o.key}>{o.label}</option>})}
+            </select>
+
+            <label style={{display:"block",fontSize:12,fontWeight:600,color:C.light,marginBottom:6}}>Ingredient</label>
+            <select value={swapPickerIngredient} onChange={function(e){setSwapPickerIngredient(e.target.value)}} disabled={!selectedOpt} style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,background:selectedOpt?"#fff":C.blush,color:C.dark,marginBottom:14,cursor:selectedOpt?"pointer":"default",boxSizing:"border-box"}}>
+              <option value="">{selectedOpt?"Choose an ingredient...":"Pick a recipe first"}</option>
+              {ingredientNames.map(function(n,ni){return <option key={ni} value={n}>{n}</option>})}
+            </select>
+
+            <label style={{display:"block",fontSize:12,fontWeight:600,color:C.light,marginBottom:6}}>Anything specific? (optional)</label>
+            <input value={swapPickerNote} onChange={function(e){setSwapPickerNote(e.target.value)}} placeholder="e.g. no dairy, don't have it" style={Object.assign({},inp,{marginBottom:16})}/>
+
+            <button className="ft-card-tap" disabled={!selectedOpt||!swapPickerIngredient||chefLoading} onClick={function(){
+              var opt=selectedOpt;
+              var ingredientName=swapPickerIngredient;
+              var note=swapPickerNote;
+              setShowSwapPicker(false);
+              var displayText="Swap "+ingredientName+" in "+opt.label.replace(" (this chat)","")+(note?(" - "+note):"");
+              requestIngredientSwap(opt,ingredientName,note,displayText,chefMessages);
+            }} style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:(!selectedOpt||!swapPickerIngredient||chefLoading)?C.blushDeep:C.dark,color:"#fff",fontWeight:600,fontSize:14,cursor:(!selectedOpt||!swapPickerIngredient||chefLoading)?"not-allowed":"pointer"}}>Get Suggestions</button>
+          </div>;
+        })()}
+      </div></div>}
 
       {view==="grocery"&&<GroceryTab meals={meals} wdates={wd} wlabel={wl} rgn={region} gSI={gSI} gSFI={gSFI} setItemStore={setSI} userId={userId} groceryHidden={groceryHidden} setGroceryHidden={setGroceryHidden} stores={STORES} addCustomStore={addCustomStore} removeCustomStore={removeCustomStore} defStore={defStore} setDefStore={handleSetDefStore} categoryStores={categoryStores} setCategoryStore={handleSetCategoryStore} goToCalendar={function(){setView("calendar")}} setWs={setWs} ws={ws}/>}
 

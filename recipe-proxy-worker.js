@@ -30,6 +30,15 @@ export default {
         });
       }
 
+      if (type === "ingredient_swap") {
+        // Suggest substitutes for one ingredient in a recipe - returns its own
+        // {success, original, suggestions} shape, not the {success, recipe} shape below
+        const result = await ingredientSwap(body.recipeName, body.ingredients, body.recipeText, body.request, env.ANTHROPIC_API_KEY);
+        return new Response(JSON.stringify(result), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+        });
+      }
+
       let recipe;
 
       if (type === "scan") {
@@ -45,7 +54,7 @@ export default {
         // Handle text parsing
         recipe = await parseRecipeText(body.text, env.ANTHROPIC_API_KEY);
       } else {
-        return new Response(JSON.stringify({ error: "Invalid type. Use 'scan', 'url', 'pdf', 'parse_text', or 'chef_chat'" }), {
+        return new Response(JSON.stringify({ error: "Invalid type. Use 'scan', 'url', 'pdf', 'parse_text', 'chef_chat', or 'ingredient_swap'" }), {
           status: 400,
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
         });
@@ -600,4 +609,70 @@ Keep tone practical and friendly. No long preambles, no markdown headers, no emo
   }
 
   return text.trim();
+}
+
+// Ingredient substitution suggestions for one ingredient in a recipe. The
+// caller may not know the exact ingredient name (e.g. a free-typed chat
+// request like "replace the butter in my cookies") - the model itself
+// matches `request` against the recipe's ingredients and reports back which
+// one it picked, so the app can apply the swap precisely.
+async function ingredientSwap(recipeName, ingredients, recipeText, request, apiKey) {
+  if (!request || !request.trim()) {
+    throw new Error("No request provided");
+  }
+  if ((!ingredients || ingredients.length === 0) && (!recipeText || !recipeText.trim())) {
+    throw new Error("No recipe context provided");
+  }
+
+  const ingredientsList = ingredients && ingredients.length
+    ? ingredients.map(i => "- " + [i.qty, i.unit, i.name].filter(Boolean).join(" ")).join("\n")
+    : null;
+
+  const recipeContext = ingredientsList
+    ? `Recipe: ${recipeName || "Untitled"}\nIngredients:\n${ingredientsList}`
+    : `Recipe: ${recipeName || "Untitled"}\nRecipe text:\n${recipeText}`;
+
+  const prompt = `A user is looking at this recipe and wants an ingredient substitution.
+
+${recipeContext}
+
+Their request: "${request}"
+
+Figure out which single ingredient from the recipe above they mean, even if their wording doesn't exactly match it, then suggest 2-3 good substitutes for it. Each suggestion needs a short, practical note (ratio adjustments, flavor or texture differences, etc).
+
+If you can't confidently tell which ingredient they mean (e.g. nothing in the recipe matches their request), respond with the "success":false shape below instead, with a short friendly clarifying message.
+
+Return ONLY valid JSON with no other text, in exactly one of these two shapes:
+{"success":true,"original":"the exact ingredient name as it appears in the recipe","suggestions":[{"substitute":"name","note":"short practical note"}]}
+{"success":false,"message":"short friendly message"}`;
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01"
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-5",
+      max_tokens: 700,
+      messages: [{ role: "user", content: prompt }]
+    })
+  });
+
+  const data2 = await response.json();
+
+  if (data2.error) {
+    throw new Error(data2.error.message || "API error");
+  }
+
+  const replyText = data2.content?.[0]?.text || "";
+  const cleaned = replyText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+
+  if (!jsonMatch) {
+    throw new Error("Could not get substitution suggestions");
+  }
+
+  return JSON.parse(jsonMatch[0]);
 }
