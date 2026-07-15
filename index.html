@@ -54,6 +54,10 @@
       from { opacity: 0; }
       to { opacity: 1; }
     }
+    @keyframes ft-fs-slide-up {
+      from { opacity: 0; transform: translateY(24px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
     .ft-card-tap {
       transition: transform .15s cubic-bezier(0.4,0,0.2,1), box-shadow .15s cubic-bezier(0.4,0,0.2,1);
     }
@@ -778,7 +782,30 @@ function migrateRecipe(recipe, storageUser){
     r.savedFrom = trueOwner;
     changed = true;
   }
-  
+
+  // Repair ingredients imported before parseIng stripped leading list-bullet
+  // characters: qty/unit ended up empty and the whole line (bullet
+  // included) landed in `name` - which silently breaks recipe scaling since
+  // there's no quantity to scale. Re-parsing the raw name (now bullet-
+  // aware) heals these in place without requiring a re-import.
+  if(Array.isArray(r.ingredients)){
+    var repairedAny = false;
+    var repairedIngredients = r.ingredients.map(function(ing){
+      if(!ing || typeof ing !== "object") return ing;
+      if((ing.qty||"").trim()) return ing;
+      var name = ing.name || "";
+      if(!/^[•●▪▸]/.test(name)) return ing;
+      var reparsed = parseIng(name);
+      if(!reparsed.qty && !reparsed.unit) return ing;
+      repairedAny = true;
+      return reparsed;
+    });
+    if(repairedAny){
+      r.ingredients = repairedIngredients;
+      changed = true;
+    }
+  }
+
   return { recipe: r, changed: changed };
 }
 
@@ -787,6 +814,12 @@ function parseIng(str){
   if(typeof str==="object")return str;
   str=str.trim();
   if(!str)return{qty:"",unit:"",name:""};
+  // Scraped/pasted ingredient text sometimes carries a literal list-bullet
+  // ("• 2 cups sugar") - the qty regex below requires the string to START
+  // with a digit/fraction char, so an un-stripped bullet blocks it entirely
+  // and the whole line (bullet included) falls through into `name` with no
+  // qty/unit captured at all. Strip it before matching.
+  str=str.replace(/^[•●▪▸]\s*/,"");
   // Try to match: "2 cups flour", "1/2 tsp salt", "3 large eggs", "salt and pepper"
   var match=str.match(/^([\d.\/\s½¼¾⅓⅔⅛]+)?\s*(ct|oz|lbs|lb|g|kg|cups|cup|tbsp|tsp|teaspoons|teaspoon|tablespoons|tablespoon|ml|pkg|package|bag|cans|can|jars|jar|box|bunch|head|cloves|clove|slices|slice|pieces|piece|stalks|stalk|sprigs|sprig|ribs|rib|small|medium|large|sticks?|pounds?|L)?\b\s*[,.]?\s*(.+)$/i);
   if(match&&(match[1]||match[2])){
@@ -4815,8 +4848,14 @@ function App(){
   if(showAuth)return React.createElement(AuthScreen,{onLogin:function(uid){handleLogin(uid);setShowAuth(false)}});
 
   var C={ink:"#3A2A1D",dark:"#6B4A32",light:"#8C7561",gold:"#B4823D",blush:"#F5EBE6",blushMed:"#E8DDD6",blushDeep:"#D4C4B8",blushAccent:"#B8A090",blushDark:"#96806C",card:"#FFFFFF",bdr:"rgba(58,42,29,0.10)",shadowSm:"0 1px 3px rgba(58,42,29,0.08), 0 1px 2px rgba(58,42,29,0.06)",shadowMd:"0 4px 16px rgba(58,42,29,0.10), 0 2px 6px rgba(58,42,29,0.06)",shadowLg:"0 12px 32px rgba(58,42,29,0.16)"};
-  var ovl={position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,padding:16,animation:"ft-backdrop-fade .18s ease-out"};
-  var mdl={background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:440,maxHeight:"85vh",overflow:"auto",boxShadow:C.shadowLg,animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"};
+  // Full-screen page presentation (not a floating card over a dimmed
+  // backdrop) - reads as a native app screen rather than a web "portal".
+  // Since the content now covers the entire viewport, the outer div's
+  // onClick={close} handlers throughout the file become inert (nothing is
+  // ever "outside" the inner div anymore) - harmless, and correct: a
+  // full-screen view shouldn't be dismissible by an accidental tap.
+  var ovl={position:"fixed",top:0,left:0,right:0,bottom:0,background:"#fff",zIndex:999,display:"flex",flexDirection:"column",animation:"ft-fs-slide-up .25s cubic-bezier(0.16,1,0.3,1)"};
+  var mdl={background:"#fff",borderRadius:0,padding:20,paddingTop:"max(20px, env(safe-area-inset-top))",paddingBottom:"max(20px, env(safe-area-inset-bottom))",width:"100%",height:"100%",maxWidth:"none",maxHeight:"none",overflow:"auto",boxShadow:"none",boxSizing:"border-box",animation:"none"};
   var inp={width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:14,boxSizing:"border-box",outline:"none",fontFamily:"'Inter',-apple-system,sans-serif"};
   var btn=function(bg,col){return{padding:"8px 16px",borderRadius:10,border:"none",background:bg,color:col||"#fff",fontWeight:600,fontSize:13,cursor:"pointer",boxShadow:(!col||col==="#fff")?C.shadowSm:"none",transition:"transform .12s ease-out, box-shadow .12s ease-out"}};
   var tab=function(a){return{padding:"7px 14px",borderRadius:20,border:"none",background:a?C.dark:C.blushMed,color:a?"#fff":C.light,fontWeight:600,fontSize:13,cursor:"pointer",boxShadow:a?C.shadowSm:"none",transition:"background-color .15s cubic-bezier(0.4,0,0.2,1), color .15s cubic-bezier(0.4,0,0.2,1)"}};
@@ -5012,7 +5051,7 @@ function App(){
       </div>
 
       {/* CHANGE PASSWORD MODAL */}
-      {showChangePassword&&<div style={ovl} onClick={function(){setShowChangePassword(false);setCurrentPassword("");setNewPassword("");setConfirmNewPassword("");setPasswordError("");setPasswordSuccess("")}}><div style={Object.assign({},mdl,{maxWidth:380})} onClick={function(e){e.stopPropagation()}}>
+      {showChangePassword&&<div style={ovl} onClick={function(){setShowChangePassword(false);setCurrentPassword("");setNewPassword("");setConfirmNewPassword("");setPasswordError("");setPasswordSuccess("")}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:17,color:C.ink}}><Icon name="lock" size={16} color={C.dark} strokeWidth={1.75}/> Change Password</div>
           <button onClick={function(){setShowChangePassword(false);setCurrentPassword("");setNewPassword("");setConfirmNewPassword("");setPasswordError("");setPasswordSuccess("")}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button>
@@ -5035,7 +5074,7 @@ function App(){
       </div></div>}
 
       {/* EDIT PROFILE PICTURE MODAL */}
-      {showEditProfile&&<div style={ovl} onClick={function(){setShowEditProfile(false);setProfileError("");setProfileSuccess("")}}><div style={Object.assign({},mdl,{maxWidth:400})} onClick={function(e){e.stopPropagation()}}>
+      {showEditProfile&&<div style={ovl} onClick={function(){setShowEditProfile(false);setProfileError("");setProfileSuccess("")}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:17,color:C.ink}}><Icon name="camera" size={16} color={C.dark} strokeWidth={1.75}/> Edit Profile Picture</div>
           <button onClick={function(){setShowEditProfile(false);setProfileError("");setProfileSuccess("")}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button>
@@ -5086,7 +5125,7 @@ function App(){
       </div></div>}
 
       {/* MY QR CODE MODAL */}
-      {showMyQR&&user&&<div style={ovl} onClick={function(){setShowMyQR(false)}}><div style={Object.assign({},mdl,{maxWidth:360,textAlign:"center"})} onClick={function(e){e.stopPropagation()}}>
+      {showMyQR&&user&&<div style={ovl} onClick={function(){setShowMyQR(false)}}><div style={Object.assign({},mdl,{textAlign:"center"})} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div style={{fontWeight:700,fontSize:17,color:C.dark}}>My QR Code</div>
           <button onClick={function(){setShowMyQR(false)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button>
@@ -5135,7 +5174,7 @@ function App(){
       </div></div>}
 
       {/* ADD FRIEND / SCAN QR MODAL */}
-      {showScanQR&&<div style={ovl} onClick={function(){setShowScanQR(false);setFollowStatus("")}}><div style={Object.assign({},mdl,{maxWidth:380})} onClick={function(e){e.stopPropagation()}}>
+      {showScanQR&&<div style={ovl} onClick={function(){setShowScanQR(false);setFollowStatus("")}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div style={{fontWeight:700,fontSize:17,color:C.dark}}>Follow User</div>
           <button onClick={function(){setShowScanQR(false);setFollowStatus("")}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button>
@@ -5265,9 +5304,9 @@ function App(){
       </div>}
 
       {/* VIEW FRIEND RECIPE MODAL */}
-      {viewFriendRecipe&&<div style={ovl} onClick={function(){setViewFriendRecipe(null)}}><div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:480,maxHeight:"90vh",display:"flex",flexDirection:"column",overflow:"hidden",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}} onClick={function(e){e.stopPropagation()}}>
+      {viewFriendRecipe&&<div style={ovl} onClick={function(){setViewFriendRecipe(null)}}><div style={{background:"#fff",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={function(e){e.stopPropagation()}}>
         {/* Header */}
-        <div style={{padding:"16px 20px",borderBottom:"1px solid "+C.bdr,background:"#fff",flexShrink:0}}>
+        <div style={{padding:"max(16px, env(safe-area-inset-top)) 20px 16px",borderBottom:"1px solid "+C.bdr,background:"#fff",flexShrink:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div style={{display:"flex",alignItems:"center",gap:12}}>
               {viewFriendRecipe.photo?
@@ -5714,9 +5753,9 @@ function App(){
 
       {/* VIEW RECIPE MODAL */}
       {viewRecipe&&<div style={ovl} onClick={function(){setViewRecipe(null)}}>
-        <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:480,maxHeight:"90vh",display:"flex",flexDirection:"column",overflow:"hidden",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}} onClick={function(e){e.stopPropagation()}}>
+        <div style={{background:"#fff",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={function(e){e.stopPropagation()}}>
           {/* Header */}
-          <div style={{padding:"16px 20px",borderBottom:"1px solid "+C.bdr,background:"#fff",flexShrink:0}}>
+          <div style={{padding:"max(16px, env(safe-area-inset-top)) 20px 16px",borderBottom:"1px solid "+C.bdr,background:"#fff",flexShrink:0}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}}>{viewRecipe.name}</div>
               <button onClick={function(){setViewRecipe(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,padding:8,display:"flex"}}><Icon name="x" size={20} strokeWidth={2}/></button>
@@ -5871,7 +5910,7 @@ function App(){
         </div>
       </div>}
 
-      {showSwapPicker&&<div style={ovl} onClick={function(){setShowSwapPicker(false)}}><div style={Object.assign({},mdl,{maxWidth:400})} onClick={function(e){e.stopPropagation()}}>
+      {showSwapPicker&&<div style={ovl} onClick={function(){setShowSwapPicker(false)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
           <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:19,color:C.ink}}>Swap an ingredient</div>
           <button onClick={function(){setShowSwapPicker(false)}} style={{background:"none",border:"none",padding:4,cursor:"pointer"}}><Icon name="x" size={18} color={C.light} strokeWidth={2}/></button>
@@ -6456,9 +6495,9 @@ function App(){
       </div></div>}
 
       {/* SHARE RECIPE / COOKING VIEW */}
-      {shareR&&<div style={ovl} onClick={function(){setShareR(null);setShareExpandIng(true);setShareExpandInst(false);setShareToUser("");setShareToStatus("");setShareMode(null)}}><div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:480,maxHeight:"90vh",display:"flex",flexDirection:"column",overflow:"hidden",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}} onClick={function(e){e.stopPropagation()}}>
+      {shareR&&<div style={ovl} onClick={function(){setShareR(null);setShareExpandIng(true);setShareExpandInst(false);setShareToUser("");setShareToStatus("");setShareMode(null)}}><div style={{background:"#fff",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={function(e){e.stopPropagation()}}>
         {/* Fixed Header */}
-        <div style={{padding:"16px 20px",borderBottom:"1px solid "+C.bdr,background:"#fff",flexShrink:0}}>
+        <div style={{padding:"max(16px, env(safe-area-inset-top)) 20px 16px",borderBottom:"1px solid "+C.bdr,background:"#fff",flexShrink:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div style={{display:"flex",alignItems:"center",gap:12}}>
               {shareR.photo?
@@ -6627,7 +6666,7 @@ function App(){
 
       {/* IMPORT RECIPE */}
       {/* Scan Photos Modal */}
-      {showScanModal&&<div style={ovl} onClick={function(){if(!aiScanLoading){setShowScanModal(false);setScanPhotos([])}}}><div style={Object.assign({},mdl,{maxWidth:440,padding:0,overflow:"hidden",maxHeight:"90vh",display:"flex",flexDirection:"column"})} onClick={function(e){e.stopPropagation()}}>
+      {showScanModal&&<div style={ovl} onClick={function(){if(!aiScanLoading){setShowScanModal(false);setScanPhotos([])}}}><div style={Object.assign({},mdl,{padding:0,overflow:"hidden",display:"flex",flexDirection:"column"})} onClick={function(e){e.stopPropagation()}}>
         <div style={{padding:"16px 20px",borderBottom:"1px solid "+C.bdr,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{display:"flex",alignItems:"center",gap:9,fontWeight:700,fontSize:18,color:C.dark}}><Icon name="camera" size={17} strokeWidth={1.75}/>Photo</div>
           <button onClick={function(){setShowScanModal(false);setScanPhotos([])}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}} disabled={aiScanLoading}><Icon name="x" size={20} strokeWidth={2}/></button>
@@ -6684,7 +6723,7 @@ function App(){
         </div>
       </div></div>}
 
-      {showImport&&<div style={ovl} onClick={function(){if(!importLoading){setShowImport(false);setImportUrl("");setImportCode("");setImportStatus("");setImportPasteName("");setImportPasteIngredients("");setImportPasteDirections("")}}}><div style={Object.assign({},mdl,{maxWidth:440,padding:0,overflow:"hidden",maxHeight:"90vh",display:"flex",flexDirection:"column"})} onClick={function(e){e.stopPropagation()}}>
+      {showImport&&<div style={ovl} onClick={function(){if(!importLoading){setShowImport(false);setImportUrl("");setImportCode("");setImportStatus("");setImportPasteName("");setImportPasteIngredients("");setImportPasteDirections("")}}}><div style={Object.assign({},mdl,{padding:0,overflow:"hidden",display:"flex",flexDirection:"column"})} onClick={function(e){e.stopPropagation()}}>
         {/* Header */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px 20px",borderBottom:"1px solid "+C.bdr,flexShrink:0}}>
           <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:17,color:C.dark}}><Icon name="inbox" size={17} strokeWidth={1.75}/>Import Recipe</div>

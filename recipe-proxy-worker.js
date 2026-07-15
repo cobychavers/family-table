@@ -185,6 +185,11 @@ function isoDurationToReadable(iso) {
 function parseIngredientLine(str) {
   str = (str || "").trim();
   if (!str) return { qty: "", unit: "", name: "" };
+  // Scraped ingredient text sometimes carries a literal list-bullet
+  // ("• 2 cups sugar") - strip it before matching, otherwise the qty regex
+  // (which requires the string to START with a digit/fraction char) never
+  // matches and the whole line falls through into `name` with no qty/unit.
+  str = str.replace(/^[•●▪▸]\s*/, "");
   const match = str.match(/^([\d.\/\s½¼¾⅓⅔⅛]+)?\s*(ct|oz|lbs|lb|g|kg|cups|cup|tbsp|tsp|teaspoons|teaspoon|tablespoons|tablespoon|ml|pkg|package|bag|cans|can|jars|jar|box|bunch|head|cloves|clove|slices|slice|pieces|piece|stalks|stalk|sprigs|sprig|ribs|rib|small|medium|large|sticks?|pounds?|L)?\b\s*[,.]?\s*(.+)$/i);
   if (match && (match[1] || match[2])) {
     let qty = (match[1] || "").trim();
