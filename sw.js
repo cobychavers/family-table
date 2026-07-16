@@ -11,7 +11,7 @@
 // Bump CACHE_VERSION whenever the precache list or this file's logic
 // changes meaningfully - there's no build step, so this is a manual
 // convention.
-var CACHE_VERSION = "v1";
+var CACHE_VERSION = "v2";
 var CACHE_NAME = "family-table-shell-" + CACHE_VERSION;
 
 var SAME_ORIGIN_PRECACHE = [
@@ -87,8 +87,19 @@ self.addEventListener("fetch", function(event) {
 
   if (isSameOrigin(url)) {
     // Network-first: always prefer the live version when online.
+    //
+    // A plain fetch(request) still reads the browser's HTTP cache, so with
+    // GitHub Pages serving Cache-Control: max-age=600 this would happily
+    // return a 10-minute-stale document without ever hitting the network -
+    // "network-first" in name only, and the exact stale-HTML problem this
+    // strategy exists to prevent. Navigations therefore bypass the HTTP
+    // cache explicitly. Subresources (icons, manifest) are left alone: they
+    // change rarely and benefit from normal caching.
+    var isNavigation = request.mode === "navigate" || request.destination === "document";
+    var networkRequest = isNavigation ? new Request(request, { cache: "reload" }) : request;
+
     event.respondWith(
-      fetch(request).then(function(response) {
+      fetch(networkRequest).then(function(response) {
         var copy = response.clone();
         caches.open(CACHE_NAME).then(function(cache) { cache.put(request, copy); });
         return response;
