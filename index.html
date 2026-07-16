@@ -356,6 +356,48 @@
       }
     };
 
+    // Public username -> email lookup, one small doc per username.
+    //
+    // Login and signup both need to resolve a typed username BEFORE the user
+    // is authenticated (login needs the email to sign in with; signup needs to
+    // know if the name is taken). That requirement is the only reason the old
+    // rules had to make the whole dm_users blob world-readable - and since
+    // that blob holds every user's email, phone and profile picture, one
+    // unauthenticated read dumped the entire user base.
+    //
+    // Splitting the pre-auth lookup into its own collection lets the rules say
+    // "get: if true, list: if false": you can resolve one username you already
+    // know, but you cannot enumerate them. Nothing here is secret beyond the
+    // email tied to a guessed username, and dm_users itself goes auth-only.
+    window.usernames = {
+      lookup: async (username) => {
+        if (!db || !username) return null;
+        try {
+          const doc = await db.collection("usernames").doc(username.trim().toLowerCase()).get();
+          return doc.exists ? doc.data() : null;
+        } catch (e) {
+          console.error("usernames lookup error:", e);
+          throw e;
+        }
+      },
+      // Called after the Firebase account exists, so request.auth.uid is set
+      // and the rules can verify the claimer owns the uid they're writing.
+      claim: async (username, email, firebaseUid) => {
+        if (!db || !username) return null;
+        try {
+          await db.collection("usernames").doc(username.trim().toLowerCase()).set({
+            username: username.trim(),
+            email: email,
+            uid: firebaseUid
+          });
+          return true;
+        } catch (e) {
+          console.error("usernames claim error:", e);
+          return null;
+        }
+      }
+    };
+
     const DEFAULT_FIREBASE_CONFIG = {
       apiKey: "AIzaSyA36eS5Dv0WfkU6RZoE9NLWVhf0SacmMFI",
       authDomain: "the-family-table-81b4d.firebaseapp.com",
@@ -961,7 +1003,6 @@ function sanitizeIng(i){
     name:i.name==null?"":String(i.name)
   };
 }
-function hashPass(p){var h=0;for(var i=0;i<p.length;i++){h=((h<<5)-h)+p.charCodeAt(i);h=h&h}return h.toString(16)}
 
 // --- Ingredient consolidation helpers (grocery list merge) ---
 function normalizeUnit(u){
@@ -1206,21 +1247,15 @@ function AuthScreen(p){
       
       setLoading(true);
       
-      // First check if username is already taken
-      window.storage.get("dm_users",true).then(function(r){
-        var users=r?JSON.parse(r.value):{};
-        
-        // Check for duplicate username (case-insensitive)
-        var usernameTaken=Object.keys(users).some(function(u){
-          return u.toLowerCase()===uid.toLowerCase();
-        });
-        
-        if(usernameTaken){
+      // Check whether the username is taken by getting that one username's
+      // doc, rather than downloading every user and scanning the keys.
+      window.usernames.lookup(uid).then(function(existing){
+        if(existing){
           setLoading(false);
           setError("Username '"+uid+"' is already taken. Please choose another.");
           return Promise.reject("username_taken");
         }
-        
+
         // Create Firebase Auth account
         return auth.createUserWithEmailAndPassword(userEmail, password);
       }).then(function(userCredential){
@@ -1233,8 +1268,13 @@ function AuthScreen(p){
       }).then(function(userCredential){
         if(!userCredential)return;
         
-        // Store user profile in Firestore
-        return window.storage.get("dm_users",true).then(function(r){
+        // Claim the username first: it's what login resolves against, so a
+        // profile without it would be unreachable. Runs after the Firebase
+        // account exists so the rules can check the uid being claimed is ours.
+        return window.usernames.claim(uid,userEmail,userCredential.user.uid).then(function(){
+          // Store user profile in Firestore
+          return window.storage.get("dm_users",true);
+        }).then(function(r){
           var users=r?JSON.parse(r.value):{};
           users[uid]={
             email:userEmail,
@@ -1270,85 +1310,20 @@ function AuthScreen(p){
       var typedUid=username.trim();
       setLoading(true);
       
-      // First find the user's email by username
-      window.storage.get("dm_users",true).then(function(r){
-        if(!r||!r.value){
+      // Resolve just this one username to its email, rather than reading the
+      // whole user list. Errors here are deliberately generic: the old copy
+      // ("not found in user list of N accounts. Available: ...") printed other
+      // people's usernames to anyone who typed a wrong one.
+      window.usernames.lookup(typedUid).then(function(rec){
+        if(!rec||!rec.email){
           setLoading(false);
-          setError("[Step 1] User database is empty. The dm_users record returned nothing.");
-          return Promise.reject("no_users");
-        }
-        var users=JSON.parse(r.value);
-        var userCount=Object.keys(users).length;
-        console.log("Login attempt - found",userCount,"users in dm_users");
-        console.log("Users:",Object.keys(users));
-        
-        // Find user - case-insensitive lookup
-        var uid=null;
-        var userData=null;
-        var typedLower=typedUid.toLowerCase();
-        Object.keys(users).forEach(function(u){
-          if(u.toLowerCase()===typedLower){
-            uid=u;
-            userData=users[u];
-          }
-        });
-        
-        if(!uid){
-          setLoading(false);
-          setError("[Step 2] Username '"+typedUid+"' not found in user list of "+userCount+" accounts. Available: "+Object.keys(users).slice(0,5).join(", "));
+          setError("Incorrect username or password.");
           return Promise.reject("user_not_found");
         }
-        if(!userData){
-          setLoading(false);
-          setError("[Step 3] User '"+uid+"' found but data is empty.");
-          return Promise.reject("user_not_found");
-        }
-        if(!userData.email){
-          setLoading(false);
-          setError("[Step 4] User '"+uid+"' has no email on file. Try password reset.");
-          return Promise.reject("user_not_found");
-        }
-        
-        // Try Firebase Auth first
-        return auth.signInWithEmailAndPassword(userData.email, password).then(function(){
+        // Preserve the canonical casing the account was created with
+        var uid=rec.username||typedUid;
+        return auth.signInWithEmailAndPassword(rec.email, password).then(function(){
           return {uid:uid, migrated:false};
-        }).catch(function(firebaseErr){
-          // If Firebase fails, check if this is an old account with passHash
-          if(userData.passHash && (firebaseErr.code==="auth/user-not-found" || firebaseErr.code==="auth/wrong-password" || firebaseErr.code==="auth/invalid-credential")){
-            // Verify old password
-            if(userData.passHash===hashPass(password)){
-              // Old password correct! Migrate to Firebase Auth
-              setError("");
-              setSuccess("Migrating your account to new system...");
-              
-              return auth.createUserWithEmailAndPassword(userData.email, password).then(function(userCredential){
-                // Update user record to mark as migrated
-                users[uid].firebaseUid=userCredential.user.uid;
-                delete users[uid].passHash; // Remove old password hash
-                return window.storage.set("dm_users",JSON.stringify(users),true).then(function(){
-                  // Send verification email
-                  return userCredential.user.sendEmailVerification().catch(function(){});
-                }).then(function(){
-                  return {uid:uid, migrated:true};
-                });
-              }).catch(function(createErr){
-                // If account already exists in Firebase but with different password
-                if(createErr.code==="auth/email-already-in-use"){
-                  setLoading(false);
-                  setError("Account exists but password doesn't match. Try 'Forgot password' to reset.");
-                  return Promise.reject("migration_failed");
-                }
-                throw createErr;
-              });
-            }else{
-              // Old password wrong too
-              setLoading(false);
-              setError("Incorrect password. Forgot your password?");
-              return Promise.reject("wrong_password");
-            }
-          }
-          // Not a migration case, throw original error
-          throw firebaseErr;
         });
       }).then(function(result){
         if(result && result.uid){
