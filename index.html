@@ -114,6 +114,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
@@ -198,13 +199,26 @@
   <script>
     let db = null;
     let auth = null;
+    let storage = null;
     let dbReady = false;
-    
+
     function initFirebase(config) {
       try {
         if (firebase.apps.length === 0) firebase.initializeApp(config);
         db = firebase.firestore();
         auth = firebase.auth();
+        // Non-fatal: this line sits after db/auth are live, so letting it
+        // throw would abort init half-done and take the whole app out over an
+        // optional feature. photoStore treats a null storage as "upload
+        // unavailable" and callers fall back to inlining the photo, which is
+        // exactly the old behaviour - so the app still works if Cloud Storage
+        // isn't enabled on the project yet.
+        try {
+          storage = firebase.storage();
+        } catch (e) {
+          console.warn("Cloud Storage unavailable - photos will stay inline:", e.message);
+          storage = null;
+        }
         
         // Enable offline persistence
         db.enablePersistence({ synchronizeTabs: true })
@@ -396,6 +410,49 @@
           return null;
         }
       }
+    };
+
+    // Photo storage.
+    //
+    // Photos used to be base64 data URIs embedded directly in Firestore docs.
+    // That put a ~62KB image inside every recipe document and a ~25KB one
+    // inside the single shared dm_users doc - which is what capped signups at
+    // roughly a hundred accounts (1 MiB doc limit) and made Explore download
+    // every photo of every public user just to render a list.
+    //
+    // Files are keyed by the owner's Firebase uid rather than their username,
+    // so the Storage rules can enforce ownership with a plain
+    // request.auth.uid == uid check - no username lookup needed. The doc then
+    // stores only the resulting https download URL, which <img src> consumes
+    // identically to the old data URIs, so read paths need no changes and old
+    // un-migrated photos keep rendering.
+    window.photoStore = {
+      isDataUrl: (v) => typeof v === "string" && v.indexOf("data:") === 0,
+      isStorageUrl: (v) => typeof v === "string" && v.indexOf("https://") === 0,
+
+      // ownerUid defaults to the signed-in user. It's passed explicitly when
+      // migrating, so a photo lands under the uid of whoever actually owns it.
+      uploadDataUrl: async (dataUrl, pathParts, ownerUid) => {
+        if (!storage || !window.photoStore.isDataUrl(dataUrl)) return null;
+        const uid = ownerUid || (auth.currentUser && auth.currentUser.uid);
+        if (!uid) return null;
+        try {
+          const path = [pathParts[0], uid].concat(pathParts.slice(1)).join("/");
+          const ref = storage.ref(path);
+          // uploadString handles the data: prefix and base64 decoding for us.
+          await ref.putString(dataUrl, "data_url");
+          return await ref.getDownloadURL();
+        } catch (e) {
+          console.error("photoStore upload error:", e.code || e.message, "path:", pathParts.join("/"));
+          return null;
+        }
+      },
+
+      uploadRecipePhoto: (dataUrl, recipeId, ownerUid) =>
+        window.photoStore.uploadDataUrl(dataUrl, ["recipePhotos", String(recipeId) + ".jpg"], ownerUid),
+
+      uploadProfilePic: (dataUrl, ownerUid) =>
+        window.photoStore.uploadDataUrl(dataUrl, ["profilePics", "avatar.jpg"], ownerUid)
     };
 
     const DEFAULT_FIREBASE_CONFIG = {
@@ -684,6 +741,17 @@ function Icon(p){
     React.createElement("path",{d:"M21 13v2a4 4 0 0 1-4 4H3"})
   );
   return null;
+}
+
+// A stored image is either a legacy base64 data URI or an https Storage URL.
+// A profile picture may instead hold a plain emoji, which renders as text, so
+// "is this an image?" has to accept both URL forms - testing only for "data:"
+// would render a migrated https avatar as literal URL text on the page.
+//
+// Deliberately distinct from photoStore.isDataUrl, which answers the narrower
+// "is this still un-migrated base64?" and must stay data:-only.
+function isImageSrc(v){
+  return typeof v === "string" && (v.indexOf("data:") === 0 || v.indexOf("https://") === 0);
 }
 
 // Category tag: colored dot + label (replaces per-category emoji from RECIPE_TYPES)
@@ -3013,7 +3081,19 @@ function App(){
             return result.recipe;
           });
           setRecipes(migrated);
-          if(migratedAny){
+          // Recipes saved before photos moved to Storage still carry inline
+          // base64. compressRecipePhotos uploads those and swaps in URLs; it
+          // saves everything, so it subsumes the schema-migration save too.
+          var needsPhotoMigration = migrated.some(function(rec){
+            return rec.photo && window.photoStore.isDataUrl(rec.photo);
+          });
+          if(needsPhotoMigration){
+            console.log("Moving inline recipe photos to Storage...");
+            compressRecipePhotos(migrated, function(withUrls){
+              setRecipes(withUrls);
+              saveRecipesIndividually(withUrls);
+            });
+          }else if(migratedAny){
             console.log("Migrated existing recipes to new schema, saving...");
             saveRecipesIndividually(migrated);
           }
@@ -3129,6 +3209,13 @@ function App(){
           if(users[userId].email) setUserEmail(users[userId].email);
           if(users[userId].profilePic) setUserProfilePic(users[userId].profilePic);
           if(users[userId].isPrivate) setIsPrivateProfile(users[userId].isPrivate);
+          // Self-heal avatars saved before photos moved to Storage: re-save
+          // this one as a URL so it stops consuming the shared dm_users doc.
+          // Only touches the signed-in user's own entry, so the upload always
+          // lands under their own uid.
+          if(window.photoStore.isDataUrl(users[userId].profilePic)){
+            saveProfilePic(users[userId].profilePic);
+          }
         }
       }
     }).catch(function(e){
@@ -3917,19 +4004,32 @@ function App(){
     });
   }
   
+  // `pic` is either an emoji (stored as-is) or an image data URI. Images go to
+  // Storage and only the URL is kept: dm_users is a single shared document, so
+  // a ~25KB avatar inlined here was consuming ~9.6KB per user of a 1 MiB
+  // budget and capping the whole app at roughly a hundred accounts.
   function saveProfilePic(pic){
-    window.storage.get("dm_users",true).then(function(r){
-      if(!r)return;
-      var users=JSON.parse(r.value);
-      if(!users[userId])return;
-      users[userId].profilePic=pic;
-      return window.storage.set("dm_users",JSON.stringify(users),true);
-    }).then(function(result){
-      if(result){
-        setUserProfilePic(pic);
-        setProfileSuccess("Profile picture updated!");
-        setTimeout(function(){setProfileSuccess("")},2000);
-      }
+    var uploading = window.photoStore.isDataUrl(pic)
+      ? window.photoStore.uploadProfilePic(pic)
+      : Promise.resolve(null);
+
+    uploading.then(function(url){
+      // Fall back to inlining if the upload failed, so a Storage problem
+      // doesn't block someone setting an avatar.
+      var stored = url || pic;
+      return window.storage.get("dm_users",true).then(function(r){
+        if(!r)return;
+        var users=JSON.parse(r.value);
+        if(!users[userId])return;
+        users[userId].profilePic=stored;
+        return window.storage.set("dm_users",JSON.stringify(users),true);
+      }).then(function(result){
+        if(result){
+          setUserProfilePic(stored);
+          setProfileSuccess("Profile picture updated!");
+          setTimeout(function(){setProfileSuccess("")},2000);
+        }
+      });
     }).catch(function(){
       setProfileError("Error saving profile picture");
     });
@@ -4264,29 +4364,36 @@ function App(){
     });
   }
   
+  // Compress any base64 photo, hand it to Storage, and keep only the returned
+  // URL on the recipe. This doubles as the migration for recipes saved before
+  // photos moved out of Firestore: they load as base64 and get written back as
+  // URLs, shrinking a ~62KB document to ~2KB.
+  //
+  // Only ever runs over the signed-in user's own recipes (Explore's loader
+  // doesn't call it), so uploads always land under the uploader's own uid,
+  // which is what the Storage rules require.
   function compressRecipePhotos(recipes, callback) {
     var results = recipes.slice();
-    var pending = 0;
-    var completed = 0;
-    
+    var targets = [];
     recipes.forEach(function(recipe, idx) {
-      // Compress ANY photo that's a data URL (not just large ones)
-      if (recipe.photo && recipe.photo.startsWith("data:")) {
-        pending++;
-        compressPhoto(recipe.photo, function(compressed) {
-          results[idx] = Object.assign({}, recipe, {photo: compressed});
-          completed++;
-          if (completed === pending) {
-            callback(results);
-          }
-        });
-      }
+      if (recipe.photo && window.photoStore.isDataUrl(recipe.photo)) targets.push(idx);
     });
-    
-    // If no photos to compress, callback immediately
-    if (pending === 0) {
-      callback(results);
-    }
+
+    if (targets.length === 0) { callback(results); return; }
+
+    var completed = 0;
+    targets.forEach(function(idx) {
+      var recipe = recipes[idx];
+      compressPhoto(recipe.photo, function(compressed) {
+        window.photoStore.uploadRecipePhoto(compressed, recipe.id).then(function(url) {
+          // Keep the compressed data URI if the upload failed, so a Storage
+          // outage degrades to the old inline behaviour rather than dropping
+          // someone's photo on the floor.
+          results[idx] = Object.assign({}, recipe, {photo: url || compressed});
+          if (++completed === targets.length) callback(results);
+        });
+      });
+    });
   }
   
   function svF(f){setFavorites(f);sv("dm_favorites",f)}
@@ -5132,7 +5239,7 @@ function App(){
             <div style={{position:"relative"}}>
               <button onClick={function(){setShowProfileMenu(!showProfileMenu)}} style={{width:38,height:38,borderRadius:19,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",boxShadow:C.shadowSm,padding:0,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
                 {userProfilePic?
-                  (userProfilePic.startsWith("data:")?
+                  (isImageSrc(userProfilePic)?
                     <img src={userProfilePic} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
                   :
                     <span style={{fontSize:18}}>{userProfilePic}</span>
@@ -5144,7 +5251,7 @@ function App(){
               {showProfileMenu?<div style={{position:"absolute",right:0,top:"100%",marginTop:8,background:"var(--surface)",borderRadius:14,boxShadow:C.shadowLg,border:"1px solid "+C.bdr,overflow:"hidden",minWidth:230,zIndex:1000}}>
                 <div style={{padding:"18px 16px",borderBottom:"1px solid "+C.bdr,background:C.blush,display:"flex",alignItems:"center",gap:12}}>
                   {userProfilePic?
-                    (userProfilePic.startsWith("data:")?
+                    (isImageSrc(userProfilePic)?
                       <img src={userProfilePic} alt="" style={{width:48,height:48,borderRadius:24,objectFit:"cover",border:"2px solid var(--surface)"}}/>
                     :
                       <span style={{width:48,height:48,borderRadius:24,background:"var(--surface)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,border:"2px solid var(--surface)"}}>{userProfilePic}</span>
@@ -5275,7 +5382,7 @@ function App(){
         {/* Current profile pic */}
         <div style={{textAlign:"center",marginBottom:20}}>
           {userProfilePic?
-            (userProfilePic.startsWith("data:")?
+            (isImageSrc(userProfilePic)?
               <img src={userProfilePic} alt="" style={{width:80,height:80,borderRadius:40,objectFit:"cover",border:"3px solid "+C.blushMed}}/>
             :
               <span style={{width:80,height:80,borderRadius:40,background:C.blushMed,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:40,border:"3px solid "+C.bdr}}>{userProfilePic}</span>
@@ -5326,7 +5433,7 @@ function App(){
         {/* Profile info */}
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",marginBottom:20}}>
           {userProfilePic?
-            (userProfilePic.startsWith("data:")?
+            (isImageSrc(userProfilePic)?
               <img src={userProfilePic} style={{width:70,height:70,borderRadius:35,objectFit:"cover",border:"3px solid "+C.blushMed,marginBottom:10}} alt=""/>
             :
               <span style={{width:70,height:70,borderRadius:35,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,marginBottom:10,border:"3px solid "+C.bdr}}>{userProfilePic}</span>
@@ -5405,7 +5512,7 @@ function App(){
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
             <div style={{display:"flex",alignItems:"center",gap:14}}>
               {viewProfileData&&viewProfileData.profilePic?
-                (viewProfileData.profilePic.startsWith("data:")?
+                (isImageSrc(viewProfileData.profilePic)?
                   <img src={viewProfileData.profilePic} style={{width:60,height:60,borderRadius:30,objectFit:"cover",border:"3px solid "+C.blushMed}} alt=""/>
                 :
                   <span style={{width:60,height:60,borderRadius:30,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,border:"3px solid "+C.bdr}}>{viewProfileData.profilePic}</span>
@@ -5510,7 +5617,7 @@ function App(){
                 <div style={{fontWeight:700,fontSize:18,color:C.dark}}>{viewFriendRecipe.name}</div>
                 <div style={{display:"flex",alignItems:"center",gap:6,marginTop:2}}>
                   {viewFriendRecipe.ownerProfilePic?
-                    (viewFriendRecipe.ownerProfilePic.startsWith("data:")?
+                    (isImageSrc(viewFriendRecipe.ownerProfilePic)?
                       <img src={viewFriendRecipe.ownerProfilePic} style={{width:16,height:16,borderRadius:8,objectFit:"cover"}} alt=""/>
                     :
                       <span style={{fontSize:12}}>{viewFriendRecipe.ownerProfilePic}</span>
@@ -5847,7 +5954,7 @@ function App(){
           {userInbox.slice(0,3).map(function(item){return(
             <div key={item.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid "+C.bdr}}>
               {item.fromProfilePic?
-                (item.fromProfilePic.startsWith("data:")?
+                (isImageSrc(item.fromProfilePic)?
                   <img src={item.fromProfilePic} style={{width:38,height:38,borderRadius:19,objectFit:"cover"}} alt=""/>
                 :
                   <span style={{width:38,height:38,borderRadius:19,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{item.fromProfilePic}</span>
@@ -6269,7 +6376,7 @@ function App(){
                   {/* Owner row (clickable, doesn't trigger card click) */}
                   <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
                     <div onClick={function(e){e.stopPropagation();setViewProfileUser(r.ownerUsername)}} style={{width:30,height:30,borderRadius:15,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",cursor:"pointer",flexShrink:0}}>
-                      {r.ownerProfilePic && r.ownerProfilePic.startsWith && r.ownerProfilePic.startsWith("data:")?<img src={r.ownerProfilePic} style={{width:30,height:30,objectFit:"cover"}}/>:r.ownerProfilePic?<span style={{fontSize:14}}>{r.ownerProfilePic}</span>:<Icon name="user" size={14} strokeWidth={1.75}/>}
+                      {isImageSrc(r.ownerProfilePic)?<img src={r.ownerProfilePic} style={{width:30,height:30,objectFit:"cover"}}/>:r.ownerProfilePic?<span style={{fontSize:14}}>{r.ownerProfilePic}</span>:<Icon name="user" size={14} strokeWidth={1.75}/>}
                     </div>
                     <div onClick={function(e){e.stopPropagation();setViewProfileUser(r.ownerUsername)}} style={{fontSize:14,color:C.light,cursor:"pointer",flex:1}}>@{r.ownerUsername}</div>
                   </div>
@@ -6308,7 +6415,7 @@ function App(){
               {followRequests.map(function(req){return(
                 <div key={req.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderTop:"1px solid #f0e0e0"}}>
                   {req.fromProfilePic?
-                    (req.fromProfilePic.startsWith("data:")?
+                    (isImageSrc(req.fromProfilePic)?
                       <img src={req.fromProfilePic} style={{width:40,height:40,borderRadius:20,objectFit:"cover"}} alt=""/>
                     :
                       <span style={{width:40,height:40,borderRadius:20,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{req.fromProfilePic}</span>
@@ -6339,7 +6446,7 @@ function App(){
               {myPendingRequests.map(function(req){return(
                 <div key={req.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderTop:"1px solid "+C.bdr}}>
                   {req.toProfilePic?
-                    (req.toProfilePic.startsWith("data:")?
+                    (isImageSrc(req.toProfilePic)?
                       <img src={req.toProfilePic} style={{width:32,height:32,borderRadius:16,objectFit:"cover"}} alt=""/>
                     :
                       <span style={{width:32,height:32,borderRadius:16,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>{req.toProfilePic}</span>
@@ -6374,7 +6481,7 @@ function App(){
                 return(
                 <div key={result.username} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid "+C.bdr}}>
                   {result.profilePic?
-                    (result.profilePic.startsWith("data:")?
+                    (isImageSrc(result.profilePic)?
                       <img src={result.profilePic} style={{width:36,height:36,borderRadius:18,objectFit:"cover"}} alt=""/>
                     :
                       <span style={{width:36,height:36,borderRadius:18,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{result.profilePic}</span>
@@ -6409,7 +6516,7 @@ function App(){
               {suggestedFriends.map(function(sug,i){return(
                 <div key={sug.username} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderBottom:i<suggestedFriends.length-1?"1px solid "+C.bdr:"none",background:"rgba(255,255,255,0.7)"}}>
                   {sug.profilePic?
-                    (sug.profilePic.startsWith("data:")?
+                    (isImageSrc(sug.profilePic)?
                       <img src={sug.profilePic} style={{width:44,height:44,borderRadius:22,objectFit:"cover",border:"2px solid var(--surface)"}} alt=""/>
                     :
                       <span style={{width:44,height:44,borderRadius:22,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,border:"2px solid var(--surface)"}}>{sug.profilePic}</span>
@@ -6446,7 +6553,7 @@ function App(){
                 <div key={f.username} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderBottom:i<followers.length-1?"1px solid "+C.bdr:"none"}}>
                   <div onClick={function(){setViewProfileUser(f.username);setViewProfileData({username:f.username,profilePic:f.profilePic,isFollowing:following.some(function(x){return x.username===f.username}),isPending:myPendingRequests.includes(f.username)})}} style={{display:"flex",alignItems:"center",gap:12,flex:1,cursor:"pointer"}}>
                     {f.profilePic?
-                      (f.profilePic.startsWith("data:")?
+                      (isImageSrc(f.profilePic)?
                         <img src={f.profilePic} style={{width:40,height:40,borderRadius:20,objectFit:"cover"}} alt=""/>
                       :
                         <span style={{width:40,height:40,borderRadius:20,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{f.profilePic}</span>
@@ -6470,7 +6577,7 @@ function App(){
                 <div key={f.username} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderBottom:i<following.length-1?"1px solid "+C.bdr:"none"}}>
                   <div onClick={function(){setViewProfileUser(f.username);setViewProfileData({username:f.username,profilePic:f.profilePic,isFollowing:true,isPending:false})}} style={{display:"flex",alignItems:"center",gap:12,flex:1,cursor:"pointer"}}>
                     {f.profilePic?
-                      (f.profilePic.startsWith("data:")?
+                      (isImageSrc(f.profilePic)?
                         <img src={f.profilePic} style={{width:40,height:40,borderRadius:20,objectFit:"cover"}} alt=""/>
                       :
                         <span style={{width:40,height:40,borderRadius:20,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{f.profilePic}</span>

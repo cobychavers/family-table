@@ -11,7 +11,7 @@
 // Bump CACHE_VERSION whenever the precache list or this file's logic
 // changes meaningfully - there's no build step, so this is a manual
 // convention.
-var CACHE_VERSION = "v2";
+var CACHE_VERSION = "v4";
 var CACHE_NAME = "family-table-shell-" + CACHE_VERSION;
 
 var SAME_ORIGIN_PRECACHE = [
@@ -31,6 +31,7 @@ var CROSS_ORIGIN_PRECACHE = [
   "https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js",
   "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js",
   "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js",
+  "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js",
   "https://unpkg.com/react@18/umd/react.development.js",
   "https://unpkg.com/react-dom@18/umd/react-dom.development.js",
   "https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"
@@ -112,7 +113,21 @@ self.addEventListener("fetch", function(event) {
     return;
   }
 
-  // Cross-origin (CDN scripts, Google Fonts): stale-while-revalidate.
+  // Only the pinned CDN scripts we precache are handled here. Everything else
+  // cross-origin must pass straight through to the browser.
+  //
+  // This handler forces mode:"cors", which is correct for those scripts but
+  // breaks anything that doesn't expect it. Firebase Storage photo URLs are
+  // cross-origin: an <img> loads them as a no-cors request and renders fine,
+  // but re-issuing that as a cors request fails outright, because Storage
+  // buckets carry no CORS configuration by default. The photo silently
+  // doesn't render - the document looks migrated, the image is just gone.
+  //
+  // Returning without calling respondWith hands the request back to the
+  // browser's default handling, which is what non-CDN cross-origin traffic
+  // (photos, Firestore, the AI worker) wants.
+  if (CROSS_ORIGIN_PRECACHE.indexOf(url.href) === -1) return;
+
   event.respondWith(
     caches.open(CACHE_NAME).then(function(cache) {
       return cache.match(request).then(function(cached) {
