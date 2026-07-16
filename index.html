@@ -53,6 +53,25 @@
       --shadow-sm: 0 1px 3px rgba(58,42,29,0.08), 0 1px 2px rgba(58,42,29,0.06);
       --shadow-md: 0 4px 16px rgba(58,42,29,0.10), 0 2px 6px rgba(58,42,29,0.06);
       --shadow-lg: 0 12px 32px rgba(58,42,29,0.16);
+      /* Bee mark. In dark this deliberately inverts to a warm brown disc with
+         a cream bee - which is exactly the home-screen app icon - instead of
+         staying a bright disc punched out of the dark header. */
+      --logo-disc: #F5EBE6;
+      --logo-line: #A08679;
+      /* Chips floating over recipe photos (category tag, favorite heart).
+         Must stay readable against an arbitrary photo, so it's a translucent
+         scrim rather than a palette surface. */
+      --overlay-chip: rgba(255,255,255,0.95);
+      --overlay-chip-border: rgba(58,42,29,0.06);
+      --overlay-chip-shadow: 0 2px 6px rgba(0,0,0,0.10);
+      /* Not --ink/--dark: the chip sits on its own scrim, so its text tracks
+         the scrim's lightness rather than the page's. */
+      --overlay-chip-text: #6B4A32;
+      /* Destructive/error red, and the softer rose used for favorite counts.
+         Both lighten in dark mode - the light-mode reds are too dark to read
+         against a dark surface. */
+      --danger: #c0392b;
+      --heart: #B5525F;
     }
     :root[data-theme="dark"] {
       --page: #1C140D;
@@ -72,6 +91,14 @@
       --shadow-sm: 0 1px 3px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.25);
       --shadow-md: 0 4px 16px rgba(0,0,0,0.40), 0 2px 6px rgba(0,0,0,0.25);
       --shadow-lg: 0 12px 32px rgba(0,0,0,0.55);
+      --logo-disc: #4A3425;
+      --logo-line: #EFE3D8;
+      --overlay-chip: rgba(24,17,11,0.70);
+      --overlay-chip-border: rgba(247,236,227,0.16);
+      --overlay-chip-shadow: 0 2px 8px rgba(0,0,0,0.45);
+      --overlay-chip-text: #F7ECE3;
+      --danger: #EC7063;
+      --heart: #D9838D;
     }
     body { font-family: 'Inter', -apple-system, sans-serif; background: var(--page); min-height: 100vh; }
     #root { min-height: 100vh; }
@@ -151,17 +178,17 @@
   <div id="root">
     <div class="ft-loader">
       <svg class="ft-bee" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-        <circle class="ft-bee-circle" cx="50" cy="50" r="48" stroke="#A08679" stroke-width="2"/>
+        <circle class="ft-bee-circle" cx="50" cy="50" r="48" stroke="var(--logo-line)" stroke-width="2"/>
         <g transform="translate(50,50)">
-          <ellipse cx="-18" cy="-12" rx="14" ry="9" fill="none" stroke="#A08679" stroke-width="1.5" transform="rotate(-25)"/>
-          <ellipse cx="18" cy="-12" rx="14" ry="9" fill="none" stroke="#A08679" stroke-width="1.5" transform="rotate(25)"/>
-          <ellipse cx="0" cy="8" rx="12" ry="18" fill="none" stroke="#A08679" stroke-width="2"/>
-          <line x1="-8" y1="0" x2="8" y2="0" stroke="#A08679" stroke-width="1.5"/>
-          <line x1="-10" y1="8" x2="10" y2="8" stroke="#A08679" stroke-width="1.5"/>
-          <line x1="-8" y1="16" x2="8" y2="16" stroke="#A08679" stroke-width="1.5"/>
-          <circle cx="0" cy="-18" r="7" fill="none" stroke="#A08679" stroke-width="2"/>
-          <path d="M-4,-24 Q-5,-32 -8,-34" fill="none" stroke="#A08679" stroke-width="1.5" stroke-linecap="round"/>
-          <path d="M4,-24 Q5,-32 8,-34" fill="none" stroke="#A08679" stroke-width="1.5" stroke-linecap="round"/>
+          <ellipse cx="-18" cy="-12" rx="14" ry="9" fill="none" stroke="var(--logo-line)" stroke-width="1.5" transform="rotate(-25)"/>
+          <ellipse cx="18" cy="-12" rx="14" ry="9" fill="none" stroke="var(--logo-line)" stroke-width="1.5" transform="rotate(25)"/>
+          <ellipse cx="0" cy="8" rx="12" ry="18" fill="none" stroke="var(--logo-line)" stroke-width="2"/>
+          <line x1="-8" y1="0" x2="8" y2="0" stroke="var(--logo-line)" stroke-width="1.5"/>
+          <line x1="-10" y1="8" x2="10" y2="8" stroke="var(--logo-line)" stroke-width="1.5"/>
+          <line x1="-8" y1="16" x2="8" y2="16" stroke="var(--logo-line)" stroke-width="1.5"/>
+          <circle cx="0" cy="-18" r="7" fill="none" stroke="var(--logo-line)" stroke-width="2"/>
+          <path d="M-4,-24 Q-5,-32 -8,-34" fill="none" stroke="var(--logo-line)" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M4,-24 Q5,-32 8,-34" fill="none" stroke="var(--logo-line)" stroke-width="1.5" stroke-linecap="round"/>
         </g>
       </svg>
       <div class="ft-title">The Family Table</div>
@@ -371,7 +398,28 @@ const DAYS_FULL = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"
 const DAYS_SHORT = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const EMOJIS = ["🍝","🍕","🌮","🍔","🥘","🍲","🐟","🥩","🍗","🥗","🍜","🥧","🧀","🍚","🥪","🫔","🍖","🥦","🍽️"];
-const BEE_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23F5EBE6' stroke='%23A08679' stroke-width='2'/%3E%3Cg transform='translate(50,50)'%3E%3Cellipse cx='-18' cy='-12' rx='14' ry='9' fill='none' stroke='%23A08679' stroke-width='1.5' transform='rotate(-25)'/%3E%3Cellipse cx='18' cy='-12' rx='14' ry='9' fill='none' stroke='%23A08679' stroke-width='1.5' transform='rotate(25)'/%3E%3Cellipse cx='0' cy='8' rx='12' ry='18' fill='none' stroke='%23A08679' stroke-width='2'/%3E%3Cline x1='-8' y1='0' x2='8' y2='0' stroke='%23A08679' stroke-width='1.5'/%3E%3Cline x1='-10' y1='8' x2='10' y2='8' stroke='%23A08679' stroke-width='1.5'/%3E%3Cline x1='-8' y1='16' x2='8' y2='16' stroke='%23A08679' stroke-width='1.5'/%3E%3Ccircle cx='0' cy='-18' r='7' fill='none' stroke='%23A08679' stroke-width='2'/%3E%3Cpath d='M-4,-24 Q-5,-32 -8,-34' fill='none' stroke='%23A08679' stroke-width='1.5' stroke-linecap='round'/%3E%3Cpath d='M4,-24 Q5,-32 8,-34' fill='none' stroke='%23A08679' stroke-width='1.5' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E";
+// Bee mark. Rendered as inline SVG rather than a data-URI <img> specifically
+// so its two colors can come from CSS variables and follow the theme - a
+// data-URI bakes its fill in and would stay a bright cream disc in dark mode.
+function BeeLogo(p){
+  var size=p.size||44;
+  var s=React.createElement;
+  var line="var(--logo-line)";
+  return s("svg",{width:size,height:size,viewBox:"0 0 100 100",style:p.style,role:"img","aria-label":"The Family Table"},
+    s("circle",{cx:50,cy:50,r:48,fill:"var(--logo-disc)",stroke:line,strokeWidth:2}),
+    s("g",{transform:"translate(50,50)",fill:"none",stroke:line},
+      s("ellipse",{cx:-18,cy:-12,rx:14,ry:9,strokeWidth:1.5,transform:"rotate(-25)"}),
+      s("ellipse",{cx:18,cy:-12,rx:14,ry:9,strokeWidth:1.5,transform:"rotate(25)"}),
+      s("ellipse",{cx:0,cy:8,rx:12,ry:18,strokeWidth:2}),
+      s("line",{x1:-8,y1:0,x2:8,y2:0,strokeWidth:1.5}),
+      s("line",{x1:-10,y1:8,x2:10,y2:8,strokeWidth:1.5}),
+      s("line",{x1:-8,y1:16,x2:8,y2:16,strokeWidth:1.5}),
+      s("circle",{cx:0,cy:-18,r:7,strokeWidth:2}),
+      s("path",{d:"M-4,-24 Q-5,-32 -8,-34",strokeWidth:1.5,strokeLinecap:"round"}),
+      s("path",{d:"M4,-24 Q5,-32 8,-34",strokeWidth:1.5,strokeLinecap:"round"})
+    )
+  );
+}
 const WALMART_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%230071ce'/%3E%3Cg fill='%23ffc220'%3E%3Cellipse cx='16' cy='8' rx='2' ry='4.5'/%3E%3Cellipse cx='16' cy='24' rx='2' ry='4.5'/%3E%3Cellipse cx='8' cy='16' rx='4.5' ry='2'/%3E%3Cellipse cx='24' cy='16' rx='4.5' ry='2'/%3E%3Cellipse cx='10.3' cy='10.3' rx='2' ry='4.5' transform='rotate(-45 10.3 10.3)'/%3E%3Cellipse cx='21.7' cy='21.7' rx='2' ry='4.5' transform='rotate(-45 21.7 21.7)'/%3E%3Cellipse cx='21.7' cy='10.3' rx='2' ry='4.5' transform='rotate(45 21.7 10.3)'/%3E%3Cellipse cx='10.3' cy='21.7' rx='2' ry='4.5' transform='rotate(45 10.3 21.7)'/%3E%3C/g%3E%3C/svg%3E";
 const KROGER_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23e35205'/%3E%3Ctext x='16' y='21' text-anchor='middle' font-family='Arial,sans-serif' font-size='14' font-weight='bold' fill='white'%3EK%3C/text%3E%3C/svg%3E";
 const PUBLIX_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%233d8b37'/%3E%3Ctext x='16' y='21' text-anchor='middle' font-family='Arial,sans-serif' font-size='14' font-weight='bold' fill='white'%3EP%3C/text%3E%3C/svg%3E";
@@ -601,7 +649,7 @@ function CatTag(p){
   var t=p.type;
   if(!t)return null;
   if(t.id==="favorites")return React.createElement(React.Fragment,null,
-    React.createElement(Icon,{name:"heart",size:11,color:p.color||"#B5525F",strokeWidth:2}),
+    React.createElement(Icon,{name:"heart",size:11,color:p.color||"var(--heart)",strokeWidth:2}),
     React.createElement("span",{style:{marginLeft:5}},t.label)
   );
   if(t.id==="all")return t.label;
@@ -1356,7 +1404,7 @@ function AuthScreen(p){
 
   return React.createElement("div",{style:{fontFamily:"'Cormorant Garamond','Georgia',serif",maxWidth:400,margin:"0 auto",padding:"40px 20px"}},
     React.createElement("div",{style:{textAlign:"center",marginBottom:30}},
-      React.createElement("img",{src:BEE_LOGO,alt:"Logo",style:{width:64,height:64,marginBottom:8}}),
+      React.createElement(BeeLogo,{size:64,style:{marginBottom:8}}),
       React.createElement("div",{style:{fontSize:24,fontWeight:600,color:C.dark,letterSpacing:3,textTransform:"uppercase"}},"The Family Table"),
       React.createElement("div",{style:{fontSize:13,opacity:.5,marginTop:6}},titles[mode])
     ),
@@ -2163,7 +2211,7 @@ function GroceryTab(p){
     var translateX = isSwipedHere ? -76 : (itemSwipeStart && itemSwipeStart.id===it.id ? itemSwipeOffset : 0);
     function doDelete(){ if(it.source==="manual"){remM(it.id)}else{hideItem(it.id)} }
     return React.createElement("div",{key:it.id,style:{position:"relative",overflow:"hidden",borderBottom:"1px solid "+C.bdr}},
-      React.createElement("div",{style:{position:"absolute",right:0,top:0,bottom:0,width:76,background:"#c0392b",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"},onClick:function(e){e.stopPropagation();doDelete()}},
+      React.createElement("div",{style:{position:"absolute",right:0,top:0,bottom:0,width:76,background:"var(--danger)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"},onClick:function(e){e.stopPropagation();doDelete()}},
         React.createElement("span",{style:{color:"#fff",fontSize:12,fontWeight:600}},"Delete")
       ),
       React.createElement("div",{
@@ -2296,7 +2344,7 @@ function GroceryTab(p){
       React.createElement("div",{style:{fontSize:12,color:C.light}},all.length+" items · "+tc+" checked"+(hiddenCount>0?" · "+hiddenCount+" hidden":"")),
       React.createElement("div",{style:{display:"flex",gap:8}},
         tc>0?React.createElement("button",{onClick:clr,style:{display:"flex",alignItems:"center",gap:5,height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm}},"Clear ",React.createElement(Icon,{name:"check",size:12,strokeWidth:2.5})):null,
-        all.length>0?React.createElement("button",{onClick:clearAllItems,style:{display:"flex",alignItems:"center",gap:5,height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid rgba(192,57,43,0.25)",background:"#fdf2f1",cursor:"pointer",fontWeight:600,color:"#c0392b"}},React.createElement(Icon,{name:"trash",size:12,strokeWidth:2}),"Clear All"):null,
+        all.length>0?React.createElement("button",{onClick:clearAllItems,style:{display:"flex",alignItems:"center",gap:5,height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid rgba(192,57,43,0.25)",background:"#fdf2f1",cursor:"pointer",fontWeight:600,color:"var(--danger)"}},React.createElement(Icon,{name:"trash",size:12,strokeWidth:2}),"Clear All"):null,
         hiddenCount>0?React.createElement("button",{onClick:unhideAllItems,style:{display:"flex",alignItems:"center",height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm}},"Restore "+hiddenCount):null,
         all.length>0?React.createElement("button",{onClick:function(){setShowSaveLists(true)},style:{display:"flex",alignItems:"center",gap:5,height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:C.shadowSm}},React.createElement(Icon,{name:"bookmark",size:12,strokeWidth:2}),"Save"):null
       )
@@ -4999,7 +5047,7 @@ function App(){
   var [showAuth,setShowAuth]=useState(false);
   
   if(!authChecked)return React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"var(--page)",gap:18,padding:20}},
-    React.createElement("img",{src:BEE_LOGO,alt:"Loading",style:{width:92,height:92,animation:"ft-pulse 1.6s ease-in-out infinite",filter:"drop-shadow(0 4px 12px rgba(160,134,121,0.2))"}}),
+    React.createElement(BeeLogo,{size:92,style:{animation:"ft-pulse 1.6s ease-in-out infinite",filter:"drop-shadow(0 4px 12px rgba(160,134,121,0.2))"}}),
     React.createElement("div",{style:{fontFamily:"Georgia, serif",color:"var(--dark)",letterSpacing:3,fontSize:16,fontWeight:500,textTransform:"uppercase"}},"The Family Table")
   );
   if(showAuth)return React.createElement(AuthScreen,{onLogin:function(uid){handleLogin(uid);setShowAuth(false)}});
@@ -5180,8 +5228,8 @@ function App(){
                     </button>
                   </div>
                   <div style={{height:1,background:C.bdr,margin:"4px 0"}}/>
-                  <button onClick={function(){setShowProfileMenu(false);handleLogout()}} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:500,color:"#c0392b",display:"flex",alignItems:"center",gap:10}}>
-                    <Icon name="logout" size={15} color="#c0392b" strokeWidth={1.75}/> Sign Out
+                  <button onClick={function(){setShowProfileMenu(false);handleLogout()}} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:500,color:"var(--danger)",display:"flex",alignItems:"center",gap:10}}>
+                    <Icon name="logout" size={15} color="var(--danger)" strokeWidth={1.75}/> Sign Out
                   </button>
                 </div>
               </div>:null}
@@ -5191,7 +5239,7 @@ function App(){
           }
         </div>
         <div style={{textAlign:"center"}}>
-          <img src={BEE_LOGO} alt="Logo" style={{width:44,height:44,marginBottom:4}}/>
+          <BeeLogo size={44} style={{marginBottom:4}}/>
           <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:22,fontWeight:600,color:C.dark,letterSpacing:3,textTransform:"uppercase"}}>The Family Table</div>
         </div>
       </div>
@@ -5365,7 +5413,7 @@ function App(){
         </div>
         
         {followStatus?<div style={{textAlign:"center",padding:12,marginBottom:16,borderRadius:8,background:followStatus.startsWith("error")?"#fef2f2":"#f0fdf4"}}>
-          <span style={{display:"flex",alignItems:"center",gap:5,fontSize:13,fontWeight:600,color:followStatus.startsWith("error")?"#c0392b":"#27ae60"}}>{followStatus.startsWith("error")?<React.Fragment><Icon name="x" size={13} strokeWidth={2.5}/>{followStatus.replace("error:","")}</React.Fragment>:<React.Fragment><Icon name="check" size={13} strokeWidth={2.5}/>{followStatus.replace("success:","")}</React.Fragment>}</span>
+          <span style={{display:"flex",alignItems:"center",gap:5,fontSize:13,fontWeight:600,color:followStatus.startsWith("error")?"var(--danger)":"#27ae60"}}>{followStatus.startsWith("error")?<React.Fragment><Icon name="x" size={13} strokeWidth={2.5}/>{followStatus.replace("error:","")}</React.Fragment>:<React.Fragment><Icon name="check" size={13} strokeWidth={2.5}/>{followStatus.replace("success:","")}</React.Fragment>}</span>
         </div>:null}
         
         <button onClick={function(){followUser(followRequestUser)}} disabled={!followRequestUser.trim()} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:followRequestUser.trim()?C.dark:"var(--disabled)",color:"#fff",fontWeight:600,fontSize:14,cursor:followRequestUser.trim()?"pointer":"not-allowed"}}>Follow</button>
@@ -5455,7 +5503,7 @@ function App(){
                       svF(favorites.concat([newRecipe.id]));
                       bumpFavCount(newRecipe,1);
                     }
-                  }} style={{position:"absolute",top:12,right:12,width:40,height:40,borderRadius:20,border:"none",background:"rgba(255,255,255,0.92)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.1)"}}><Icon name="heart" size={17} color={alreadySaved?"#c0392b":"#3A2A1D"} strokeWidth={2} filled={alreadySaved}/></button>
+                  }} style={{position:"absolute",top:12,right:12,width:40,height:40,borderRadius:20,border:"1px solid var(--overlay-chip-border)",background:"var(--overlay-chip)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"var(--overlay-chip-shadow)"}}><Icon name="heart" size={17} color={alreadySaved?"var(--danger)":"var(--ink)"} strokeWidth={2} filled={alreadySaved}/></button>
                 </div>
                 {/* Content */}
                 <div style={{padding:"14px 20px 18px"}}>
@@ -5567,7 +5615,7 @@ function App(){
           
           {/* Footer */}
           <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:12}}>
-            <img src={BEE_LOGO} alt="Logo" style={{width:20,height:20}}/>
+            <BeeLogo size={20}/>
             <span style={{fontSize:11,fontWeight:600,color:C.light,letterSpacing:1}}>THE FAMILY TABLE</span>
           </div>
         </div>
@@ -5652,7 +5700,7 @@ function App(){
                     return(
                       <div key={mi} style={{position:"relative",marginBottom:10,borderRadius:16,overflow:"hidden"}}>
                         {/* Red delete button revealed behind */}
-                        <div style={{position:"absolute",right:0,top:0,bottom:0,width:80,background:"#c0392b",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} onClick={function(e){e.stopPropagation();if(confirm("Remove "+m.name+" from this day?")){deleteMealAt(k,mi)}}}>
+                        <div style={{position:"absolute",right:0,top:0,bottom:0,width:80,background:"var(--danger)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} onClick={function(e){e.stopPropagation();if(confirm("Remove "+m.name+" from this day?")){deleteMealAt(k,mi)}}}>
                           <Icon name="trash" size={18} color="#fff" strokeWidth={2}/>
                         </div>
                         {/* The card itself */}
@@ -5698,11 +5746,11 @@ function App(){
                           {m.photo?
                             <div style={{position:"relative"}}>
                               <img src={m.photo} style={{width:"100%",height:120,objectFit:"cover",display:"block"}} alt=""/>
-                              <div style={{position:"absolute",top:10,right:10,background:"rgba(255,255,255,0.95)",borderRadius:16,padding:"4px 12px",fontSize:11,fontWeight:600,color:C.dark}}><CatTag type={typeInfo}/></div>
+                              <div style={{position:"absolute",top:10,right:10,background:"var(--overlay-chip)",border:"1px solid var(--overlay-chip-border)",boxShadow:"var(--overlay-chip-shadow)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderRadius:16,padding:"4px 12px",fontSize:11,fontWeight:600,color:"var(--overlay-chip-text)"}}><CatTag type={typeInfo}/></div>
                             </div>
                           :
                             <div style={{position:"relative",height:50,background:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
-                              <div style={{position:"absolute",top:10,right:10,background:"rgba(255,255,255,0.95)",borderRadius:16,padding:"4px 12px",fontSize:11,fontWeight:600,color:C.dark}}><CatTag type={typeInfo}/></div>
+                              <div style={{position:"absolute",top:10,right:10,background:"var(--overlay-chip)",border:"1px solid var(--overlay-chip-border)",boxShadow:"var(--overlay-chip-shadow)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderRadius:16,padding:"4px 12px",fontSize:11,fontWeight:600,color:"var(--overlay-chip-text)"}}><CatTag type={typeInfo}/></div>
                             </div>
                           }
                           <div style={{padding:"12px 16px"}}>
@@ -5788,11 +5836,11 @@ function App(){
                       {m.photo?
                         <div style={{position:"relative"}}>
                           <img src={m.photo} style={{width:"100%",height:140,objectFit:"cover",display:"block"}} alt=""/>
-                          <div style={{position:"absolute",top:12,right:12,background:"rgba(255,255,255,0.95)",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:600,color:C.dark}}><CatTag type={typeInfo}/></div>
+                          <div style={{position:"absolute",top:12,right:12,background:"var(--overlay-chip)",border:"1px solid var(--overlay-chip-border)",boxShadow:"var(--overlay-chip-shadow)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:600,color:"var(--overlay-chip-text)"}}><CatTag type={typeInfo}/></div>
                         </div>
                       :
                         <div style={{position:"relative",height:60,background:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
-                          <div style={{position:"absolute",top:12,right:12,background:"rgba(255,255,255,0.95)",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:600,color:C.dark}}><CatTag type={typeInfo}/></div>
+                          <div style={{position:"absolute",top:12,right:12,background:"var(--overlay-chip)",border:"1px solid var(--overlay-chip-border)",boxShadow:"var(--overlay-chip-shadow)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:600,color:"var(--overlay-chip-text)"}}><CatTag type={typeInfo}/></div>
                         </div>
                       }
                       <div style={{padding:"14px 18px"}}>
@@ -5946,7 +5994,7 @@ function App(){
             
             {/* Action buttons */}
             <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:20}}>
-              <button onClick={function(){toggleFavorite(viewRecipe.id)}} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 16px",borderRadius:25,border:"none",background:favorites.includes(viewRecipe.id)?C.blush:"var(--blush-med)",cursor:"pointer",fontSize:13,fontWeight:600,color:favorites.includes(viewRecipe.id)?"#c0392b":C.ink}}><Icon name="heart" size={14} color={favorites.includes(viewRecipe.id)?"#c0392b":C.dark} strokeWidth={2} filled={favorites.includes(viewRecipe.id)}/> Save</button>
+              <button onClick={function(){toggleFavorite(viewRecipe.id)}} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 16px",borderRadius:25,border:"none",background:favorites.includes(viewRecipe.id)?C.blush:"var(--blush-med)",cursor:"pointer",fontSize:13,fontWeight:600,color:favorites.includes(viewRecipe.id)?"var(--danger)":C.ink}}><Icon name="heart" size={14} color={favorites.includes(viewRecipe.id)?"var(--danger)":C.dark} strokeWidth={2} filled={favorites.includes(viewRecipe.id)}/> Save</button>
               <button onClick={function(){setR2cal(viewRecipe);setR2date("");setViewRecipe(null)}} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 16px",borderRadius:25,border:"none",background:"var(--blush-med)",cursor:"pointer",fontSize:13,fontWeight:600,color:C.ink}}><Icon name="calendar" size={14} color={C.dark} strokeWidth={2}/> Plan</button>
               <button onClick={function(){setShareR(viewRecipe);setViewRecipe(null)}} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 16px",borderRadius:25,border:"none",background:"var(--blush-med)",cursor:"pointer",fontSize:13,fontWeight:600,color:C.ink}}><Icon name="send" size={14} color={C.dark} strokeWidth={2}/> Share</button>
               {(!viewRecipe.ownerUsername && viewRecipe.originalOwner && viewRecipe.originalOwner.toLowerCase()===userId.toLowerCase() && (!viewRecipe.savedBy || viewRecipe.savedBy.toLowerCase()===userId.toLowerCase()) && !viewRecipe.savedFrom)?<button onClick={function(){setEditRecipe(Object.assign({},viewRecipe,{ingredients:viewRecipe.ingredients.slice()}));setEditRecipeIng("");setEditRecipeQty("");setEditRecipeUnit("");setEditIngIdx(-1);setViewRecipe(null)}} style={{display:"flex",alignItems:"center",padding:"10px 14px",borderRadius:25,border:"none",background:"var(--blush-med)",cursor:"pointer"}}><Icon name="pencil" size={14} color={C.dark} strokeWidth={2}/></button>:null}
@@ -6020,7 +6068,7 @@ function App(){
             
             {/* Footer */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:12}}>
-              <img src={BEE_LOGO} alt="Logo" style={{width:20,height:20}}/>
+              <BeeLogo size={20}/>
               <span style={{fontSize:12,fontWeight:600,color:C.light,letterSpacing:1}}>THE FAMILY TABLE</span>
             </div>
           </div>
@@ -6238,7 +6286,7 @@ function App(){
                       bumpFavCount(newRecipe,1);
                       svF(favorites.concat([newRecipe.id]));
                     }
-                  }} style={{position:"absolute",top:12,right:12,width:40,height:40,borderRadius:20,border:"none",background:"rgba(255,255,255,0.92)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.1)"}}><Icon name="heart" size={17} color={alreadySaved?"#c0392b":"#3A2A1D"} strokeWidth={2} filled={alreadySaved}/></button>:null}
+                  }} style={{position:"absolute",top:12,right:12,width:40,height:40,borderRadius:20,border:"1px solid var(--overlay-chip-border)",background:"var(--overlay-chip)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"var(--overlay-chip-shadow)"}}><Icon name="heart" size={17} color={alreadySaved?"var(--danger)":"var(--ink)"} strokeWidth={2} filled={alreadySaved}/></button>:null}
                 </div>
                 
                 {/* Content section */}
@@ -6260,7 +6308,7 @@ function App(){
                     {cookTime && typeInfo?<span style={{opacity:.4}}>|</span>:null}
                     {typeInfo?<span><CatTag type={typeInfo}/></span>:null}
                     {(cookTime||typeInfo) && favCount>0?<span style={{opacity:.4}}>|</span>:null}
-                    {favCount>0?<span style={{display:"inline-flex",alignItems:"center",gap:4}}><Icon name="heart" size={11} strokeWidth={1.75} color="#B5525F" filled={true}/>{favCount}</span>:null}
+                    {favCount>0?<span style={{display:"inline-flex",alignItems:"center",gap:4}}><Icon name="heart" size={11} strokeWidth={1.75} color="var(--heart)" filled={true}/>{favCount}</span>:null}
                   </div>:null}
                 </div>
               </div>
@@ -6279,8 +6327,8 @@ function App(){
           {followRequests.length>0?<div style={{marginBottom:16}}>
             <div style={{background:"linear-gradient(135deg, #fff5f5 0%, #fff 100%)",borderRadius:12,border:"1px solid #f0c0c0",padding:16}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                <Icon name="mail" size={17} color="#c0392b" strokeWidth={1.75}/>
-                <span style={{fontSize:14,fontWeight:700,color:"#c0392b"}}>Follow Requests ({followRequests.length})</span>
+                <Icon name="mail" size={17} color="var(--danger)" strokeWidth={1.75}/>
+                <span style={{fontSize:14,fontWeight:700,color:"var(--danger)"}}>Follow Requests ({followRequests.length})</span>
               </div>
               {followRequests.map(function(req){return(
                 <div key={req.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderTop:"1px solid #f0e0e0"}}>
@@ -6465,7 +6513,7 @@ function App(){
           
           {/* Status message */}
           {followStatus?<div style={{textAlign:"center",padding:12,marginBottom:16,borderRadius:8,background:followStatus.startsWith("error")?"#fef2f2":"#f0fdf4"}}>
-            <span style={{display:"flex",alignItems:"center",gap:5,fontSize:13,fontWeight:600,color:followStatus.startsWith("error")?"#c0392b":"#27ae60"}}>{followStatus.startsWith("error")?<React.Fragment><Icon name="x" size={13} strokeWidth={2.5}/>{followStatus.replace("error:","")}</React.Fragment>:<React.Fragment><Icon name="check" size={13} strokeWidth={2.5}/>{followStatus.replace("success:","")}</React.Fragment>}</span>
+            <span style={{display:"flex",alignItems:"center",gap:5,fontSize:13,fontWeight:600,color:followStatus.startsWith("error")?"var(--danger)":"#27ae60"}}>{followStatus.startsWith("error")?<React.Fragment><Icon name="x" size={13} strokeWidth={2.5}/>{followStatus.replace("error:","")}</React.Fragment>:<React.Fragment><Icon name="check" size={13} strokeWidth={2.5}/>{followStatus.replace("success:","")}</React.Fragment>}</span>
           </div>:null}
           
           {/* Empty state */}
@@ -6523,7 +6571,7 @@ function App(){
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           <button onClick={saveM} style={Object.assign({},btn(C.dark),{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6})}><Icon name="check" size={13} strokeWidth={2}/>Save</button>
           {em.name.trim()?<button onClick={function(){svR(recipes.concat([stampNewRecipe(em,userId,"manual")]))}} style={Object.assign({},btn(C.blushMed,C.dark),{display:"flex",alignItems:"center",gap:6})}><Icon name="book" size={13} strokeWidth={1.75}/>Recipe</button>:null}
-          {typeof editIdx==="number"?<button onClick={delM} style={Object.assign({},btn("#ffe0e0","#c0392b"),{display:"flex",alignItems:"center"})}><Icon name="trash" size={14} strokeWidth={1.75}/></button>:null}
+          {typeof editIdx==="number"?<button onClick={delM} style={Object.assign({},btn("#ffe0e0","var(--danger)"),{display:"flex",alignItems:"center"})}><Icon name="trash" size={14} strokeWidth={1.75}/></button>:null}
         </div>
       </div></div>}
 
@@ -6546,7 +6594,7 @@ function App(){
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontWeight:700,fontSize:17}}>Add Recipe</div><button onClick={function(){setShowRF(false)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button></div>
         <div style={{marginBottom:12}}>{rf.photo?<img src={rf.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/>:<div onClick={function(){rfRef.current&&rfRef.current.click()}} style={{width:"100%",height:100,borderRadius:10,border:"2px dashed var(--border-strong)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon name="camera" size={26} color="var(--light)" strokeWidth={1.5}/></div>}<input ref={rfRef} type="file" accept="image/*" style={{display:"none"}} onChange={function(e){handlePhoto(e,setRf)}}/></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Name *</label><input style={inp} value={rf.name} onChange={function(e){setRf(function(m){return Object.assign({},m,{name:e.target.value})})}}/></div>
-        <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Category <span style={{color:"#c0392b"}}>*</span></label><div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=rf.recipeType===t.id;return <button key={t.id} onClick={function(){setRf(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"4px 8px",borderRadius:8,border:active?"2px solid "+C.dark:"1px solid var(--border-strong)",background:active?C.blushMed:"var(--surface)",cursor:"pointer",fontSize:11,fontWeight:600}}><CatTag type={t}/></button>})}</div></div>
+        <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Category <span style={{color:"var(--danger)"}}>*</span></label><div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=rf.recipeType===t.id;return <button key={t.id} onClick={function(){setRf(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"4px 8px",borderRadius:8,border:active?"2px solid "+C.dark:"1px solid var(--border-strong)",background:active?C.blushMed:"var(--surface)",cursor:"pointer",fontSize:11,fontWeight:600}}><CatTag type={t}/></button>})}</div></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Time</label><input style={inp} value={rf.time} onChange={function(e){setRf(function(m){return Object.assign({},m,{time:e.target.value})})}}/></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Ingredients</label>
           {rf.ingredients.map(function(g,i){return <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",fontSize:13}}><span style={{flex:1}}>{formatIng(g)}</span><button onClick={function(){setRf(function(m){return Object.assign({},m,{ingredients:m.ingredients.filter(function(_,j){return j!==i})})})}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={12} strokeWidth={2}/></button></div>})}
@@ -6582,7 +6630,7 @@ function App(){
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontWeight:700,fontSize:17}}>Edit Recipe</div><button onClick={function(){setEditRecipe(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button></div>
         <div style={{marginBottom:12}}>{editRecipe.photo?<div style={{position:"relative"}}><img src={editRecipe.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/><button onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){setEditRecipe(function(m){return Object.assign({},m,{photo:e.target.result})})};rd.readAsDataURL(f)};inp.click()}} style={Object.assign({},btn("rgba(0,0,0,0.6)"),{position:"absolute",bottom:8,right:8,padding:"4px 10px",display:"flex",alignItems:"center"})}><Icon name="camera" size={13} color="#fff" strokeWidth={1.75}/></button></div>:<div onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){setEditRecipe(function(m){return Object.assign({},m,{photo:e.target.result})})};rd.readAsDataURL(f)};inp.click()}} style={{width:"100%",height:100,borderRadius:10,border:"2px dashed var(--border-strong)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon name="camera" size={26} color="var(--light)" strokeWidth={1.5}/></div>}</div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Name *</label><input style={inp} value={editRecipe.name} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{name:e.target.value})})}}/></div>
-        <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Category <span style={{color:"#c0392b"}}>*</span></label><div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=editRecipe.recipeType===t.id;return <button key={t.id} onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"4px 8px",borderRadius:8,border:active?"2px solid "+C.dark:"1px solid var(--border-strong)",background:active?C.blushMed:"var(--surface)",cursor:"pointer",fontSize:11,fontWeight:600}}><CatTag type={t}/></button>})}</div></div>
+        <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Category <span style={{color:"var(--danger)"}}>*</span></label><div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=editRecipe.recipeType===t.id;return <button key={t.id} onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"4px 8px",borderRadius:8,border:active?"2px solid "+C.dark:"1px solid var(--border-strong)",background:active?C.blushMed:"var(--surface)",cursor:"pointer",fontSize:11,fontWeight:600}}><CatTag type={t}/></button>})}</div></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Time</label><input style={inp} value={editRecipe.time} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{time:e.target.value})})}}/></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Ingredients</label>
           {editRecipe.ingredients.map(function(g,i){
@@ -6739,7 +6787,7 @@ function App(){
           
           {/* Footer with logo */}
           <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:12}}>
-            <img src={BEE_LOGO} alt="Logo" style={{width:20,height:20}}/>
+            <BeeLogo size={20}/>
             <span style={{fontSize:11,fontWeight:600,color:C.light,letterSpacing:1}}>THE FAMILY TABLE</span>
           </div>
         </div>
@@ -6808,7 +6856,7 @@ function App(){
                 {/* Send button */}
                 <button className="ft-card-tap" onClick={function(){shareToUserDirect(shareR,shareToUser)}} disabled={!shareToUser.trim()} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:shareToUser.trim()?C.dark:"var(--disabled)",color:"#fff",fontWeight:600,fontSize:15,cursor:shareToUser.trim()?"pointer":"not-allowed"}}>Send to @{shareToUser||"..."}</button>
                 
-                {shareToStatus&&shareToStatus.startsWith("error")?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,fontSize:13,marginTop:12,textAlign:"center",fontWeight:600,color:"#c0392b"}}><Icon name="x" size={13} strokeWidth={2.5}/>{shareToStatus.replace("error:","")}</div>:null}
+                {shareToStatus&&shareToStatus.startsWith("error")?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,fontSize:13,marginTop:12,textAlign:"center",fontWeight:600,color:"var(--danger)"}}><Icon name="x" size={13} strokeWidth={2.5}/>{shareToStatus.replace("error:","")}</div>:null}
               </div>}
             </div>:null}
           </div>:
@@ -7158,7 +7206,6 @@ function App(){
   );
 }
 
-var CONFIG_BEE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23F5EBE6' stroke='%23A08679' stroke-width='2'/%3E%3Cg transform='translate(50,50)'%3E%3Cellipse cx='-18' cy='-12' rx='14' ry='9' fill='none' stroke='%23A08679' stroke-width='1.5' transform='rotate(-25)'/%3E%3Cellipse cx='18' cy='-12' rx='14' ry='9' fill='none' stroke='%23A08679' stroke-width='1.5' transform='rotate(25)'/%3E%3Cellipse cx='0' cy='8' rx='12' ry='18' fill='none' stroke='%23A08679' stroke-width='2'/%3E%3Cline x1='-8' y1='0' x2='8' y2='0' stroke='%23A08679' stroke-width='1.5'/%3E%3Cline x1='-10' y1='8' x2='10' y2='8' stroke='%23A08679' stroke-width='1.5'/%3E%3Cline x1='-8' y1='16' x2='8' y2='16' stroke='%23A08679' stroke-width='1.5'/%3E%3Ccircle cx='0' cy='-18' r='7' fill='none' stroke='%23A08679' stroke-width='2'/%3E%3Cpath d='M-4,-24 Q-5,-32 -8,-34' fill='none' stroke='%23A08679' stroke-width='1.5' stroke-linecap='round'/%3E%3Cpath d='M4,-24 Q5,-32 8,-34' fill='none' stroke='%23A08679' stroke-width='1.5' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E";
 
 function ConfigScreen(props) {
   var onDone = props.onDone;
@@ -7196,7 +7243,7 @@ function ConfigScreen(props) {
   }
   
   return React.createElement("div",{style:{maxWidth:500,margin:"0 auto",padding:"40px 20px",textAlign:"center"}},
-    React.createElement("img",{src:CONFIG_BEE,style:{width:80,height:80,marginBottom:20}}),
+    React.createElement(BeeLogo,{size:80,style:{marginBottom:20}}),
     React.createElement("h1",{style:{fontSize:28,color:"var(--dark)",marginBottom:10}},"The Family Table"),
     React.createElement("p",{style:{color:"var(--light)",marginBottom:30}},"One-time Firebase setup"),
     React.createElement("div",{style:{background:"var(--surface)",borderRadius:12,padding:20,textAlign:"left",border:"1px solid rgba(139,115,85,0.2)"}},
