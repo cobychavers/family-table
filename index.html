@@ -30,9 +30,60 @@
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', -apple-system, sans-serif; background: #F5EBE6; min-height: 100vh; }
+    /* Theme tokens - light values match the app's original hardcoded palette
+       exactly (zero visual change when data-theme is absent/"light"). Dark
+       values are derived from the home-screen icon's own brown gradient
+       (#3B2B1E - #7A5540) so dark mode reads as "the same app, dim lit"
+       rather than a generic dark theme bolted on. */
+    :root {
+      --page: #F5EBE6;
+      --surface: #FFFFFF;
+      --blush: #F5EBE6;
+      --blush-med: #E8DDD6;
+      --blush-deep: #D4C4B8;
+      --blush-accent: #B8A090;
+      --blush-dark: #96806C;
+      --dark: #6B4A32;
+      --ink: #3A2A1D;
+      --light: #8C7561;
+      --gold: #B4823D;
+      --border: rgba(58,42,29,0.10);
+      --border-strong: #ddd;
+      --disabled: #cccccc;
+      --shadow-sm: 0 1px 3px rgba(58,42,29,0.08), 0 1px 2px rgba(58,42,29,0.06);
+      --shadow-md: 0 4px 16px rgba(58,42,29,0.10), 0 2px 6px rgba(58,42,29,0.06);
+      --shadow-lg: 0 12px 32px rgba(58,42,29,0.16);
+    }
+    :root[data-theme="dark"] {
+      --page: #1C140D;
+      --surface: #2A1E14;
+      --blush: #38281A;
+      --blush-med: #46331F;
+      --blush-deep: #5C4128;
+      --blush-accent: #77552F;
+      --blush-dark: #8F6B45;
+      --dark: #B98B5E;
+      --ink: #F7ECE3;
+      --light: #B99B7C;
+      --gold: #C99A52;
+      --border: rgba(247,236,227,0.14);
+      --border-strong: #4A3826;
+      --disabled: #4A3A2A;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.25);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.40), 0 2px 6px rgba(0,0,0,0.25);
+      --shadow-lg: 0 12px 32px rgba(0,0,0,0.55);
+    }
+    body { font-family: 'Inter', -apple-system, sans-serif; background: var(--page); min-height: 100vh; }
     #root { min-height: 100vh; }
   </style>
+  <script>
+    // Applied before #root renders (including the static pre-React loading
+    // screen) so switching themes never flashes the wrong one on load.
+    try {
+      var savedTheme = localStorage.getItem("ft_theme");
+      if (savedTheme === "dark") document.documentElement.setAttribute("data-theme", "dark");
+    } catch (e) {}
+  </script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -70,7 +121,7 @@
       align-items: center;
       justify-content: center;
       min-height: 100vh;
-      background: #F5EBE6;
+      background: var(--page);
       gap: 18px;
       padding: 20px;
     }
@@ -82,7 +133,7 @@
     }
     .ft-title {
       font-family: Georgia, serif;
-      color: #8B7355;
+      color: var(--dark);
       letter-spacing: 3px;
       font-size: 16px;
       font-weight: 500;
@@ -90,16 +141,17 @@
       animation: ft-fade-in 0.8s ease-out 0.2s both;
     }
     .ft-subtitle {
-      color: #A69485;
+      color: var(--light);
       font-size: 12px;
       font-style: italic;
       animation: ft-fade-in 0.8s ease-out 0.5s both;
     }
+    .ft-bee-circle { fill: var(--page); }
   </style>
   <div id="root">
     <div class="ft-loader">
       <svg class="ft-bee" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r="48" fill="#F5EBE6" stroke="#A08679" stroke-width="2"/>
+        <circle class="ft-bee-circle" cx="50" cy="50" r="48" stroke="#A08679" stroke-width="2"/>
         <g transform="translate(50,50)">
           <ellipse cx="-18" cy="-12" rx="14" ry="9" fill="none" stroke="#A08679" stroke-width="1.5" transform="rotate(-25)"/>
           <ellipse cx="18" cy="-12" rx="14" ry="9" fill="none" stroke="#A08679" stroke-width="1.5" transform="rotate(25)"/>
@@ -472,6 +524,20 @@ function Icon(p){
   if(name==="check")return React.createElement("svg",cp,
     React.createElement("polyline",{points:"20 6 9 17 4 12"})
   );
+  if(name==="moon")return React.createElement("svg",cp,
+    React.createElement("path",{d:"M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"})
+  );
+  if(name==="sun")return React.createElement("svg",cp,
+    React.createElement("circle",{cx:12,cy:12,r:5}),
+    React.createElement("line",{x1:12,y1:1,x2:12,y2:3}),
+    React.createElement("line",{x1:12,y1:21,x2:12,y2:23}),
+    React.createElement("line",{x1:4.22,y1:4.22,x2:5.64,y2:5.64}),
+    React.createElement("line",{x1:18.36,y1:18.36,x2:19.78,y2:19.78}),
+    React.createElement("line",{x1:1,y1:12,x2:3,y2:12}),
+    React.createElement("line",{x1:21,y1:12,x2:23,y2:12}),
+    React.createElement("line",{x1:4.22,y1:19.78,x2:5.64,y2:18.36}),
+    React.createElement("line",{x1:18.36,y1:5.64,x2:19.78,y2:4.22})
+  );
   if(name==="refresh")return React.createElement("svg",cp,
     React.createElement("polyline",{points:"23 4 23 10 17 10"}),
     React.createElement("polyline",{points:"1 20 1 14 7 14"}),
@@ -540,7 +606,7 @@ function CatTag(p){
   );
   if(t.id==="all")return t.label;
   return React.createElement(React.Fragment,null,
-    React.createElement("span",{style:{display:"inline-block",width:6,height:6,borderRadius:3,background:p.dotColor||"#B4823D",marginRight:6,verticalAlign:1}}),
+    React.createElement("span",{style:{display:"inline-block",width:6,height:6,borderRadius:3,background:p.dotColor||"var(--gold)",marginRight:6,verticalAlign:1}}),
     t.label
   );
 }
@@ -1282,8 +1348,8 @@ function AuthScreen(p){
     }
   }
 
-  var C={ink:"#3A2A1D",dark:"#6B4A32",blush:"#F5EBE6",blushMed:"#E8DDD6",light:"#8C7561",gold:"#B4823D",bdr:"rgba(58,42,29,0.10)",shadowSm:"0 1px 3px rgba(58,42,29,0.08), 0 1px 2px rgba(58,42,29,0.06)",shadowMd:"0 4px 16px rgba(58,42,29,0.10), 0 2px 6px rgba(58,42,29,0.06)"};
-  var inp={width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid #ddd",fontSize:15,boxSizing:"border-box",outline:"none",marginBottom:10};
+  var C={ink:"var(--ink)",dark:"var(--dark)",blush:"var(--blush)",blushMed:"var(--blush-med)",light:"var(--light)",gold:"var(--gold)",bdr:"var(--border)",shadowSm:"var(--shadow-sm)",shadowMd:"var(--shadow-md)"};
+  var inp={width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid var(--border-strong)",fontSize:15,boxSizing:"border-box",outline:"none",marginBottom:10,background:"var(--surface)",color:"var(--ink)"};
   var btn={width:"100%",padding:"14px",borderRadius:12,border:"none",background:C.dark,color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer",marginTop:6,opacity:loading?0.7:1};
 
   var titles={login:"Welcome back!",signup:"Create your account",forgot:"Reset your password"};
@@ -1294,7 +1360,7 @@ function AuthScreen(p){
       React.createElement("div",{style:{fontSize:24,fontWeight:600,color:C.dark,letterSpacing:3,textTransform:"uppercase"}},"The Family Table"),
       React.createElement("div",{style:{fontSize:13,opacity:.5,marginTop:6}},titles[mode])
     ),
-    React.createElement("div",{style:{background:"#fff",borderRadius:16,padding:24,boxShadow:C.shadowMd}},
+    React.createElement("div",{style:{background:"var(--surface)",borderRadius:16,padding:24,boxShadow:C.shadowMd}},
       
       // Login fields
       mode==="login"?React.createElement("div",null,
@@ -1351,7 +1417,7 @@ function AuthScreen(p){
 
 // ============ GROCERY TAB ============
 function GroceryTab(p){
-  var C={ink:"#3A2A1D",dark:"#6B4A32",light:"#8C7561",gold:"#B4823D",blush:"#F5EBE6",blushMed:"#E8DDD6",blushDeep:"#D4C4B8",blushAccent:"#B8A090",blushDark:"#96806C",card:"#FFFFFF",bdr:"rgba(58,42,29,0.10)",shadowSm:"0 1px 3px rgba(58,42,29,0.08), 0 1px 2px rgba(58,42,29,0.06)",shadowMd:"0 4px 16px rgba(58,42,29,0.10), 0 2px 6px rgba(58,42,29,0.06)",shadowLg:"0 12px 32px rgba(58,42,29,0.16)"};
+  var C={ink:"var(--ink)",dark:"var(--dark)",light:"var(--light)",gold:"var(--gold)",blush:"var(--blush)",blushMed:"var(--blush-med)",blushDeep:"var(--blush-deep)",blushAccent:"var(--blush-accent)",blushDark:"var(--blush-dark)",card:"var(--surface)",bdr:"var(--border)",shadowSm:"var(--shadow-sm)",shadowMd:"var(--shadow-md)",shadowLg:"var(--shadow-lg)"};
 
   // Helper to render store icon/logo
   function renderStoreIcon(store,size){
@@ -2113,10 +2179,10 @@ function GroceryTab(p){
           setItemSwipeStart(null);setItemSwipeOffset(0);
         },
         onClick:function(){if(isSwipedHere)setSwipedItem(null)},
-        style:{display:"flex",alignItems:"center",gap:10,padding:"11px 2px",opacity:ic?.4:1,background:"#fff",transform:"translateX("+translateX+"px)",transition:itemSwipeStart?"none":"transform 0.2s",position:"relative",zIndex:1}
+        style:{display:"flex",alignItems:"center",gap:10,padding:"11px 2px",opacity:ic?.4:1,background:"var(--surface)",transform:"translateX("+translateX+"px)",transition:itemSwipeStart?"none":"transform 0.2s",position:"relative",zIndex:1}
       },
         React.createElement("button",{onClick:function(){tog(it.id)},style:{width:24,height:24,borderRadius:6,border:ic?"none":"1.5px solid "+C.blushDeep,background:ic?C.dark:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},ic?React.createElement(Icon,{name:"check",size:14,color:"#fff",strokeWidth:2.5}):null),
-        React.createElement("button",{onClick:function(){setPickStore(pickStore===it.id?null:it.id)},style:{width:26,height:26,borderRadius:6,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}},renderStoreIcon(st,16)),
+        React.createElement("button",{onClick:function(){setPickStore(pickStore===it.id?null:it.id)},style:{width:26,height:26,borderRadius:6,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}},renderStoreIcon(st,16)),
         React.createElement("div",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{flex:1,minWidth:0,cursor:"pointer"}},
           React.createElement("span",{style:{fontSize:15,color:C.ink,textDecoration:ic?"line-through":"none",fontWeight:500,display:"block"}},display)
         )
@@ -2132,19 +2198,19 @@ function GroceryTab(p){
     return ord.map(function(c){
       var catStore=p.categoryStores&&p.categoryStores[c]?p.stores.find(function(s){return s.id===p.categoryStores[c]}):null;
       var cLabel=c.replace(/^\S+\s*/,"");
-      return React.createElement("div",{key:c,style:{background:"#fff",borderRadius:14,boxShadow:C.shadowSm,padding:"4px 14px",marginBottom:14}},
+      return React.createElement("div",{key:c,style:{background:"var(--surface)",borderRadius:14,boxShadow:C.shadowSm,padding:"4px 14px",marginBottom:14}},
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0 8px",borderBottom:"1px solid "+C.bdr,marginBottom:2}},
           React.createElement("span",{style:{fontSize:13,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:1}},cLabel),
           React.createElement("div",{style:{position:"relative"}},
-            React.createElement("button",{onClick:function(e){e.stopPropagation();setCatStorePicker(catStorePicker===c?null:c)},style:{display:"flex",alignItems:"center",gap:5,padding:"4px 8px",borderRadius:6,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",fontSize:11}},
+            React.createElement("button",{onClick:function(e){e.stopPropagation();setCatStorePicker(catStorePicker===c?null:c)},style:{display:"flex",alignItems:"center",gap:5,padding:"4px 8px",borderRadius:6,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",fontSize:11}},
               catStore?React.createElement(React.Fragment,null,renderStoreIcon(catStore,14),React.createElement("span",{style:{color:C.ink,fontWeight:600}},catStore.name)):React.createElement("span",{style:{color:C.light}},"Set store"),
               React.createElement("span",{style:{fontSize:8,opacity:.5,color:C.light}},"▼")
             ),
-            catStorePicker===c?React.createElement("div",{style:{position:"absolute",top:"100%",right:0,zIndex:100,background:"#fff",borderRadius:10,boxShadow:C.shadowLg,padding:8,marginTop:4,minWidth:140}},
+            catStorePicker===c?React.createElement("div",{style:{position:"absolute",top:"100%",right:0,zIndex:100,background:"var(--surface)",borderRadius:10,boxShadow:C.shadowLg,padding:8,marginTop:4,minWidth:140}},
               React.createElement("div",{style:{fontSize:10,fontWeight:700,color:C.light,marginBottom:6,padding:"0 4px"}},cLabel.toUpperCase()+" STORE"),
               p.stores.map(function(s){
                 var isActive=p.categoryStores&&p.categoryStores[c]===s.id;
-                return React.createElement("button",{key:s.id,onClick:function(){p.setCategoryStore(c,s.id);setCatStorePicker(null)},style:{display:"flex",alignItems:"center",gap:6,width:"100%",padding:"6px 8px",borderRadius:6,border:isActive?"1.5px solid "+C.dark:"1px solid "+C.bdr,background:isActive?C.blush:"#fff",cursor:"pointer",marginBottom:4}},
+                return React.createElement("button",{key:s.id,onClick:function(){p.setCategoryStore(c,s.id);setCatStorePicker(null)},style:{display:"flex",alignItems:"center",gap:6,width:"100%",padding:"6px 8px",borderRadius:6,border:isActive?"1.5px solid "+C.dark:"1px solid "+C.bdr,background:isActive?C.blush:"var(--surface)",cursor:"pointer",marginBottom:4}},
                   renderStoreIcon(s,14),
                   React.createElement("span",{style:{fontWeight:600,fontSize:12,color:C.ink}},s.name)
                 );
@@ -2158,7 +2224,7 @@ function GroceryTab(p){
     });
   }
 
-  var pill=function(active,col){return{padding:"4px 10px",borderRadius:14,border:active&&col?"1px solid "+col:"none",fontSize:11,fontWeight:600,cursor:"pointer",background:active?(col?col+"15":"#8B7355"):"#E8DDD6",color:active?(col||"#fff"):"#8B7355"}};
+  var pill=function(active,col){return{padding:"4px 10px",borderRadius:14,border:active&&col?"1px solid "+col:"none",fontSize:11,fontWeight:600,cursor:"pointer",background:active?(col?col+"15":"var(--dark)"):"var(--blush-med)",color:active?(col||"#fff"):"var(--dark)"}};
 
   var [showDefStorePicker,setShowDefStorePicker]=useState(false);
   var defStoreObj=p.stores.find(function(s){return s.id===p.defStore})||p.stores[0];
@@ -2168,11 +2234,11 @@ function GroceryTab(p){
       React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}},React.createElement(Icon,{name:"cart",size:18,color:C.dark,strokeWidth:1.75}),"Grocery List"),
       React.createElement("div",{style:{display:"flex",gap:8,alignItems:"center"}},
         /* From Calendar icon button */
-        React.createElement("button",{onClick:function(){setShowWeekPicker(!showWeekPicker);setShowPlusMenu(false)},title:"From Calendar",style:{display:"flex",alignItems:"center",gap:6,padding:"0 14px",height:36,borderRadius:8,border:"1px solid "+C.bdr,background:"#fff",color:C.ink,fontWeight:600,fontSize:12,cursor:"pointer",boxShadow:C.shadowSm}},React.createElement(Icon,{name:"calendar",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"From Calendar")),
+        React.createElement("button",{onClick:function(){setShowWeekPicker(!showWeekPicker);setShowPlusMenu(false)},title:"From Calendar",style:{display:"flex",alignItems:"center",gap:6,padding:"0 14px",height:36,borderRadius:8,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontWeight:600,fontSize:12,cursor:"pointer",boxShadow:C.shadowSm}},React.createElement(Icon,{name:"calendar",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"From Calendar")),
         /* + Plus button with popup menu */
         React.createElement("div",{style:{position:"relative"}},
           React.createElement("button",{onClick:function(){setShowPlusMenu(!showPlusMenu);setShowWeekPicker(false)},style:{width:36,height:36,borderRadius:8,border:"none",background:C.dark,color:"#fff",fontWeight:700,fontSize:20,cursor:"pointer",lineHeight:1}},"+"),
-          showPlusMenu?React.createElement("div",{style:{position:"absolute",top:42,right:0,background:"#fff",borderRadius:10,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,minWidth:170,zIndex:50,overflow:"hidden"}},
+          showPlusMenu?React.createElement("div",{style:{position:"absolute",top:42,right:0,background:"var(--surface)",borderRadius:10,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,minWidth:170,zIndex:50,overflow:"hidden"}},
             React.createElement("button",{onClick:function(){setShowAdd(true);setShowPlusMenu(false)},style:{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}},React.createElement(Icon,{name:"plus",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"Add Item")),
             React.createElement("button",{onClick:function(){setShowImportGrocery(true);setShowPlusMenu(false)},style:{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:savedLists.length>0?"1px solid "+C.bdr:"none",boxSizing:"border-box"}},React.createElement(Icon,{name:"list",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"Create List")),
             savedLists.length>0?React.createElement("button",{onClick:function(){setShowLoadList(true);setShowPlusMenu(false)},style:{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",boxSizing:"border-box"}},React.createElement(Icon,{name:"folder",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"Saved Lists")):null
@@ -2185,8 +2251,8 @@ function GroceryTab(p){
     
     /* Week picker (opens from the From Calendar icon button) */
     React.createElement("div",{style:{marginBottom:showWeekPicker||generatedWeekLabel?12:0}},
-      showWeekPicker?React.createElement("div",{style:{background:"#fff",border:"1px solid #E8DDD6",borderRadius:10,padding:"12px"}},
-        React.createElement("div",{style:{fontSize:12,color:"#8B7355",fontWeight:600,marginBottom:8}},"Select weeks to include:"),
+      showWeekPicker?React.createElement("div",{style:{background:"var(--surface)",border:"1px solid var(--blush-med)",borderRadius:10,padding:"12px"}},
+        React.createElement("div",{style:{fontSize:12,color:"var(--dark)",fontWeight:600,marginBottom:8}},"Select weeks to include:"),
         [0,1,2,3].map(function(offset){
           var ws2=new Date(p.wdates[0]);
           ws2.setDate(ws2.getDate()+offset*7);
@@ -2194,12 +2260,12 @@ function GroceryTab(p){
           var label=ws2.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+we.toLocaleDateString("en-US",{month:"short",day:"numeric"});
           var wsKey=dk(ws2);
           var checked2=selectedWeeks.some(function(w){return dk(w)===wsKey});
-          return React.createElement("label",{key:offset,style:{display:"flex",alignItems:"center",gap:8,padding:"7px 0",cursor:"pointer",borderBottom:offset<3?"1px solid #F0E8E0":"none"}},
+          return React.createElement("label",{key:offset,style:{display:"flex",alignItems:"center",gap:8,padding:"7px 0",cursor:"pointer",borderBottom:offset<3?"1px solid var(--border-strong)":"none"}},
             React.createElement("input",{type:"checkbox",checked:checked2,onChange:function(e){
               if(e.target.checked){setSelectedWeeks(selectedWeeks.concat([ws2]))}
               else{setSelectedWeeks(selectedWeeks.filter(function(w){return dk(w)!==wsKey}))}
-            },style:{accentColor:"#8B7355",width:16,height:16}}),
-            React.createElement("span",{style:{fontSize:13,color:"#4a3f35"}},offset===0?"This week: "+label:offset===1?"Next week: "+label:"Week "+(offset+1)+": "+label)
+            },style:{accentColor:"var(--dark)",width:16,height:16}}),
+            React.createElement("span",{style:{fontSize:13,color:"var(--ink)"}},offset===0?"This week: "+label:offset===1?"Next week: "+label:"Week "+(offset+1)+": "+label)
           );
         }),
         React.createElement("div",{style:{display:"flex",gap:8,marginTop:10}},
@@ -2209,7 +2275,7 @@ function GroceryTab(p){
             setShowWeekPicker(false);
             setSelectedWeeks([]);
             if(count===0){alert("No new ingredients to add (already in list or no meals planned).");}
-          },style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,flex:1,padding:"10px",borderRadius:8,border:"1px solid #8B7355",background:"#fff",color:"#8B7355",fontWeight:600,fontSize:13,cursor:"pointer"}},React.createElement(Icon,{name:"plus",size:14,color:"#8B7355",strokeWidth:2}),"Add to List"),
+          },style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,flex:1,padding:"10px",borderRadius:8,border:"1px solid var(--dark)",background:"var(--surface)",color:"var(--dark)",fontWeight:600,fontSize:13,cursor:"pointer"}},React.createElement(Icon,{name:"plus",size:14,color:"var(--dark)",strokeWidth:2}),"Add to List"),
           React.createElement("button",{onClick:function(){
             if(selectedWeeks.length===0){alert("Select at least one week first!");return;}
             if(generatedItems.length>0 && !confirm("This will replace your current grocery list. Continue?")) return;
@@ -2217,10 +2283,10 @@ function GroceryTab(p){
             setShowWeekPicker(false);
             setSelectedWeeks([]);
             if(count===0){alert("No ingredients found in the selected weeks. Add some meals to the calendar first!");}
-          },style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,flex:1,padding:"10px",borderRadius:8,border:"none",background:"#8B7355",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}},React.createElement(Icon,{name:"refresh",size:14,color:"#fff",strokeWidth:2}),"Replace List")
+          },style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,flex:1,padding:"10px",borderRadius:8,border:"none",background:"var(--dark)",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}},React.createElement(Icon,{name:"refresh",size:14,color:"#fff",strokeWidth:2}),"Replace List")
         )
       ):null,
-      generatedWeekLabel?React.createElement("div",{style:{textAlign:"center",fontSize:11,color:"#96806C",marginTop:6}},
+      generatedWeekLabel?React.createElement("div",{style:{textAlign:"center",fontSize:11,color:"var(--blush-dark)",marginTop:6}},
         "Last generated from: "+generatedWeekLabel
       ):null,
     ),
@@ -2229,15 +2295,15 @@ function GroceryTab(p){
     React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},
       React.createElement("div",{style:{fontSize:12,color:C.light}},all.length+" items · "+tc+" checked"+(hiddenCount>0?" · "+hiddenCount+" hidden":"")),
       React.createElement("div",{style:{display:"flex",gap:8}},
-        tc>0?React.createElement("button",{onClick:clr,style:{display:"flex",alignItems:"center",gap:5,height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm}},"Clear ",React.createElement(Icon,{name:"check",size:12,strokeWidth:2.5})):null,
+        tc>0?React.createElement("button",{onClick:clr,style:{display:"flex",alignItems:"center",gap:5,height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm}},"Clear ",React.createElement(Icon,{name:"check",size:12,strokeWidth:2.5})):null,
         all.length>0?React.createElement("button",{onClick:clearAllItems,style:{display:"flex",alignItems:"center",gap:5,height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid rgba(192,57,43,0.25)",background:"#fdf2f1",cursor:"pointer",fontWeight:600,color:"#c0392b"}},React.createElement(Icon,{name:"trash",size:12,strokeWidth:2}),"Clear All"):null,
-        hiddenCount>0?React.createElement("button",{onClick:unhideAllItems,style:{display:"flex",alignItems:"center",height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm}},"Restore "+hiddenCount):null,
+        hiddenCount>0?React.createElement("button",{onClick:unhideAllItems,style:{display:"flex",alignItems:"center",height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm}},"Restore "+hiddenCount):null,
         all.length>0?React.createElement("button",{onClick:function(){setShowSaveLists(true)},style:{display:"flex",alignItems:"center",gap:5,height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:C.shadowSm}},React.createElement(Icon,{name:"bookmark",size:12,strokeWidth:2}),"Save"):null
       )
     ),
 
     showAdd?React.createElement("div",{onClick:function(){setShowAdd(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0,animation:"ft-backdrop-fade .18s ease-out"}},
-      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:480,maxHeight:"85vh",overflowY:"auto",padding:16,paddingBottom:"calc(16px + env(safe-area-inset-bottom))",boxShadow:"0 -4px 20px rgba(0,0,0,0.15)",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
+      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:480,maxHeight:"85vh",overflowY:"auto",padding:16,paddingBottom:"calc(16px + env(safe-area-inset-bottom))",boxShadow:"0 -4px 20px rgba(0,0,0,0.15)",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
         /* Modal header */
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,paddingBottom:10,borderBottom:"1px solid "+C.bdr}},
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16,color:C.dark}},React.createElement(Icon,{name:"plus",size:16,strokeWidth:2}),"Add Item"),
@@ -2245,19 +2311,19 @@ function GroceryTab(p){
         ),
         /* Default store row - only shown in modal */
         React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:12,padding:"8px 10px",background:C.blush,borderRadius:8}},
-          React.createElement("span",{style:{fontSize:11,color:"#6a6a7a",fontWeight:500}},"Default store:"),
-          React.createElement("button",{onClick:function(){setShowDefStorePicker(!showDefStorePicker)},style:{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:6,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer"}},
+          React.createElement("span",{style:{fontSize:11,color:"var(--light)",fontWeight:500}},"Default store:"),
+          React.createElement("button",{onClick:function(){setShowDefStorePicker(!showDefStorePicker)},style:{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:6,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer"}},
             renderStoreIcon(defStoreObj,16),
             React.createElement("span",{style:{fontWeight:600,fontSize:12,color:C.ink}},defStoreObj.name),
             React.createElement("span",{style:{fontSize:9,opacity:.5,color:C.light}},"▼")
           )
         ),
-        showDefStorePicker?React.createElement("div",{style:{marginBottom:12,padding:10,background:"#fff",borderRadius:8,border:"1px solid "+C.bdr}},
+        showDefStorePicker?React.createElement("div",{style:{marginBottom:12,padding:10,background:"var(--surface)",borderRadius:8,border:"1px solid "+C.bdr}},
           React.createElement("div",{style:{fontSize:11,fontWeight:700,color:C.light,marginBottom:6}},"SELECT DEFAULT STORE"),
           React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:6}},
             p.stores.map(function(s){
               var isActive=s.id===p.defStore;
-              return React.createElement("button",{key:s.id,onClick:function(){p.setDefStore(s.id);setShowDefStorePicker(false)},style:{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",borderRadius:7,border:isActive?"1.5px solid "+C.dark:"1px solid "+C.bdr,background:isActive?C.blush:"#fff",cursor:"pointer"}},
+              return React.createElement("button",{key:s.id,onClick:function(){p.setDefStore(s.id);setShowDefStorePicker(false)},style:{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",borderRadius:7,border:isActive?"1.5px solid "+C.dark:"1px solid "+C.bdr,background:isActive?C.blush:"var(--surface)",cursor:"pointer"}},
                 renderStoreIcon(s,16),
                 React.createElement("span",{style:{fontWeight:600,fontSize:12,color:C.ink}},s.name)
               )
@@ -2267,16 +2333,16 @@ function GroceryTab(p){
       /* Inline form content begins */
       React.createElement("div",{style:{padding:0,marginBottom:0}},
       /* Item name (full width) */
-      React.createElement("input",{style:{width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid #ddd",fontSize:15,boxSizing:"border-box",outline:"none",marginBottom:10},placeholder:"Item name...",value:ni,onChange:function(e){setNi(e.target.value)},onKeyDown:function(e){if(e.key==="Enter")addM()},autoFocus:true}),
+      React.createElement("input",{style:{width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid var(--border-strong)",fontSize:15,boxSizing:"border-box",outline:"none",marginBottom:10,background:"var(--surface)",color:"var(--ink)"},placeholder:"Item name...",value:ni,onChange:function(e){setNi(e.target.value)},onKeyDown:function(e){if(e.key==="Enter")addM()},autoFocus:true}),
       /* Qty + unit row */
       React.createElement("div",{style:{display:"flex",gap:8,marginBottom:12}},
-        React.createElement("input",{style:{flex:"0 0 80px",padding:"10px 12px",borderRadius:10,border:"1px solid #ddd",fontSize:14,textAlign:"center",boxSizing:"border-box"},placeholder:"Qty",value:nqty,onChange:function(e){setNqty(e.target.value)}}),
-        React.createElement("select",{style:{flex:1,padding:"10px 12px",borderRadius:10,border:"1px solid #ddd",fontSize:14,background:"#fff",boxSizing:"border-box"},value:nunit,onChange:function(e){setNunit(e.target.value)}},
+        React.createElement("input",{style:{flex:"0 0 80px",padding:"10px 12px",borderRadius:10,border:"1px solid var(--border-strong)",fontSize:14,textAlign:"center",boxSizing:"border-box",background:"var(--surface)",color:"var(--ink)"},placeholder:"Qty",value:nqty,onChange:function(e){setNqty(e.target.value)}}),
+        React.createElement("select",{style:{flex:1,padding:"10px 12px",borderRadius:10,border:"1px solid var(--border-strong)",fontSize:14,background:"var(--surface)",color:"var(--ink)",boxSizing:"border-box"},value:nunit,onChange:function(e){setNunit(e.target.value)}},
           UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"unit")})
         )
       ),
       /* Add button (full width) */
-      React.createElement("button",{onClick:addM,disabled:!ni.trim(),style:{width:"100%",padding:"13px",borderRadius:10,border:"none",background:ni.trim()?"#8B7355":"#ccc",color:"#fff",fontWeight:600,fontSize:15,cursor:ni.trim()?"pointer":"not-allowed",marginBottom:14}},"Add to List"),
+      React.createElement("button",{onClick:addM,disabled:!ni.trim(),style:{width:"100%",padding:"13px",borderRadius:10,border:"none",background:ni.trim()?"var(--dark)":"var(--disabled)",color:"#fff",fontWeight:600,fontSize:15,cursor:ni.trim()?"pointer":"not-allowed",marginBottom:14}},"Add to List"),
       
       ni.trim().length>0?(function(){
         var currentItems={};
@@ -2291,7 +2357,7 @@ function GroceryTab(p){
         return filtered.length>0?React.createElement("div",{style:{marginTop:4}},
           React.createElement("div",{style:{fontSize:11,fontWeight:600,opacity:.5,marginBottom:4}},"Quick add from history"),
           React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:4}},
-            filtered.map(function(h){return React.createElement("button",{key:h.name,onClick:function(){addFromHistory(h.name)},style:{padding:"4px 10px",borderRadius:6,border:"1px solid #ddd",background:"#fff",cursor:"pointer",fontSize:12,fontWeight:500}},h.name)})
+            filtered.map(function(h){return React.createElement("button",{key:h.name,onClick:function(){addFromHistory(h.name)},style:{padding:"4px 10px",borderRadius:6,border:"1px solid var(--border-strong)",background:"var(--surface)",cursor:"pointer",fontSize:12,fontWeight:500}},h.name)})
           )
         ):null;
       })():null,
@@ -2299,17 +2365,17 @@ function GroceryTab(p){
       ni.trim()?React.createElement("div",{style:{marginTop:8}},
         React.createElement("div",{style:{fontSize:11,fontWeight:600,opacity:.5,marginBottom:4}},"Pick a store (optional)"),
         React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:4}},
-          p.stores.map(function(s){return React.createElement("button",{key:s.id,onClick:function(){setNs(ns===s.id?null:s.id)},style:{padding:"4px 8px",borderRadius:6,border:ns===s.id?"2px solid "+s.color:"1px solid #eee",background:ns===s.id?s.color+"15":"#fff",cursor:"pointer",fontSize:11,fontWeight:600,display:"flex",alignItems:"center",gap:4}},
+          p.stores.map(function(s){return React.createElement("button",{key:s.id,onClick:function(){setNs(ns===s.id?null:s.id)},style:{padding:"4px 8px",borderRadius:6,border:ns===s.id?"2px solid "+s.color:"1px solid var(--border-strong)",background:ns===s.id?s.color+"15":"var(--surface)",cursor:"pointer",fontSize:11,fontWeight:600,display:"flex",alignItems:"center",gap:4}},
             renderStoreIcon(s,14),
             s.name
           )}),
-          React.createElement("button",{onClick:function(){setShowAddStore(true)},style:{padding:"4px 8px",borderRadius:6,border:"1px dashed #ccc",background:"#fff",cursor:"pointer",fontSize:11,color:"#888"}},"+  Add Store")
+          React.createElement("button",{onClick:function(){setShowAddStore(true)},style:{padding:"4px 8px",borderRadius:6,border:"1px dashed var(--disabled)",background:"var(--surface)",cursor:"pointer",fontSize:11,color:"var(--light)"}},"+  Add Store")
         )
       ):null,
       
       groceryHistory.length>0&&!ni.trim()?React.createElement("div",{style:{marginTop:10}},
-        React.createElement("button",{onClick:function(){setShowHistory(!showHistory)},style:{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"#6a6a7a",background:"none",border:"none",cursor:"pointer",fontWeight:600}},showHistory?"▼ Hide past items":React.createElement(React.Fragment,null,React.createElement(Icon,{name:"clipboard",size:12,strokeWidth:2}),"Browse past items ("+(function(){var s={};var c=0;groceryHistory.forEach(function(h){var n=(h.name||"").toLowerCase().trim();if(n&&!s[n]){s[n]=true;c++;}});return c;})()+")")),
-        showHistory?React.createElement("div",{style:{marginTop:8,maxHeight:200,overflowY:"auto",border:"1px solid #eee",borderRadius:8,padding:8,background:"#fff"}},
+        React.createElement("button",{onClick:function(){setShowHistory(!showHistory)},style:{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"var(--light)",background:"none",border:"none",cursor:"pointer",fontWeight:600}},showHistory?"▼ Hide past items":React.createElement(React.Fragment,null,React.createElement(Icon,{name:"clipboard",size:12,strokeWidth:2}),"Browse past items ("+(function(){var s={};var c=0;groceryHistory.forEach(function(h){var n=(h.name||"").toLowerCase().trim();if(n&&!s[n]){s[n]=true;c++;}});return c;})()+")")),
+        showHistory?React.createElement("div",{style:{marginTop:8,maxHeight:200,overflowY:"auto",border:"1px solid var(--border-strong)",borderRadius:8,padding:8,background:"var(--surface)"}},
           React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:4}},
             (function(){
               var seen={};
@@ -2321,7 +2387,7 @@ function GroceryTab(p){
               }).sort(function(a,b){return(a.name||"").localeCompare(b.name||"")});
             })().map(function(h){
               return React.createElement("div",{key:h.name,style:{display:"flex",alignItems:"center",gap:2}},
-                React.createElement("button",{onClick:function(){addFromHistory(h.name)},style:{padding:"4px 8px",borderRadius:6,border:"1px solid #ddd",background:"#fff",cursor:"pointer",fontSize:11,fontWeight:500}},h.name),
+                React.createElement("button",{onClick:function(){addFromHistory(h.name)},style:{padding:"4px 8px",borderRadius:6,border:"1px solid var(--border-strong)",background:"var(--surface)",cursor:"pointer",fontSize:11,fontWeight:500}},h.name),
                 React.createElement("button",{onClick:function(){removeFromHistory(h.name)},style:{background:"none",border:"none",cursor:"pointer",opacity:.3,padding:2,display:"flex"}},React.createElement(Icon,{name:"x",size:10,strokeWidth:2.5}))
               );
             })
@@ -2333,39 +2399,39 @@ function GroceryTab(p){
     ):null,
 
     React.createElement("div",{style:{marginBottom:10}},
-      React.createElement("button",{onClick:function(){setShowGroceryFilters(!showGroceryFilters)},style:{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"10px 14px",borderRadius:12,border:"1px solid rgba(139,115,85,0.2)",background:"#F5EBE6",cursor:"pointer"}},
+      React.createElement("button",{onClick:function(){setShowGroceryFilters(!showGroceryFilters)},style:{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"10px 14px",borderRadius:12,border:"1px solid rgba(139,115,85,0.2)",background:"var(--blush)",cursor:"pointer"}},
         React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
-          React.createElement(Icon,{name:"search",size:14,color:"#8B7355",strokeWidth:2}),
-          React.createElement("span",{style:{fontWeight:600,fontSize:14,color:"#8B7355"}},
+          React.createElement(Icon,{name:"search",size:14,color:"var(--dark)",strokeWidth:2}),
+          React.createElement("span",{style:{fontWeight:600,fontSize:14,color:"var(--dark)"}},
             (fCat||fStore)?(fCat?fCat.replace(/^\S+\s*/,""):"All Categories")+(fStore?" · "+((p.stores.find(function(s){return s.id===fStore})||{}).name||""):""):"All Items"
           ),
-          (fCat||fStore)?React.createElement("span",{style:{fontSize:12,color:"#96806C"}},"("+vis.length+")"):null
+          (fCat||fStore)?React.createElement("span",{style:{fontSize:12,color:"var(--blush-dark)"}},"("+vis.length+")"):null
         ),
-        React.createElement("span",{style:{fontSize:12,color:"#96806C"}},showGroceryFilters?"▲":"▼")
+        React.createElement("span",{style:{fontSize:12,color:"var(--blush-dark)"}},showGroceryFilters?"▲":"▼")
       ),
       
-      showGroceryFilters?React.createElement("div",{style:{background:"#fff",borderRadius:12,border:"1px solid rgba(139,115,85,0.2)",marginTop:8,padding:12,boxShadow:C.shadowMd}},
-        React.createElement("div",{style:{fontSize:12,fontWeight:700,color:"#6a6a7a",marginBottom:6}},"FILTER BY CATEGORY"),
+      showGroceryFilters?React.createElement("div",{style:{background:"var(--surface)",borderRadius:12,border:"1px solid rgba(139,115,85,0.2)",marginTop:8,padding:12,boxShadow:C.shadowMd}},
+        React.createElement("div",{style:{fontSize:12,fontWeight:700,color:"var(--light)",marginBottom:6}},"FILTER BY CATEGORY"),
         React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12}},
-          React.createElement("button",{onClick:function(){setFCat(null);setShowGroceryFilters(false)},style:{padding:"8px 10px",borderRadius:8,border:fCat===null?"2px solid #8B7355":"1px solid #ddd",background:fCat===null?"#8B7355":"#fff",color:fCat===null?"#fff":"#8B7355",fontSize:12,fontWeight:600,cursor:"pointer"}},"All Categories"),
-          Object.keys(cats).sort().map(function(c){return React.createElement("button",{key:c,onClick:function(){setFCat(fCat===c?null:c);setShowGroceryFilters(false)},style:{display:"flex",alignItems:"center",gap:7,padding:"8px 10px",borderRadius:8,border:fCat===c?"2px solid #8B7355":"1px solid #ddd",background:fCat===c?"#8B7355":"#fff",color:fCat===c?"#fff":"#8B7355",fontSize:12,fontWeight:500,cursor:"pointer",textAlign:"left"}},React.createElement("span",{style:{display:"inline-block",width:6,height:6,minWidth:6,borderRadius:3,background:fCat===c?"#fff":"#B4823D"}}),c.replace(/^\S+\s*/,""))})
+          React.createElement("button",{onClick:function(){setFCat(null);setShowGroceryFilters(false)},style:{padding:"8px 10px",borderRadius:8,border:fCat===null?"2px solid var(--dark)":"1px solid var(--border-strong)",background:fCat===null?"var(--dark)":"var(--surface)",color:fCat===null?"#fff":"var(--dark)",fontSize:12,fontWeight:600,cursor:"pointer"}},"All Categories"),
+          Object.keys(cats).sort().map(function(c){return React.createElement("button",{key:c,onClick:function(){setFCat(fCat===c?null:c);setShowGroceryFilters(false)},style:{display:"flex",alignItems:"center",gap:7,padding:"8px 10px",borderRadius:8,border:fCat===c?"2px solid var(--dark)":"1px solid var(--border-strong)",background:fCat===c?"var(--dark)":"var(--surface)",color:fCat===c?"#fff":"var(--dark)",fontSize:12,fontWeight:500,cursor:"pointer",textAlign:"left"}},React.createElement("span",{style:{display:"inline-block",width:6,height:6,minWidth:6,borderRadius:3,background:fCat===c?"#fff":"var(--gold)"}}),c.replace(/^\S+\s*/,""))})
         ),
-        React.createElement("div",{style:{fontSize:12,fontWeight:700,color:"#6a6a7a",marginBottom:6}},"FILTER BY STORE"),
+        React.createElement("div",{style:{fontSize:12,fontWeight:700,color:"var(--light)",marginBottom:6}},"FILTER BY STORE"),
         React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
-          React.createElement("button",{onClick:function(){setFStore(null);setShowGroceryFilters(false)},style:{padding:"8px 10px",borderRadius:8,border:fStore===null?"2px solid #8B7355":"1px solid #ddd",background:fStore===null?"#8B7355":"#fff",color:fStore===null?"#fff":"#8B7355",fontSize:12,fontWeight:600,cursor:"pointer"}},"All Stores"),
-          Object.keys(sids).map(function(sid){var s=p.stores.find(function(x){return x.id===sid});if(!s)return null;return React.createElement("button",{key:s.id,onClick:function(){setFStore(fStore===s.id?null:s.id);setShowGroceryFilters(false)},style:{padding:"8px 10px",borderRadius:8,border:fStore===s.id?"2px solid "+s.color:"1px solid #ddd",background:fStore===s.id?s.color+"15":"#fff",color:fStore===s.id?s.color:"#666",fontSize:12,fontWeight:500,cursor:"pointer",display:"flex",alignItems:"center",gap:4}},renderStoreIcon(s,14),s.name)})
+          React.createElement("button",{onClick:function(){setFStore(null);setShowGroceryFilters(false)},style:{padding:"8px 10px",borderRadius:8,border:fStore===null?"2px solid var(--dark)":"1px solid var(--border-strong)",background:fStore===null?"var(--dark)":"var(--surface)",color:fStore===null?"#fff":"var(--dark)",fontSize:12,fontWeight:600,cursor:"pointer"}},"All Stores"),
+          Object.keys(sids).map(function(sid){var s=p.stores.find(function(x){return x.id===sid});if(!s)return null;return React.createElement("button",{key:s.id,onClick:function(){setFStore(fStore===s.id?null:s.id);setShowGroceryFilters(false)},style:{padding:"8px 10px",borderRadius:8,border:fStore===s.id?"2px solid "+s.color:"1px solid var(--border-strong)",background:fStore===s.id?s.color+"15":"var(--surface)",color:fStore===s.id?s.color:"var(--light)",fontSize:12,fontWeight:500,cursor:"pointer",display:"flex",alignItems:"center",gap:4}},renderStoreIcon(s,14),s.name)})
         ),
-        (fCat||fStore)?React.createElement("button",{onClick:function(){setFCat(null);setFStore(null);setShowGroceryFilters(false)},style:{width:"100%",marginTop:10,padding:"8px",borderRadius:8,border:"1px solid #ddd",background:"#f5f5f5",color:"#666",fontSize:12,cursor:"pointer"}},"Clear All Filters"):null
+        (fCat||fStore)?React.createElement("button",{onClick:function(){setFCat(null);setFStore(null);setShowGroceryFilters(false)},style:{width:"100%",marginTop:10,padding:"8px",borderRadius:8,border:"1px solid var(--border-strong)",background:"var(--blush-med)",color:"var(--light)",fontSize:12,cursor:"pointer"}},"Clear All Filters"):null
       ):null
     ),
 
     all.length>0?React.createElement("div",{style:{marginBottom:14}},
       React.createElement("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:4}},
-        React.createElement("span",{style:{fontSize:11,fontWeight:700,color:"#8B7355"}},"Shopping Progress"),
-        React.createElement("span",{style:{fontSize:11,color:"#6a6a7a"}},tc+"/"+all.length)
+        React.createElement("span",{style:{fontSize:11,fontWeight:700,color:"var(--dark)"}},"Shopping Progress"),
+        React.createElement("span",{style:{fontSize:11,color:"var(--light)"}},tc+"/"+all.length)
       ),
-      React.createElement("div",{style:{height:8,background:"#E8DDD6",borderRadius:4,overflow:"hidden"}},
-        React.createElement("div",{style:{height:"100%",background:tc===all.length?"#2e7d32":"linear-gradient(90deg,#96806C,#B8A090)",borderRadius:4,width:(all.length?tc/all.length*100:0)+"%",transition:"width 0.3s"}})
+      React.createElement("div",{style:{height:8,background:"var(--blush-med)",borderRadius:4,overflow:"hidden"}},
+        React.createElement("div",{style:{height:"100%",background:tc===all.length?"#2e7d32":"linear-gradient(90deg,var(--blush-dark),var(--blush-accent))",borderRadius:4,width:(all.length?tc/all.length*100:0)+"%",transition:"width 0.3s"}})
       ),
       tc===all.length&&all.length>0?React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:8,fontSize:14,fontWeight:700,color:"#2e7d32"}},React.createElement(Icon,{name:"check",size:15,strokeWidth:2.5}),"All done!"):null
     ):null,
@@ -2379,46 +2445,46 @@ function GroceryTab(p){
     grouped(unc),
 
     chk.length>0?React.createElement("div",{onClick:function(){setShowDone(!showDone)},style:{display:"flex",alignItems:"center",gap:6,padding:"10px 0 4px",cursor:"pointer"}},
-      React.createElement("span",{style:{display:"flex",alignItems:"center",gap:5,fontSize:12,fontWeight:700,color:"#6a6a7a"}},React.createElement(Icon,{name:"check",size:12,strokeWidth:2.5}),"Purchased ("+chk.length+")"),
+      React.createElement("span",{style:{display:"flex",alignItems:"center",gap:5,fontSize:12,fontWeight:700,color:"var(--light)"}},React.createElement(Icon,{name:"check",size:12,strokeWidth:2.5}),"Purchased ("+chk.length+")"),
       React.createElement("span",{style:{fontSize:10,opacity:.3}},showDone?"▼":"▶")
     ):null,
     showDone?chk.map(function(e){return item(e)}):null,
 
     pickStore?React.createElement("div",{onClick:function(){setPickStore(null)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,padding:16,animation:"ft-backdrop-fade .18s ease-out"}},
-      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:360,maxHeight:"80vh",overflowY:"auto",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
+      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",borderRadius:16,padding:20,width:"100%",maxWidth:360,maxHeight:"80vh",overflowY:"auto",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16}},React.createElement(Icon,{name:"store",size:16,strokeWidth:1.75}),"Choose Store"),
           React.createElement("button",{onClick:function(){setPickStore(null)},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}},React.createElement(Icon,{name:"x",size:18,strokeWidth:2}))
         ),
         React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:6}},
-          p.stores.map(function(s){return React.createElement("button",{key:s.id,onClick:function(){var it=all.find(function(x){return x.id===pickStore});if(it)p.setItemStore(it.name,s.id);setPickStore(null)},style:{display:"flex",alignItems:"center",gap:10,padding:12,borderRadius:10,border:"1px solid #eee",background:"#fff",cursor:"pointer",textAlign:"left"}},
+          p.stores.map(function(s){return React.createElement("button",{key:s.id,onClick:function(){var it=all.find(function(x){return x.id===pickStore});if(it)p.setItemStore(it.name,s.id);setPickStore(null)},style:{display:"flex",alignItems:"center",gap:10,padding:12,borderRadius:10,border:"1px solid var(--border-strong)",background:"var(--surface)",cursor:"pointer",textAlign:"left"}},
             renderStoreIcon(s,24),
             React.createElement("span",{style:{fontWeight:700,fontSize:14,color:C.ink,flex:1}},s.name),
             s.custom?React.createElement("button",{onClick:function(e){e.stopPropagation();p.removeCustomStore(s.id)},style:{background:"none",border:"none",cursor:"pointer",opacity:.3,padding:4,display:"flex"}},React.createElement(Icon,{name:"x",size:12,strokeWidth:2.5})):null
           )}),
-          React.createElement("button",{onClick:function(){setPickStore(null);setShowAddStore(true)},style:{display:"flex",alignItems:"center",gap:10,padding:12,borderRadius:10,border:"1px dashed #ccc",background:"#fafafa",cursor:"pointer",textAlign:"left"}},
-            React.createElement("span",{style:{width:24,height:24,borderRadius:4,background:"#eee",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}},"+"),
-            React.createElement("span",{style:{fontWeight:600,fontSize:14,color:"#888"}},"Add Custom Store")
+          React.createElement("button",{onClick:function(){setPickStore(null);setShowAddStore(true)},style:{display:"flex",alignItems:"center",gap:10,padding:12,borderRadius:10,border:"1px dashed var(--disabled)",background:"var(--surface)",cursor:"pointer",textAlign:"left"}},
+            React.createElement("span",{style:{width:24,height:24,borderRadius:4,background:"var(--blush-med)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}},"+"),
+            React.createElement("span",{style:{fontWeight:600,fontSize:14,color:"var(--light)"}},"Add Custom Store")
           )
         )
       )
     ):null,
     
     showAddStore?React.createElement("div",{onClick:function(){setShowAddStore(false);setNewStoreName("");setNewStoreColor("#8B7355")},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:1001,animation:"ft-backdrop-fade .18s ease-out"}},
-      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:360,animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
+      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",borderRadius:16,padding:20,width:"100%",maxWidth:360,animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16}},React.createElement(Icon,{name:"plus",size:16,strokeWidth:2}),"Add Custom Store"),
           React.createElement("button",{onClick:function(){setShowAddStore(false);setNewStoreName("");setNewStoreColor("#8B7355")},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}},React.createElement(Icon,{name:"x",size:18,strokeWidth:2}))
         ),
         React.createElement("div",{style:{marginBottom:16}},
           React.createElement("label",{style:{fontSize:12,fontWeight:600,opacity:.6,display:"block",marginBottom:4}},"Store Name"),
-          React.createElement("input",{type:"text",value:newStoreName,onChange:function(e){setNewStoreName(e.target.value)},placeholder:"e.g. Local Market",style:{width:"100%",padding:"12px",borderRadius:10,border:"1px solid #ddd",fontSize:14,boxSizing:"border-box"}})
+          React.createElement("input",{type:"text",value:newStoreName,onChange:function(e){setNewStoreName(e.target.value)},placeholder:"e.g. Local Market",style:{width:"100%",padding:"12px",borderRadius:10,border:"1px solid var(--border-strong)",fontSize:14,boxSizing:"border-box",background:"var(--surface)",color:"var(--ink)"}})
         ),
         React.createElement("div",{style:{marginBottom:16}},
           React.createElement("label",{style:{fontSize:12,fontWeight:600,opacity:.6,display:"block",marginBottom:8}},"Brand Color"),
           React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
             ["#8B7355","#e35205","#3d8b37","#cc0000","#00005f","#e31837","#ff9900","#00674b","#0071ce","#1a1a1a","#6b5b95","#d4a574"].map(function(c){
-              return React.createElement("button",{key:c,onClick:function(){setNewStoreColor(c)},style:{width:32,height:32,borderRadius:8,background:c,border:newStoreColor===c?"3px solid #333":"2px solid #eee",cursor:"pointer"}})
+              return React.createElement("button",{key:c,onClick:function(){setNewStoreColor(c)},style:{width:32,height:32,borderRadius:8,background:c,border:newStoreColor===c?"3px solid var(--ink)":"2px solid var(--border-strong)",cursor:"pointer"}})
             })
           )
         ),
@@ -2426,12 +2492,12 @@ function GroceryTab(p){
           React.createElement("div",{style:{width:32,height:32,borderRadius:6,background:newStoreColor,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:14}},newStoreName?newStoreName.charAt(0).toUpperCase():"?"),
           React.createElement("span",{style:{fontWeight:600,color:newStoreColor}},newStoreName||"Preview")
         ),
-        React.createElement("button",{onClick:function(){if(newStoreName.trim()){p.addCustomStore(newStoreName.trim(),newStoreColor);setShowAddStore(false);setNewStoreName("");setNewStoreColor("#8B7355")}},disabled:!newStoreName.trim(),style:{width:"100%",padding:"14px",borderRadius:10,border:"none",background:newStoreName.trim()?"#8B7355":"#ccc",color:"#fff",fontSize:14,fontWeight:600,cursor:newStoreName.trim()?"pointer":"not-allowed"}},"Add Store")
+        React.createElement("button",{onClick:function(){if(newStoreName.trim()){p.addCustomStore(newStoreName.trim(),newStoreColor);setShowAddStore(false);setNewStoreName("");setNewStoreColor("#8B7355")}},disabled:!newStoreName.trim(),style:{width:"100%",padding:"14px",borderRadius:10,border:"none",background:newStoreName.trim()?"var(--dark)":"var(--disabled)",color:"#fff",fontSize:14,fontWeight:600,cursor:newStoreName.trim()?"pointer":"not-allowed"}},"Add Store")
       )
     ):null,
     
     editItem?React.createElement("div",{onClick:function(){setEditItem(null)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:1000,animation:"ft-backdrop-fade .18s ease-out"}},
-      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:400,maxHeight:"80vh",overflow:"auto",boxShadow:C.shadowLg,animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
+      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",borderRadius:16,padding:20,width:"100%",maxWidth:400,maxHeight:"80vh",overflow:"auto",boxShadow:C.shadowLg,animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}},
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:19,color:C.ink}},"Edit Item"),
           React.createElement("button",{onClick:function(){setEditItem(null)},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}},React.createElement(Icon,{name:"x",size:18,strokeWidth:2}))
@@ -2440,18 +2506,18 @@ function GroceryTab(p){
         /* Item Name */
         React.createElement("div",{style:{marginBottom:12}},
           React.createElement("label",{style:{fontSize:12,fontWeight:600,color:C.light,display:"block",marginBottom:4}},"Item Name"),
-          React.createElement("input",{type:"text",value:editName,onChange:function(e){setEditName(e.target.value)},style:{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box",color:C.ink}})
+          React.createElement("input",{type:"text",value:editName,onChange:function(e){setEditName(e.target.value)},style:{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box",color:C.ink,background:C.card}})
         ),
 
         /* Quantity and Unit */
         React.createElement("div",{style:{display:"flex",gap:8,marginBottom:12}},
           React.createElement("div",{style:{flex:1}},
             React.createElement("label",{style:{fontSize:12,fontWeight:600,color:C.light,display:"block",marginBottom:4}},"Quantity"),
-            React.createElement("input",{type:"text",value:editQty,onChange:function(e){setEditQty(e.target.value)},placeholder:"e.g. 2",style:{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink}})
+            React.createElement("input",{type:"text",value:editQty,onChange:function(e){setEditQty(e.target.value)},placeholder:"e.g. 2",style:{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:C.card}})
           ),
           React.createElement("div",{style:{flex:1}},
             React.createElement("label",{style:{fontSize:12,fontWeight:600,color:C.light,display:"block",marginBottom:4}},"Unit"),
-            React.createElement("select",{value:editUnit,onChange:function(e){setEditUnit(e.target.value)},style:{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:"#fff"}},
+            React.createElement("select",{value:editUnit,onChange:function(e){setEditUnit(e.target.value)},style:{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:"var(--surface)"}},
               UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"(none)")})
             )
           )
@@ -2460,40 +2526,40 @@ function GroceryTab(p){
         /* Category */
         React.createElement("div",{style:{marginBottom:18}},
           React.createElement("label",{style:{fontSize:12,fontWeight:600,color:C.light,display:"block",marginBottom:4}},"Category"),
-          React.createElement("select",{value:editCategory,onChange:function(e){setEditCategory(e.target.value)},style:{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:"#fff"}},
+          React.createElement("select",{value:editCategory,onChange:function(e){setEditCategory(e.target.value)},style:{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:"var(--surface)"}},
             Object.keys(GCATS).concat(["📦 Other"]).map(function(c){return React.createElement("option",{key:c,value:c},c.replace(/^\S+\s*/,""))})
           )
         ),
 
         React.createElement("div",{style:{display:"flex",gap:8}},
-          React.createElement("button",{onClick:function(){setEditQty("");setEditUnit("")},style:{flex:1,padding:"12px",borderRadius:10,border:"1px solid "+C.bdr,background:"#fff",color:C.ink,fontSize:14,fontWeight:600,cursor:"pointer"}},"Clear Qty"),
+          React.createElement("button",{onClick:function(){setEditQty("");setEditUnit("")},style:{flex:1,padding:"12px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontSize:14,fontWeight:600,cursor:"pointer"}},"Clear Qty"),
           React.createElement("button",{onClick:saveEditQty,style:{flex:1,padding:"12px",borderRadius:10,border:"none",background:C.dark,color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",boxShadow:C.shadowSm}},"Save")
         )
       )
     ):null,
     
     showSaveLists?React.createElement("div",{onClick:function(){setShowSaveLists(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:1000,animation:"ft-backdrop-fade .18s ease-out"}},
-      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:400,maxHeight:"80vh",overflow:"auto",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
+      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",borderRadius:16,padding:20,width:"100%",maxWidth:400,maxHeight:"80vh",overflow:"auto",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16,color:C.ink}},React.createElement(Icon,{name:"bookmark",size:15,color:C.dark,strokeWidth:1.75}),"Save Grocery List"),
           React.createElement("button",{onClick:function(){setShowSaveLists(false)},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}},React.createElement(Icon,{name:"x",size:18,strokeWidth:2}))
         ),
         React.createElement("div",{style:{marginBottom:16}},
           React.createElement("label",{style:{fontSize:12,fontWeight:600,opacity:.6,display:"block",marginBottom:4}},"List Name"),
-          React.createElement("input",{type:"text",value:newListName,onChange:function(e){setNewListName(e.target.value)},placeholder:"e.g. Weekly Essentials, Party Supplies",style:{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid #ddd",fontSize:14,boxSizing:"border-box"},onKeyDown:function(e){if(e.key==="Enter"&&newListName.trim())saveCurrentList(newListName)}})
+          React.createElement("input",{type:"text",value:newListName,onChange:function(e){setNewListName(e.target.value)},placeholder:"e.g. Weekly Essentials, Party Supplies",style:{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid var(--border-strong)",fontSize:14,boxSizing:"border-box",background:"var(--surface)",color:"var(--ink)"},onKeyDown:function(e){if(e.key==="Enter"&&newListName.trim())saveCurrentList(newListName)}})
         ),
-        React.createElement("button",{onClick:function(){saveCurrentList(newListName)},disabled:!newListName.trim(),style:{width:"100%",padding:"12px",borderRadius:10,border:"none",background:newListName.trim()?"#8B7355":"#ccc",color:"#fff",fontSize:14,fontWeight:600,cursor:newListName.trim()?"pointer":"not-allowed",marginBottom:16}},"Save as New List ("+all.filter(function(it){return !hiddenItems[it.id]}).length+" items)"),
+        React.createElement("button",{onClick:function(){saveCurrentList(newListName)},disabled:!newListName.trim(),style:{width:"100%",padding:"12px",borderRadius:10,border:"none",background:newListName.trim()?"var(--dark)":"var(--disabled)",color:"#fff",fontSize:14,fontWeight:600,cursor:newListName.trim()?"pointer":"not-allowed",marginBottom:16}},"Save as New List ("+all.filter(function(it){return !hiddenItems[it.id]}).length+" items)"),
         savedLists.length>0?React.createElement("div",null,
-          React.createElement("div",{style:{fontSize:12,fontWeight:700,color:"#96806C",marginBottom:8}},"UPDATE EXISTING LIST"),
+          React.createElement("div",{style:{fontSize:12,fontWeight:700,color:"var(--blush-dark)",marginBottom:8}},"UPDATE EXISTING LIST"),
           React.createElement("div",{style:{fontSize:11,opacity:.6,marginBottom:10}},"Replace a saved list with your current items"),
-          savedLists.map(function(list){return React.createElement("div",{key:list.id,style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px",borderRadius:10,border:"1px solid #E8DDD6",marginBottom:8,background:"#fafaff"}},
+          savedLists.map(function(list){return React.createElement("div",{key:list.id,style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px",borderRadius:10,border:"1px solid var(--blush-med)",marginBottom:8,background:"var(--surface)"}},
             React.createElement("div",{style:{flex:1}},
               React.createElement("div",{style:{fontWeight:600,fontSize:14}},list.name),
               React.createElement("div",{style:{fontSize:11,opacity:.5}},list.items.length+" items · "+(list.updatedAt?"Updated ":"")+ new Date(list.updatedAt||list.createdAt).toLocaleDateString())
             ),
             React.createElement("div",{style:{display:"flex",gap:6}},
-              React.createElement("button",{onClick:function(e){e.stopPropagation();updateSavedList(list.id)},style:{padding:"8px 12px",borderRadius:8,border:"none",background:"#8B7355",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}},"Update"),
-              React.createElement("button",{onClick:function(e){e.stopPropagation();deleteSavedList(list.id)},style:{padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",background:"#fff",cursor:"pointer",opacity:.6,display:"flex",alignItems:"center"}},React.createElement(Icon,{name:"trash",size:14,strokeWidth:1.75}))
+              React.createElement("button",{onClick:function(e){e.stopPropagation();updateSavedList(list.id)},style:{padding:"8px 12px",borderRadius:8,border:"none",background:"var(--dark)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}},"Update"),
+              React.createElement("button",{onClick:function(e){e.stopPropagation();deleteSavedList(list.id)},style:{padding:"8px 10px",borderRadius:8,border:"1px solid var(--border-strong)",background:"var(--surface)",cursor:"pointer",opacity:.6,display:"flex",alignItems:"center"}},React.createElement(Icon,{name:"trash",size:14,strokeWidth:1.75}))
             )
           )})
         ):null
@@ -2501,7 +2567,7 @@ function GroceryTab(p){
     ):null,
     
     showLoadList?React.createElement("div",{onClick:function(){setShowLoadList(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:1000,animation:"ft-backdrop-fade .18s ease-out"}},
-      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:400,maxHeight:"80vh",overflow:"auto",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
+      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",borderRadius:16,padding:20,width:"100%",maxWidth:400,maxHeight:"80vh",overflow:"auto",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16}},React.createElement(Icon,{name:"folder",size:16,strokeWidth:1.75}),"Load Saved List"),
           React.createElement("button",{onClick:function(){setShowLoadList(false)},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}},React.createElement(Icon,{name:"x",size:18,strokeWidth:2}))
@@ -2512,7 +2578,7 @@ function GroceryTab(p){
           React.createElement("div",{style:{fontSize:14,fontWeight:600,color:C.dark,marginBottom:4}},"No saved lists yet"),
           React.createElement("div",{style:{fontSize:12,color:C.light}},"Save your current list to reuse it later.")
         ):
-        savedLists.map(function(list){return React.createElement("div",{key:list.id,style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:12,borderRadius:10,border:"1px solid #eee",marginBottom:8,cursor:"pointer",background:"#fafaff"},onClick:function(){loadSavedList(list)}},
+        savedLists.map(function(list){return React.createElement("div",{key:list.id,style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:12,borderRadius:10,border:"1px solid var(--border-strong)",marginBottom:8,cursor:"pointer",background:"var(--surface)"},onClick:function(){loadSavedList(list)}},
           React.createElement("div",{style:{flex:1}},
             React.createElement("div",{style:{fontWeight:600,fontSize:14}},list.name),
             React.createElement("div",{style:{fontSize:11,opacity:.5}},list.items.length+" items"),
@@ -2525,23 +2591,23 @@ function GroceryTab(p){
     
     // Import Grocery List Modal
     showImportGrocery?React.createElement("div",{onClick:function(){setShowImportGrocery(false);setImportGroceryText("")},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:1000,animation:"ft-backdrop-fade .18s ease-out"}},
-      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:420,animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
+      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",borderRadius:16,padding:20,width:"100%",maxWidth:420,animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
-          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16}},React.createElement(Icon,{name:"list",size:16,color:"#333",strokeWidth:1.75}),"Create Grocery List"),
+          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16}},React.createElement(Icon,{name:"list",size:16,color:"var(--ink)",strokeWidth:1.75}),"Create Grocery List"),
           React.createElement("button",{onClick:function(){setShowImportGrocery(false);setImportGroceryText("")},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}},React.createElement(Icon,{name:"x",size:18,strokeWidth:2}))
         ),
         
         importGroceryLoading?React.createElement("div",{style:{textAlign:"center",padding:40}},
-          React.createElement("div",{style:{marginBottom:12}},React.createElement(Icon,{name:"refresh",size:28,color:"#8B7355",strokeWidth:1.75})),
-          React.createElement("div",{style:{fontSize:14,color:"#666"}},"Processing...")
+          React.createElement("div",{style:{marginBottom:12}},React.createElement(Icon,{name:"refresh",size:28,color:"var(--dark)",strokeWidth:1.75})),
+          React.createElement("div",{style:{fontSize:14,color:"var(--light)"}},"Processing...")
         ):React.createElement("div",null,
           // Text input only
           React.createElement("div",{style:{marginBottom:16}},
-            React.createElement("textarea",{value:importGroceryText,onChange:function(e){setImportGroceryText(e.target.value)},placeholder:"Paste your grocery list here...\n\nExample:\n- Milk\n- 2 lbs chicken\n- Eggs",style:{width:"100%",height:180,padding:12,borderRadius:10,border:"1px solid #ddd",fontSize:14,resize:"none",fontFamily:"inherit",boxSizing:"border-box"}})
+            React.createElement("textarea",{value:importGroceryText,onChange:function(e){setImportGroceryText(e.target.value)},placeholder:"Paste your grocery list here...\n\nExample:\n- Milk\n- 2 lbs chicken\n- Eggs",style:{width:"100%",height:180,padding:12,borderRadius:10,border:"1px solid var(--border-strong)",fontSize:14,resize:"none",fontFamily:"inherit",boxSizing:"border-box",background:"var(--surface)",color:"var(--ink)"}})
           ),
           
           // Import button
-          React.createElement("button",{onClick:handleImportFromText,disabled:!importGroceryText.trim(),style:{width:"100%",padding:"14px",borderRadius:10,border:"none",background:importGroceryText.trim()?"#8B7355":"#ccc",color:"#fff",fontWeight:600,fontSize:14,cursor:importGroceryText.trim()?"pointer":"not-allowed"}},"Import Items")
+          React.createElement("button",{onClick:handleImportFromText,disabled:!importGroceryText.trim(),style:{width:"100%",padding:"14px",borderRadius:10,border:"none",background:importGroceryText.trim()?"var(--dark)":"var(--disabled)",color:"#fff",fontWeight:600,fontSize:14,cursor:importGroceryText.trim()?"pointer":"not-allowed"}},"Import Items")
         )
       )
     ):null
@@ -2759,6 +2825,33 @@ function App(){
   var today=new Date(),todayK=dk(today);
   var wd=weekDatesOf(ws);
   var wl=wd[0].toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+wd[6].toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+
+  // Dark mode. Read localStorage synchronously on first render (the inline
+  // <script> in <head> already applied the attribute before paint, so this
+  // just keeps React's state in sync with what's already on screen - no flash).
+  var [theme,setTheme]=useState(function(){
+    try{return localStorage.getItem("ft_theme")==="dark"?"dark":"light"}catch(e){return "light"}
+  });
+  useEffect(function(){
+    if(theme==="dark"){document.documentElement.setAttribute("data-theme","dark")}
+    else{document.documentElement.removeAttribute("data-theme")}
+    var metaTheme=document.querySelector('meta[name="theme-color"]');
+    if(metaTheme)metaTheme.setAttribute("content",theme==="dark"?"#1C140D":"#F5EBE6");
+    try{localStorage.setItem("ft_theme",theme)}catch(e){}
+  },[theme]);
+  // Pull the account-level preference once a real user is known, so the
+  // choice follows them to a new device rather than staying purely local.
+  useEffect(function(){
+    if(userId==="guest")return;
+    window.storage.get("dm_theme_"+userId,true).then(function(r){
+      if(r&&r.value)setTheme(r.value==="dark"?"dark":"light");
+    }).catch(function(){});
+  },[userId]);
+  function toggleTheme(){
+    var next=theme==="dark"?"light":"dark";
+    setTheme(next);
+    if(userId!=="guest")window.storage.set("dm_theme_"+userId,next,true).catch(function(){});
+  }
 
   // Initialize selected calendar date to today
   useEffect(function(){
@@ -4905,22 +4998,22 @@ function App(){
 
   var [showAuth,setShowAuth]=useState(false);
   
-  if(!authChecked)return React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"#F5EBE6",gap:18,padding:20}},
+  if(!authChecked)return React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"var(--page)",gap:18,padding:20}},
     React.createElement("img",{src:BEE_LOGO,alt:"Loading",style:{width:92,height:92,animation:"ft-pulse 1.6s ease-in-out infinite",filter:"drop-shadow(0 4px 12px rgba(160,134,121,0.2))"}}),
-    React.createElement("div",{style:{fontFamily:"Georgia, serif",color:"#8B7355",letterSpacing:3,fontSize:16,fontWeight:500,textTransform:"uppercase"}},"The Family Table")
+    React.createElement("div",{style:{fontFamily:"Georgia, serif",color:"var(--dark)",letterSpacing:3,fontSize:16,fontWeight:500,textTransform:"uppercase"}},"The Family Table")
   );
   if(showAuth)return React.createElement(AuthScreen,{onLogin:function(uid){handleLogin(uid);setShowAuth(false)}});
 
-  var C={ink:"#3A2A1D",dark:"#6B4A32",light:"#8C7561",gold:"#B4823D",blush:"#F5EBE6",blushMed:"#E8DDD6",blushDeep:"#D4C4B8",blushAccent:"#B8A090",blushDark:"#96806C",card:"#FFFFFF",bdr:"rgba(58,42,29,0.10)",shadowSm:"0 1px 3px rgba(58,42,29,0.08), 0 1px 2px rgba(58,42,29,0.06)",shadowMd:"0 4px 16px rgba(58,42,29,0.10), 0 2px 6px rgba(58,42,29,0.06)",shadowLg:"0 12px 32px rgba(58,42,29,0.16)"};
+  var C={ink:"var(--ink)",dark:"var(--dark)",light:"var(--light)",gold:"var(--gold)",blush:"var(--blush)",blushMed:"var(--blush-med)",blushDeep:"var(--blush-deep)",blushAccent:"var(--blush-accent)",blushDark:"var(--blush-dark)",card:"var(--surface)",bdr:"var(--border)",shadowSm:"var(--shadow-sm)",shadowMd:"var(--shadow-md)",shadowLg:"var(--shadow-lg)"};
   // Full-screen page presentation (not a floating card over a dimmed
   // backdrop) - reads as a native app screen rather than a web "portal".
   // Since the content now covers the entire viewport, the outer div's
   // onClick={close} handlers throughout the file become inert (nothing is
   // ever "outside" the inner div anymore) - harmless, and correct: a
   // full-screen view shouldn't be dismissible by an accidental tap.
-  var ovl={position:"fixed",top:0,left:0,right:0,bottom:0,background:"#fff",zIndex:999,display:"flex",flexDirection:"column",animation:"ft-fs-slide-up .25s cubic-bezier(0.16,1,0.3,1)"};
-  var mdl={background:"#fff",borderRadius:0,padding:20,paddingTop:"max(20px, env(safe-area-inset-top))",paddingBottom:"max(20px, env(safe-area-inset-bottom))",width:"100%",height:"100%",maxWidth:"none",maxHeight:"none",overflow:"auto",boxShadow:"none",boxSizing:"border-box",animation:"none"};
-  var inp={width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:14,boxSizing:"border-box",outline:"none",fontFamily:"'Inter',-apple-system,sans-serif"};
+  var ovl={position:"fixed",top:0,left:0,right:0,bottom:0,background:"var(--surface)",zIndex:999,display:"flex",flexDirection:"column",animation:"ft-fs-slide-up .25s cubic-bezier(0.16,1,0.3,1)"};
+  var mdl={background:"var(--surface)",borderRadius:0,padding:20,paddingTop:"max(20px, env(safe-area-inset-top))",paddingBottom:"max(20px, env(safe-area-inset-bottom))",width:"100%",height:"100%",maxWidth:"none",maxHeight:"none",overflow:"auto",boxShadow:"none",boxSizing:"border-box",animation:"none"};
+  var inp={width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid var(--border-strong)",fontSize:14,boxSizing:"border-box",outline:"none",fontFamily:"'Inter',-apple-system,sans-serif",background:"var(--surface)",color:"var(--ink)"};
   var btn=function(bg,col){return{padding:"8px 16px",borderRadius:10,border:"none",background:bg,color:col||"#fff",fontWeight:600,fontSize:13,cursor:"pointer",boxShadow:(!col||col==="#fff")?C.shadowSm:"none",transition:"transform .12s ease-out, box-shadow .12s ease-out"}};
   var tab=function(a){return{padding:"7px 14px",borderRadius:20,border:"none",background:a?C.dark:C.blushMed,color:a?"#fff":C.light,fontWeight:600,fontSize:13,cursor:"pointer",boxShadow:a?C.shadowSm:"none",transition:"background-color .15s cubic-bezier(0.4,0,0.2,1), color .15s cubic-bezier(0.4,0,0.2,1)"}};
 
@@ -5014,7 +5107,7 @@ function App(){
         <div style={{position:"absolute",right:0,top:0}}>
           {user?
             <div style={{position:"relative"}}>
-              <button onClick={function(){setShowProfileMenu(!showProfileMenu)}} style={{width:38,height:38,borderRadius:19,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",boxShadow:C.shadowSm,padding:0,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
+              <button onClick={function(){setShowProfileMenu(!showProfileMenu)}} style={{width:38,height:38,borderRadius:19,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",boxShadow:C.shadowSm,padding:0,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
                 {userProfilePic?
                   (userProfilePic.startsWith("data:")?
                     <img src={userProfilePic} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
@@ -5025,16 +5118,16 @@ function App(){
                   <span style={{fontSize:14,fontWeight:700,color:C.dark}}>{user.charAt(0).toUpperCase()}</span>
                 }
               </button>
-              {showProfileMenu?<div style={{position:"absolute",right:0,top:"100%",marginTop:8,background:"#fff",borderRadius:14,boxShadow:C.shadowLg,border:"1px solid "+C.bdr,overflow:"hidden",minWidth:230,zIndex:1000}}>
+              {showProfileMenu?<div style={{position:"absolute",right:0,top:"100%",marginTop:8,background:"var(--surface)",borderRadius:14,boxShadow:C.shadowLg,border:"1px solid "+C.bdr,overflow:"hidden",minWidth:230,zIndex:1000}}>
                 <div style={{padding:"18px 16px",borderBottom:"1px solid "+C.bdr,background:C.blush,display:"flex",alignItems:"center",gap:12}}>
                   {userProfilePic?
                     (userProfilePic.startsWith("data:")?
-                      <img src={userProfilePic} alt="" style={{width:48,height:48,borderRadius:24,objectFit:"cover",border:"2px solid #fff"}}/>
+                      <img src={userProfilePic} alt="" style={{width:48,height:48,borderRadius:24,objectFit:"cover",border:"2px solid var(--surface)"}}/>
                     :
-                      <span style={{width:48,height:48,borderRadius:24,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,border:"2px solid #fff"}}>{userProfilePic}</span>
+                      <span style={{width:48,height:48,borderRadius:24,background:"var(--surface)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,border:"2px solid var(--surface)"}}>{userProfilePic}</span>
                     )
                   :
-                    <span style={{width:48,height:48,borderRadius:24,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:700,color:C.dark,border:"2px solid #fff"}}>{user.charAt(0).toUpperCase()}</span>
+                    <span style={{width:48,height:48,borderRadius:24,background:"var(--surface)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:700,color:C.dark,border:"2px solid var(--surface)"}}>{user.charAt(0).toUpperCase()}</span>
                   }
                   <div>
                     <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:C.ink}}>{user}</div>
@@ -5071,7 +5164,19 @@ function App(){
                         }
                       });
                     }} style={{width:42,height:24,borderRadius:12,border:"none",background:isPrivateProfile?C.dark:C.blushDeep,cursor:"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}>
-                      <div style={{width:18,height:18,borderRadius:9,background:"#fff",position:"absolute",top:3,left:isPrivateProfile?21:3,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}/>
+                      <div style={{width:18,height:18,borderRadius:9,background:"var(--surface)",position:"absolute",top:3,left:isPrivateProfile?21:3,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}/>
+                    </button>
+                  </div>
+                  <div style={{padding:"10px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <Icon name={theme==="dark"?"moon":"sun"} size={15} color={C.dark} strokeWidth={1.75}/>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:500,color:C.ink}}>Dark Mode</div>
+                        <div style={{fontSize:10,color:C.light}}>{theme==="dark"?"On":"Off"}</div>
+                      </div>
+                    </div>
+                    <button onClick={toggleTheme} style={{width:42,height:24,borderRadius:12,border:"none",background:theme==="dark"?C.dark:C.blushDeep,cursor:"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+                      <div style={{width:18,height:18,borderRadius:9,background:"var(--surface)",position:"absolute",top:3,left:theme==="dark"?21:3,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}/>
                     </button>
                   </div>
                   <div style={{height:1,background:C.bdr,margin:"4px 0"}}/>
@@ -5172,13 +5277,13 @@ function App(){
           <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>
             {AVATAR_OPTIONS.map(function(emoji){
               var isSelected=userProfilePic===emoji;
-              return <button key={emoji} onClick={function(){saveProfilePic(emoji)}} style={{width:44,height:44,borderRadius:22,border:isSelected?"3px solid "+C.dark:"2px solid "+C.bdr,background:isSelected?C.blushMed:"#fff",cursor:"pointer",fontSize:24,display:"flex",alignItems:"center",justifyContent:"center"}}>{emoji}</button>
+              return <button key={emoji} onClick={function(){saveProfilePic(emoji)}} style={{width:44,height:44,borderRadius:22,border:isSelected?"3px solid "+C.dark:"2px solid "+C.bdr,background:isSelected?C.blushMed:"var(--surface)",cursor:"pointer",fontSize:24,display:"flex",alignItems:"center",justifyContent:"center"}}>{emoji}</button>
             })}
           </div>
         </div>
         
         {/* Remove profile pic */}
-        {userProfilePic?<button onClick={function(){saveProfilePic(null);setUserProfilePic(null)}} style={{width:"100%",padding:"12px",borderRadius:10,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",fontSize:13,fontWeight:500,color:C.light,marginBottom:12}}>
+        {userProfilePic?<button onClick={function(){saveProfilePic(null);setUserProfilePic(null)}} style={{width:"100%",padding:"12px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",fontSize:13,fontWeight:500,color:C.light,marginBottom:12}}>
           Remove Profile Picture
         </button>:null}
         
@@ -5211,7 +5316,7 @@ function App(){
         </div>
         
         {/* QR Code */}
-        <div style={{background:"#fff",padding:20,borderRadius:16,border:"2px solid "+C.bdr,marginBottom:16,display:"inline-block"}}>
+        <div style={{background:"var(--surface)",padding:20,borderRadius:16,border:"2px solid "+C.bdr,marginBottom:16,display:"inline-block"}}>
           <QRCode data={"FT:"+user} size={180} darkColor={C.dark} lightColor="#fff"/>
         </div>
         
@@ -5254,7 +5359,7 @@ function App(){
             value={followRequestUser}
             onChange={function(e){setFollowRequestUser(e.target.value);setFollowStatus("")}}
             placeholder="@username"
-            style={{width:"100%",padding:"14px 16px",borderRadius:10,border:"2px solid "+C.bdr,fontSize:16,outline:"none",textAlign:"center",boxSizing:"border-box"}}
+            style={{width:"100%",padding:"14px 16px",borderRadius:10,border:"2px solid "+C.bdr,fontSize:16,outline:"none",textAlign:"center",boxSizing:"border-box",background:C.card,color:C.ink}}
             autoFocus
           />
         </div>
@@ -5263,7 +5368,7 @@ function App(){
           <span style={{display:"flex",alignItems:"center",gap:5,fontSize:13,fontWeight:600,color:followStatus.startsWith("error")?"#c0392b":"#27ae60"}}>{followStatus.startsWith("error")?<React.Fragment><Icon name="x" size={13} strokeWidth={2.5}/>{followStatus.replace("error:","")}</React.Fragment>:<React.Fragment><Icon name="check" size={13} strokeWidth={2.5}/>{followStatus.replace("success:","")}</React.Fragment>}</span>
         </div>:null}
         
-        <button onClick={function(){followUser(followRequestUser)}} disabled={!followRequestUser.trim()} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:followRequestUser.trim()?C.dark:"#ccc",color:"#fff",fontWeight:600,fontSize:14,cursor:followRequestUser.trim()?"pointer":"not-allowed"}}>Follow</button>
+        <button onClick={function(){followUser(followRequestUser)}} disabled={!followRequestUser.trim()} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:followRequestUser.trim()?C.dark:"var(--disabled)",color:"#fff",fontWeight:600,fontSize:14,cursor:followRequestUser.trim()?"pointer":"not-allowed"}}>Follow</button>
         
         <div style={{textAlign:"center",marginTop:16}}>
           <div style={{fontSize:11,color:C.light}}>Enter their username to follow</div>
@@ -5273,7 +5378,7 @@ function App(){
       {/* VIEW PROFILE MODAL */}
       {viewProfileUser&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:C.blush,zIndex:999,overflow:"auto",display:"flex",flexDirection:"column",paddingTop:"env(safe-area-inset-top)",paddingBottom:"env(safe-area-inset-bottom)"}}>
         {/* Header */}
-        <div style={{padding:"20px 22px",borderBottom:"1px solid "+C.bdr,background:"#fff",flexShrink:0}}>
+        <div style={{padding:"20px 22px",borderBottom:"1px solid "+C.bdr,background:"var(--surface)",flexShrink:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
             <div style={{display:"flex",alignItems:"center",gap:14}}>
               {viewProfileData&&viewProfileData.profilePic?
@@ -5298,7 +5403,7 @@ function App(){
               <button onClick={function(){
                 unfollowUser(viewProfileUser);
                 setViewProfileData(Object.assign({},viewProfileData,{isFollowing:false}));
-              }} style={{display:"flex",alignItems:"center",gap:5,padding:"10px 20px",borderRadius:25,border:"1px solid "+C.bdr,background:"#fff",color:C.dark,fontWeight:600,fontSize:13,cursor:"pointer"}}><Icon name="check" size={13} strokeWidth={2}/>Following</button>
+              }} style={{display:"flex",alignItems:"center",gap:5,padding:"10px 20px",borderRadius:25,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.dark,fontWeight:600,fontSize:13,cursor:"pointer"}}><Icon name="check" size={13} strokeWidth={2}/>Following</button>
             :
               <button onClick={function(){
                 followUser(viewProfileUser);
@@ -5329,7 +5434,7 @@ function App(){
               });
               var alreadySaved = !!savedCopy;
               var cookTime = shortTime(recipe.time);
-              return <div key={recipe.id} className="ft-card-tap" onClick={function(){setViewFriendRecipe(Object.assign({},recipe,{ownerUsername:viewProfileUser,ownerProfilePic:viewProfileData?viewProfileData.profilePic:null}))}} style={{background:"#fff",borderRadius:20,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
+              return <div key={recipe.id} className="ft-card-tap" onClick={function(){setViewFriendRecipe(Object.assign({},recipe,{ownerUsername:viewProfileUser,ownerProfilePic:viewProfileData?viewProfileData.profilePic:null}))}} style={{background:"var(--surface)",borderRadius:20,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
                 {/* Hero image with heart */}
                 <div style={{position:"relative",width:"100%",aspectRatio:recipe.photo?"4 / 3":undefined,height:recipe.photo?undefined:56,background:recipe.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
                   {recipe.photo?<img src={recipe.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.3}}><Icon name="plate" size={28} color={C.dark} strokeWidth={1.25}/></div>}
@@ -5368,9 +5473,9 @@ function App(){
       </div>}
 
       {/* VIEW FRIEND RECIPE MODAL */}
-      {viewFriendRecipe&&<div style={ovl} onClick={function(){setViewFriendRecipe(null)}}><div style={{background:"#fff",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={function(e){e.stopPropagation()}}>
+      {viewFriendRecipe&&<div style={ovl} onClick={function(){setViewFriendRecipe(null)}}><div style={{background:"var(--surface)",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={function(e){e.stopPropagation()}}>
         {/* Header */}
-        <div style={{padding:"max(16px, env(safe-area-inset-top)) 20px 16px",borderBottom:"1px solid "+C.bdr,background:"#fff",flexShrink:0}}>
+        <div style={{padding:"max(16px, env(safe-area-inset-top)) 20px 16px",borderBottom:"1px solid "+C.bdr,background:"var(--surface)",flexShrink:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div style={{display:"flex",alignItems:"center",gap:12}}>
               {viewFriendRecipe.photo?
@@ -5468,7 +5573,7 @@ function App(){
         </div>
         
         {/* Save Button */}
-        <div style={{padding:16,borderTop:"1px solid "+C.bdr,background:"#fff",flexShrink:0}}>
+        <div style={{padding:16,borderTop:"1px solid "+C.bdr,background:"var(--surface)",flexShrink:0}}>
           <button onClick={function(){
             var newRecipe=Object.assign({},viewFriendRecipe,{
               id:Date.now(),
@@ -5526,15 +5631,15 @@ function App(){
               
               {/* Meals styled like recipe cards */}
               {mlist.length===0?
-                <div style={{marginLeft:62,background:"#fff",borderRadius:16,padding:"14px 16px",boxShadow:C.shadowMd}}>
+                <div style={{marginLeft:62,background:"var(--surface)",borderRadius:16,padding:"14px 16px",boxShadow:C.shadowMd}}>
                   <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:10}}>
                     <Icon name="calendar" size={14} color={C.light} strokeWidth={1.5}/>
                     <span style={{fontSize:13,color:C.light,fontWeight:500}}>Nothing planned yet</span>
                   </div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                     <button onClick={function(){setRpick(k)}} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:18,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}}><Icon name="book" size={12} strokeWidth={2}/> From Recipes</button>
-                    <button onClick={function(){openEdit(k)}} style={{padding:"8px 16px",borderRadius:18,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",color:C.ink,fontSize:12,fontWeight:500}}>+ New Meal</button>
-                    <button onClick={function(){setShowPlaceholder(k)}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,borderRadius:15,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",color:C.dark,flexShrink:0}}><Icon name="tag" size={13} strokeWidth={2}/></button>
+                    <button onClick={function(){openEdit(k)}} style={{padding:"8px 16px",borderRadius:18,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",color:C.ink,fontSize:12,fontWeight:500}}>+ New Meal</button>
+                    <button onClick={function(){setShowPlaceholder(k)}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,borderRadius:15,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",color:C.dark,flexShrink:0}}><Icon name="tag" size={13} strokeWidth={2}/></button>
                   </div>
                 </div>
               :
@@ -5576,7 +5681,7 @@ function App(){
                             setSwipeStart(null);
                             setSwipeOffset(0);
                           }}
-                          style={{background:"#fff",borderRadius:16,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer",transform:"translateX("+translateX+"px)",transition:swipeStart?"none":"transform 0.2s",position:"relative",zIndex:1}}
+                          style={{background:"var(--surface)",borderRadius:16,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer",transform:"translateX("+translateX+"px)",transition:swipeStart?"none":"transform 0.2s",position:"relative",zIndex:1}}
                           onClick={function(){
                             if(isSwipedHere){
                               setSwipedMeal(null);
@@ -5612,7 +5717,7 @@ function App(){
                   <div style={{display:"flex",gap:8,marginTop:6,alignItems:"center"}}>
                     <button onClick={function(){setRpick(k)}} style={{fontSize:11,padding:"8px 14px",borderRadius:16,border:"none",background:C.blush,cursor:"pointer",color:C.dark,fontWeight:600}}>+ From Recipes</button>
                     <button onClick={function(){openEdit(k)}} style={{fontSize:11,padding:"8px 14px",borderRadius:16,border:"none",background:C.blush,cursor:"pointer",color:C.dark,fontWeight:600}}>+ New Meal</button>
-                    <button onClick={function(){setShowPlaceholder(k)}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:14,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",color:C.dark,flexShrink:0}}><Icon name="tag" size={12} strokeWidth={2}/></button>
+                    <button onClick={function(){setShowPlaceholder(k)}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:14,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",color:C.dark,flexShrink:0}}><Icon name="tag" size={12} strokeWidth={2}/></button>
                   </div>
                 </div>
               }
@@ -5630,16 +5735,16 @@ function App(){
           </div>
           
           {/* Calendar grid */}
-          <div style={{background:"#fff",borderRadius:16,overflow:"hidden",boxShadow:C.shadowMd,marginBottom:20}}>
+          <div style={{background:"var(--surface)",borderRadius:16,overflow:"hidden",boxShadow:C.shadowMd,marginBottom:20}}>
             <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:"1px solid "+C.bdr}}>
               {DAYS_SHORT.map(function(d){return <div key={d} style={{textAlign:"center",fontWeight:600,fontSize:11,color:C.light,padding:"12px 4px",textTransform:"uppercase",letterSpacing:1}}>{d}</div>})}
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)"}}>
               {cc.map(function(date,i){
-                if(!date)return <div key={"e"+i} style={{minHeight:70,background:"#fafafa",borderRight:i%7!==6?"1px solid "+C.bdr:"none",borderBottom:"1px solid "+C.bdr}}/>;
+                if(!date)return <div key={"e"+i} style={{minHeight:70,background:"var(--surface)",borderRight:i%7!==6?"1px solid "+C.bdr:"none",borderBottom:"1px solid "+C.bdr}}/>;
                 var k=dk(date),mlist=getMealsForDay(k),isT=k===todayK,isSelected=selectedCalDate===k;
                 return(
-                  <div key={k} onClick={function(){setSelectedCalDate(k)}} style={{minHeight:70,padding:6,cursor:"pointer",background:isSelected?C.blushMed:isT?C.blush:"#fff",borderRight:i%7!==6?"1px solid "+C.bdr:"none",borderBottom:"1px solid "+C.bdr,position:"relative"}}>
+                  <div key={k} onClick={function(){setSelectedCalDate(k)}} style={{minHeight:70,padding:6,cursor:"pointer",background:isSelected?C.blushMed:isT?C.blush:"var(--surface)",borderRight:i%7!==6?"1px solid "+C.bdr:"none",borderBottom:"1px solid "+C.bdr,position:"relative"}}>
                     <div style={{fontSize:14,fontWeight:isT||isSelected?700:500,color:isT||isSelected?C.dark:C.light,marginBottom:4}}>{date.getDate()}</div>
                     {mlist.length>0?<div style={{width:8,height:8,borderRadius:4,background:C.dark,margin:"0 auto"}}/>:null}
                   </div>
@@ -5656,15 +5761,15 @@ function App(){
             </div>
             
             {getMealsForDay(selectedCalDate).length===0?
-              <div style={{background:"#fff",borderRadius:16,padding:"16px 18px",boxShadow:C.shadowMd}}>
+              <div style={{background:"var(--surface)",borderRadius:16,padding:"16px 18px",boxShadow:C.shadowMd}}>
                 <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:12}}>
                   <Icon name="calendar" size={15} color={C.light} strokeWidth={1.5}/>
                   <span style={{fontSize:13,color:C.light,fontWeight:500}}>Nothing planned yet</span>
                 </div>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                   <button onClick={function(){setRpick(selectedCalDate)}} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 18px",borderRadius:18,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}}><Icon name="book" size={12} strokeWidth={2}/> From Recipes</button>
-                  <button onClick={function(){openEdit(selectedCalDate)}} style={{padding:"9px 18px",borderRadius:18,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",color:C.ink,fontSize:12,fontWeight:500}}>+ New Meal</button>
-                  <button onClick={function(){setShowPlaceholder(selectedCalDate)}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:16,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",color:C.dark,flexShrink:0}}><Icon name="tag" size={13} strokeWidth={2}/></button>
+                  <button onClick={function(){openEdit(selectedCalDate)}} style={{padding:"9px 18px",borderRadius:18,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",color:C.ink,fontSize:12,fontWeight:500}}>+ New Meal</button>
+                  <button onClick={function(){setShowPlaceholder(selectedCalDate)}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:16,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",color:C.dark,flexShrink:0}}><Icon name="tag" size={13} strokeWidth={2}/></button>
                 </div>
               </div>
             :
@@ -5673,13 +5778,13 @@ function App(){
                   var mealType=m.recipeType||detectRecipeType(m);
                   var typeInfo=RECIPE_TYPES.find(function(t){return t.id===mealType})||RECIPE_TYPES[RECIPE_TYPES.length-1];
                   if(m.isPlaceholder)return(
-                    <div key={mi} style={{display:"flex",alignItems:"center",gap:10,background:"#fff",borderRadius:16,marginBottom:12,padding:"14px 18px",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){openEdit(selectedCalDate,mi)}}>
+                    <div key={mi} style={{display:"flex",alignItems:"center",gap:10,background:"var(--surface)",borderRadius:16,marginBottom:12,padding:"14px 18px",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){openEdit(selectedCalDate,mi)}}>
                       <Icon name="tag" size={17} color={C.gold} strokeWidth={1.75}/>
                       <div style={{fontWeight:600,fontSize:16,color:C.ink}}>{m.name}</div>
                     </div>
                   );
                   return(
-                    <div key={mi} style={{background:"#fff",borderRadius:16,marginBottom:12,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){openEdit(selectedCalDate,mi)}}>
+                    <div key={mi} style={{background:"var(--surface)",borderRadius:16,marginBottom:12,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){openEdit(selectedCalDate,mi)}}>
                       {m.photo?
                         <div style={{position:"relative"}}>
                           <img src={m.photo} style={{width:"100%",height:140,objectFit:"cover",display:"block"}} alt=""/>
@@ -5700,7 +5805,7 @@ function App(){
                 <div style={{display:"flex",gap:10,marginTop:8,alignItems:"center"}}>
                   <button onClick={function(){setRpick(selectedCalDate)}} style={{flex:1,padding:"12px 16px",borderRadius:16,border:"none",background:C.blush,cursor:"pointer",color:C.dark,fontSize:13,fontWeight:600}}>+ From Recipes</button>
                   <button onClick={function(){openEdit(selectedCalDate)}} style={{flex:1,padding:"12px 16px",borderRadius:16,border:"none",background:C.blush,cursor:"pointer",color:C.dark,fontSize:13,fontWeight:600}}>+ New Meal</button>
-                  <button onClick={function(){setShowPlaceholder(selectedCalDate)}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:36,height:36,borderRadius:18,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",color:C.dark,flexShrink:0}}><Icon name="tag" size={14} strokeWidth={2}/></button>
+                  <button onClick={function(){setShowPlaceholder(selectedCalDate)}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:36,height:36,borderRadius:18,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",color:C.dark,flexShrink:0}}><Icon name="tag" size={14} strokeWidth={2}/></button>
                 </div>
               </div>
             }
@@ -5710,7 +5815,7 @@ function App(){
 
       {view==="recipes"&&<div style={{animation:"ft-fade-in .25s ease-out"}}>
         {/* Inbox - Recipes shared to you */}
-        {userInbox.length>0?<div style={{marginBottom:16,background:"#fff",borderRadius:16,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,padding:16}}>
+        {userInbox.length>0?<div style={{marginBottom:16,background:"var(--surface)",borderRadius:16,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,padding:16}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
             <Icon name="mail" size={16} color={C.gold} strokeWidth={1.75}/>
             <div style={{fontWeight:700,fontSize:14,color:C.ink}}>Shared with You</div>
@@ -5732,7 +5837,7 @@ function App(){
                 <div style={{fontSize:11,color:C.light}}>from @{item.fromUser}</div>
               </div>
               <button onClick={function(){acceptInboxRecipe(item)}} style={{width:32,height:32,borderRadius:16,border:"none",background:C.dark,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="check" size={15} strokeWidth={2.25}/></button>
-              <button onClick={function(){dismissInboxRecipe(item.id)}} style={{width:32,height:32,borderRadius:16,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="x" size={13} color={C.light} strokeWidth={2}/></button>
+              <button onClick={function(){dismissInboxRecipe(item.id)}} style={{width:32,height:32,borderRadius:16,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="x" size={13} color={C.light} strokeWidth={2}/></button>
             </div>
           )})}
           {userInbox.length>3?<div style={{textAlign:"center",fontSize:12,color:C.light,paddingTop:10}}>+{userInbox.length-3} more</div>:null}
@@ -5742,7 +5847,7 @@ function App(){
           <div style={{fontWeight:700,fontSize:16,letterSpacing:.3,color:C.ink}}>My Recipes ({recipes.length})</div>
           <div style={{position:"relative"}}>
             <button onClick={function(){setShowRecipePlusMenu(!showRecipePlusMenu)}} style={{padding:"7px 14px",borderRadius:8,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>+ Add</button>
-            {showRecipePlusMenu?<div style={{position:"absolute",top:40,right:0,background:"#fff",borderRadius:10,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,minWidth:180,zIndex:50,overflow:"hidden"}}>
+            {showRecipePlusMenu?<div style={{position:"absolute",top:40,right:0,background:"var(--surface)",borderRadius:10,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,minWidth:180,zIndex:50,overflow:"hidden"}}>
               <button onClick={function(){setRf(emptyMeal());setShowRF(true);setShowRecipePlusMenu(false)}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}}><Icon name="pencil" size={14} strokeWidth={1.75}/>Add Manually</button>
               <button onClick={function(){setShowScanModal(true);setScanPhotos([]);setShowRecipePlusMenu(false)}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}}><Icon name="camera" size={14} strokeWidth={1.75}/>Photo</button>
               <button onClick={function(){setShowImport(true);setShowRecipePlusMenu(false)}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",boxSizing:"border-box"}}><Icon name="inbox" size={14} strokeWidth={1.75}/>Import</button>
@@ -5766,7 +5871,7 @@ function App(){
             <span style={{fontSize:12,color:C.light}}>{showCategories?"▲":"▼"}</span>
           </button>
           
-          {showCategories?<div style={{background:"#fff",borderRadius:12,border:"1px solid "+C.bdr,marginTop:8,padding:8,boxShadow:C.shadowMd}}>
+          {showCategories?<div style={{background:"var(--surface)",borderRadius:12,border:"1px solid "+C.bdr,marginTop:8,padding:8,boxShadow:C.shadowMd}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
               {RECIPE_TYPES.filter(function(t){
                 if(t.id==="all"||t.id==="favorites")return true;
@@ -5774,7 +5879,7 @@ function App(){
               }).map(function(t){
                 var active=recipeFilter===t.id;
                 var count=t.id==="all"?recipes.length:t.id==="favorites"?recipes.filter(function(r){return favorites.includes(r.id)}).length:recipes.filter(function(r){return(r.recipeType||detectRecipeType(r))===t.id}).length;
-                return <button key={t.id} onClick={function(){setRecipeFilter(t.id);setShowCategories(false)}} style={{padding:"10px 12px",borderRadius:10,border:active?"2px solid "+C.dark:"1px solid "+C.bdr,fontSize:13,fontWeight:active?700:500,cursor:"pointer",background:active?C.dark:"#fff",color:active?"#fff":C.dark,textAlign:"left",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                return <button key={t.id} onClick={function(){setRecipeFilter(t.id);setShowCategories(false)}} style={{padding:"10px 12px",borderRadius:10,border:active?"2px solid "+C.dark:"1px solid "+C.bdr,fontSize:13,fontWeight:active?700:500,cursor:"pointer",background:active?C.dark:"var(--surface)",color:active?"#fff":C.dark,textAlign:"left",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span><CatTag type={t}/></span>
                   <span style={{fontSize:12,opacity:.7}}>({count})</span>
                 </button>
@@ -5793,7 +5898,7 @@ function App(){
           if(recipeFilter==="favorites")return favorites.includes(r.id);
           return(r.recipeType||detectRecipeType(r))===recipeFilter;
         }).map(function(r){var rtype=r.recipeType||detectRecipeType(r);var typeInfo=RECIPE_TYPES.find(function(t){return t.id===rtype})||RECIPE_TYPES[RECIPE_TYPES.length-1];var isFav=favorites.includes(r.id);var isPrivate=r.isPublic===false;return(
-          <div key={r.id} className="ft-card-tap" style={{background:"#fff",borderRadius:20,border:"none",marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}}>
+          <div key={r.id} className="ft-card-tap" style={{background:"var(--surface)",borderRadius:20,border:"none",marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}}>
             {/* Hero image */}
             <div style={{position:"relative",width:"100%",aspectRatio:r.photo?"4 / 3":undefined,height:r.photo?undefined:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
               {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.3}}><Icon name="plate" size={28} color={C.dark} strokeWidth={1.25}/></div>}
@@ -5822,9 +5927,9 @@ function App(){
 
       {/* VIEW RECIPE MODAL */}
       {viewRecipe&&<div style={ovl} onClick={function(){setViewRecipe(null)}}>
-        <div style={{background:"#fff",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={function(e){e.stopPropagation()}}>
+        <div style={{background:"var(--surface)",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={function(e){e.stopPropagation()}}>
           {/* Header */}
-          <div style={{padding:"max(16px, env(safe-area-inset-top)) 20px 16px",borderBottom:"1px solid "+C.bdr,background:"#fff",flexShrink:0}}>
+          <div style={{padding:"max(16px, env(safe-area-inset-top)) 20px 16px",borderBottom:"1px solid "+C.bdr,background:"var(--surface)",flexShrink:0}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}}>{viewRecipe.name}</div>
               <button onClick={function(){setViewRecipe(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,padding:8,display:"flex"}}><Icon name="x" size={20} strokeWidth={2}/></button>
@@ -5841,11 +5946,11 @@ function App(){
             
             {/* Action buttons */}
             <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:20}}>
-              <button onClick={function(){toggleFavorite(viewRecipe.id)}} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 16px",borderRadius:25,border:"none",background:favorites.includes(viewRecipe.id)?C.blush:"#f5f5f5",cursor:"pointer",fontSize:13,fontWeight:600,color:favorites.includes(viewRecipe.id)?"#c0392b":C.ink}}><Icon name="heart" size={14} color={favorites.includes(viewRecipe.id)?"#c0392b":C.dark} strokeWidth={2} filled={favorites.includes(viewRecipe.id)}/> Save</button>
-              <button onClick={function(){setR2cal(viewRecipe);setR2date("");setViewRecipe(null)}} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 16px",borderRadius:25,border:"none",background:"#f5f5f5",cursor:"pointer",fontSize:13,fontWeight:600,color:C.ink}}><Icon name="calendar" size={14} color={C.dark} strokeWidth={2}/> Plan</button>
-              <button onClick={function(){setShareR(viewRecipe);setViewRecipe(null)}} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 16px",borderRadius:25,border:"none",background:"#f5f5f5",cursor:"pointer",fontSize:13,fontWeight:600,color:C.ink}}><Icon name="send" size={14} color={C.dark} strokeWidth={2}/> Share</button>
-              {(!viewRecipe.ownerUsername && viewRecipe.originalOwner && viewRecipe.originalOwner.toLowerCase()===userId.toLowerCase() && (!viewRecipe.savedBy || viewRecipe.savedBy.toLowerCase()===userId.toLowerCase()) && !viewRecipe.savedFrom)?<button onClick={function(){setEditRecipe(Object.assign({},viewRecipe,{ingredients:viewRecipe.ingredients.slice()}));setEditRecipeIng("");setEditRecipeQty("");setEditRecipeUnit("");setEditIngIdx(-1);setViewRecipe(null)}} style={{display:"flex",alignItems:"center",padding:"10px 14px",borderRadius:25,border:"none",background:"#f5f5f5",cursor:"pointer"}}><Icon name="pencil" size={14} color={C.dark} strokeWidth={2}/></button>:null}
-              {!viewRecipe.ownerUsername?<button onClick={function(){deleteRecipeDoc(viewRecipe.id);svR(recipes.filter(function(x){return x.id!==viewRecipe.id}));svF(favorites.filter(function(id){return id!==viewRecipe.id}));setViewRecipe(null)}} style={{display:"flex",alignItems:"center",padding:"10px 14px",borderRadius:25,border:"none",background:"#f5f5f5",cursor:"pointer"}}><Icon name="trash" size={14} color={C.light} strokeWidth={2}/></button>:null}
+              <button onClick={function(){toggleFavorite(viewRecipe.id)}} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 16px",borderRadius:25,border:"none",background:favorites.includes(viewRecipe.id)?C.blush:"var(--blush-med)",cursor:"pointer",fontSize:13,fontWeight:600,color:favorites.includes(viewRecipe.id)?"#c0392b":C.ink}}><Icon name="heart" size={14} color={favorites.includes(viewRecipe.id)?"#c0392b":C.dark} strokeWidth={2} filled={favorites.includes(viewRecipe.id)}/> Save</button>
+              <button onClick={function(){setR2cal(viewRecipe);setR2date("");setViewRecipe(null)}} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 16px",borderRadius:25,border:"none",background:"var(--blush-med)",cursor:"pointer",fontSize:13,fontWeight:600,color:C.ink}}><Icon name="calendar" size={14} color={C.dark} strokeWidth={2}/> Plan</button>
+              <button onClick={function(){setShareR(viewRecipe);setViewRecipe(null)}} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 16px",borderRadius:25,border:"none",background:"var(--blush-med)",cursor:"pointer",fontSize:13,fontWeight:600,color:C.ink}}><Icon name="send" size={14} color={C.dark} strokeWidth={2}/> Share</button>
+              {(!viewRecipe.ownerUsername && viewRecipe.originalOwner && viewRecipe.originalOwner.toLowerCase()===userId.toLowerCase() && (!viewRecipe.savedBy || viewRecipe.savedBy.toLowerCase()===userId.toLowerCase()) && !viewRecipe.savedFrom)?<button onClick={function(){setEditRecipe(Object.assign({},viewRecipe,{ingredients:viewRecipe.ingredients.slice()}));setEditRecipeIng("");setEditRecipeQty("");setEditRecipeUnit("");setEditIngIdx(-1);setViewRecipe(null)}} style={{display:"flex",alignItems:"center",padding:"10px 14px",borderRadius:25,border:"none",background:"var(--blush-med)",cursor:"pointer"}}><Icon name="pencil" size={14} color={C.dark} strokeWidth={2}/></button>:null}
+              {!viewRecipe.ownerUsername?<button onClick={function(){deleteRecipeDoc(viewRecipe.id);svR(recipes.filter(function(x){return x.id!==viewRecipe.id}));svF(favorites.filter(function(id){return id!==viewRecipe.id}));setViewRecipe(null)}} style={{display:"flex",alignItems:"center",padding:"10px 14px",borderRadius:25,border:"none",background:"var(--blush-med)",cursor:"pointer"}}><Icon name="trash" size={14} color={C.light} strokeWidth={2}/></button>:null}
             </div>
 
             {/* Ingredients - collapsible */}
@@ -5942,9 +6047,9 @@ function App(){
             <div style={{fontSize:13,color:C.light,marginBottom:22,maxWidth:280,margin:"0 auto 22px"}}>Tell me what's in your fridge, or what you're in the mood for.</div>
             <div style={{display:"flex",flexDirection:"column",gap:8,maxWidth:340,margin:"0 auto"}}>
               {["What can I make with what I have?","Something quick and easy tonight","Kid-friendly dinner ideas","Easy meals for busy family","Surprise me with an idea"].map(function(sug){
-                return <button key={sug} onClick={function(){sendChefMessage(sug)}} style={{padding:"12px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:"#fff",color:C.ink,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",boxShadow:C.shadowSm}}>{sug}</button>
+                return <button key={sug} onClick={function(){sendChefMessage(sug)}} style={{padding:"12px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",boxShadow:C.shadowSm}}>{sug}</button>
               })}
-              <button onClick={function(){setSwapPickerRecipeKey("");setSwapPickerIngredient("");setSwapPickerNote("");setShowSwapPicker(true)}} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:"#fff",color:C.ink,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",boxShadow:C.shadowSm}}><Icon name="swap" size={14} color={C.gold} strokeWidth={2}/>Swap an ingredient</button>
+              <button onClick={function(){setSwapPickerRecipeKey("");setSwapPickerIngredient("");setSwapPickerNote("");setShowSwapPicker(true)}} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",boxShadow:C.shadowSm}}><Icon name="swap" size={14} color={C.gold} strokeWidth={2}/>Swap an ingredient</button>
             </div>
           </div>
         :
@@ -5959,11 +6064,11 @@ function App(){
               return <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",marginBottom:14}}>
                 <div style={{maxWidth:"85%"}}>
                   {m.role==="assistant"?<div style={{display:"flex",alignItems:"center",gap:5,marginBottom:5}}><Icon name="sparkle" size={11} color={C.gold} strokeWidth={2}/><span style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.5}}>AI Chef</span></div>:null}
-                  <div style={{padding:"11px 14px",borderRadius:14,background:m.role==="user"?C.dark:"#fff",color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.5,boxShadow:m.role==="user"?"none":C.shadowSm,whiteSpace:"pre-wrap"}}>{displayText}</div>
+                  <div style={{padding:"11px 14px",borderRadius:14,background:m.role==="user"?C.dark:"var(--surface)",color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.5,boxShadow:m.role==="user"?"none":C.shadowSm,whiteSpace:"pre-wrap"}}>{displayText}</div>
                   {swapOverlay?<button onClick={function(){setChefSwaps(function(prev){var next=Object.assign({},prev);delete next[i];return next})}} style={{display:"flex",alignItems:"center",gap:4,marginTop:6,background:"none",border:"none",padding:0,fontSize:11,fontWeight:600,color:C.gold,cursor:"pointer"}}><Icon name="swap" size={11} color={C.gold} strokeWidth={2}/>Swapped - tap to revert</button>:null}
                   {m.role==="assistant"&&m.kind!=="swap"&&chefReplyIsFullRecipe(m.text)?<button onClick={function(){saveChefIdeaAsRecipe(m.text)}} disabled={chefLoading} style={{marginTop:6,background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.gold,cursor:chefLoading?"default":"pointer"}}>Save as Recipe</button>:null}
                   {m.role==="assistant"&&m.kind==="swap"?<div style={{marginTop:8,display:"flex",flexDirection:"column",gap:8}}>
-                    {m.suggestions.map(function(s,si){return <div key={si} style={{background:"#fff",border:"1px solid "+C.bdr,borderRadius:10,padding:"10px 12px",boxShadow:C.shadowSm}}>
+                    {m.suggestions.map(function(s,si){return <div key={si} style={{background:"var(--surface)",border:"1px solid "+C.bdr,borderRadius:10,padding:"10px 12px",boxShadow:C.shadowSm}}>
                       <div style={{fontSize:14,fontWeight:700,color:C.ink,marginBottom:2}}>{s.substitute}</div>
                       {s.note?<div style={{fontSize:12,color:C.light,marginBottom:8,lineHeight:1.4}}>{s.note}</div>:null}
                       {m.applyTarget.type!=="none"?<button className="ft-card-tap" onClick={function(){applySwapSuggestion(m.applyTarget,m.original,s.substitute)}} style={{background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.gold,cursor:"pointer"}}>Use this{m.applyTarget.type==="saved"?" in recipe":""}</button>:null}
@@ -5973,7 +6078,7 @@ function App(){
               </div>
             })}
             {chefLoading?<div style={{display:"flex",justifyContent:"flex-start",marginBottom:14}}>
-              <div style={{padding:"11px 14px",borderRadius:14,background:"#fff",color:C.light,fontSize:14,boxShadow:C.shadowSm,fontStyle:"italic"}}>Thinking…</div>
+              <div style={{padding:"11px 14px",borderRadius:14,background:"var(--surface)",color:C.light,fontSize:14,boxShadow:C.shadowSm,fontStyle:"italic"}}>Thinking…</div>
             </div>:null}
           </div>
         }
@@ -5996,7 +6101,7 @@ function App(){
           var ingredientNames=isAny?[]:getSwapIngredientNames(selectedOpt);
           return <div>
             <label style={{display:"block",fontSize:12,fontWeight:600,color:C.light,marginBottom:6}}>Recipe</label>
-            <select value={swapPickerRecipeKey} onChange={function(e){setSwapPickerRecipeKey(e.target.value);setSwapPickerIngredient("")}} style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,background:"#fff",color:C.dark,marginBottom:14,boxSizing:"border-box"}}>
+            <select value={swapPickerRecipeKey} onChange={function(e){setSwapPickerRecipeKey(e.target.value);setSwapPickerIngredient("")}} style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,background:"var(--surface)",color:C.dark,marginBottom:14,boxSizing:"border-box"}}>
               <option value="">Choose a recipe...</option>
               <option value="__any__">Any ingredient (no recipe)</option>
               {options.map(function(o){return <option key={o.key} value={o.key}>{o.label}</option>})}
@@ -6006,7 +6111,7 @@ function App(){
             {isAny?
               <input value={swapPickerIngredient} onChange={function(e){setSwapPickerIngredient(e.target.value)}} placeholder="e.g. buttermilk, cilantro, brown sugar" style={Object.assign({},inp,{marginBottom:14})}/>
             :
-              <select value={swapPickerIngredient} onChange={function(e){setSwapPickerIngredient(e.target.value)}} disabled={!selectedOpt} style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,background:selectedOpt?"#fff":C.blush,color:C.dark,marginBottom:14,cursor:selectedOpt?"pointer":"default",boxSizing:"border-box"}}>
+              <select value={swapPickerIngredient} onChange={function(e){setSwapPickerIngredient(e.target.value)}} disabled={!selectedOpt} style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,background:selectedOpt?"var(--surface)":C.blush,color:C.dark,marginBottom:14,cursor:selectedOpt?"pointer":"default",boxSizing:"border-box"}}>
                 <option value="">{selectedOpt?"Choose an ingredient...":"Pick a recipe first"}</option>
                 {ingredientNames.map(function(n,ni){return <option key={ni} value={n}>{n}</option>})}
               </select>
@@ -6070,12 +6175,12 @@ function App(){
             
             {/* Search */}
             <div style={{marginBottom:12}}>
-              <input value={exploreSearch} onChange={function(e){setExploreSearch(e.target.value)}} placeholder="Search recipes..." style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box"}}/>
+              <input value={exploreSearch} onChange={function(e){setExploreSearch(e.target.value)}} placeholder="Search recipes..." style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box",background:C.card,color:C.ink}}/>
             </div>
             
             {/* Category filter dropdown */}
             <div style={{marginBottom:12}}>
-              <select value={exploreFilter} onChange={function(e){setExploreFilter(e.target.value)}} style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,background:"#fff",color:C.dark,cursor:"pointer"}}>
+              <select value={exploreFilter} onChange={function(e){setExploreFilter(e.target.value)}} style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,background:"var(--surface)",color:C.dark,cursor:"pointer"}}>
                 {RTYPES.map(function(rt){
                   return <option key={rt.v} value={rt.v}>{rt.l}</option>
                 })}
@@ -6109,7 +6214,7 @@ function App(){
               var cookTime = shortTime(r.time);
               var favCount = favCounts[(r.originalOwner||"").toLowerCase()+"_"+r.recipeId] || 0;
 
-              return <div key={r.id} className="ft-card-tap" onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}} style={{background:"#fff",borderRadius:20,marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
+              return <div key={r.id} className="ft-card-tap" onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}} style={{background:"var(--surface)",borderRadius:20,marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
                 {/* Hero image with heart save button overlaid */}
                 <div style={{position:"relative",width:"100%",aspectRatio:r.photo?"4 / 3":undefined,height:r.photo?undefined:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
                   {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.3}}><Icon name="plate" size={28} color={C.dark} strokeWidth={1.25}/></div>}
@@ -6194,7 +6299,7 @@ function App(){
                   </div>
                   <div style={{display:"flex",gap:6}}>
                     <button onClick={function(){acceptFollowRequest(req)}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.dark,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>Accept</button>
-                    <button onClick={function(){declineFollowRequest(req)}} style={{padding:"8px 14px",borderRadius:8,border:"1px solid #ddd",background:"#fff",color:"#666",fontSize:12,fontWeight:500,cursor:"pointer"}}>Decline</button>
+                    <button onClick={function(){declineFollowRequest(req)}} style={{padding:"8px 14px",borderRadius:8,border:"1px solid var(--border-strong)",background:"var(--surface)",color:"var(--light)",fontSize:12,fontWeight:500,cursor:"pointer"}}>Decline</button>
                   </div>
                 </div>
               )})}
@@ -6203,7 +6308,7 @@ function App(){
           
           {/* Pending Requests I've Sent */}
           {myPendingRequests.length>0?<div style={{marginBottom:16}}>
-            <div style={{background:"#fff",borderRadius:12,border:"1px solid "+C.bdr,padding:16}}>
+            <div style={{background:"var(--surface)",borderRadius:12,border:"1px solid "+C.bdr,padding:16}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
                 <Icon name="hourglass" size={14} color={C.light} strokeWidth={1.75}/>
                 <span style={{fontSize:13,fontWeight:600,color:C.light}}>Pending Requests ({myPendingRequests.length})</span>
@@ -6229,13 +6334,13 @@ function App(){
           </div>:null}
           
           {/* Search for Users */}
-          <div style={{background:"#fff",borderRadius:12,padding:16,marginBottom:16,border:"1px solid "+C.bdr}}>
+          <div style={{background:"var(--surface)",borderRadius:12,padding:16,marginBottom:16,border:"1px solid "+C.bdr}}>
             <div style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark,marginBottom:12}}><Icon name="search" size={14} strokeWidth={1.75}/>Find Users</div>
             <input 
               value={friendSearch}
               onChange={function(e){setFriendSearch(e.target.value);searchFriends(e.target.value)}}
               placeholder="Search by username..."
-              style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,outline:"none",boxSizing:"border-box"}}
+              style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,outline:"none",boxSizing:"border-box",background:C.card,color:C.ink}}
             />
             
             {/* Search Results */}
@@ -6263,7 +6368,7 @@ function App(){
                   {result.isFollowing?
                     <span style={{padding:"6px 12px",borderRadius:8,background:C.blush,color:C.light,fontSize:12}}>Following</span>
                   :isPending?
-                    <span style={{padding:"6px 12px",borderRadius:8,background:"#f5f5f5",color:"#999",fontSize:12}}>Requested</span>
+                    <span style={{padding:"6px 12px",borderRadius:8,background:"var(--blush-med)",color:"var(--light)",fontSize:12}}>Requested</span>
                   :
                     <button onClick={function(){followUser(result.username)}} style={{padding:"6px 14px",borderRadius:8,border:"none",background:C.dark,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>{isPrivate?"Request":"Follow"}</button>
                   }
@@ -6282,12 +6387,12 @@ function App(){
                 <div key={sug.username} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderBottom:i<suggestedFriends.length-1?"1px solid "+C.bdr:"none",background:"rgba(255,255,255,0.7)"}}>
                   {sug.profilePic?
                     (sug.profilePic.startsWith("data:")?
-                      <img src={sug.profilePic} style={{width:44,height:44,borderRadius:22,objectFit:"cover",border:"2px solid #fff"}} alt=""/>
+                      <img src={sug.profilePic} style={{width:44,height:44,borderRadius:22,objectFit:"cover",border:"2px solid var(--surface)"}} alt=""/>
                     :
-                      <span style={{width:44,height:44,borderRadius:22,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,border:"2px solid #fff"}}>{sug.profilePic}</span>
+                      <span style={{width:44,height:44,borderRadius:22,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,border:"2px solid var(--surface)"}}>{sug.profilePic}</span>
                     )
                   :
-                    <span style={{width:44,height:44,borderRadius:22,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:700,color:C.dark,border:"2px solid #fff"}}>{sug.username.charAt(0).toUpperCase()}</span>
+                    <span style={{width:44,height:44,borderRadius:22,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:700,color:C.dark,border:"2px solid var(--surface)"}}>{sug.username.charAt(0).toUpperCase()}</span>
                   }
                   <div style={{flex:1}}>
                     <div style={{fontWeight:600,fontSize:14,color:C.dark}}>@{sug.username}</div>
@@ -6313,7 +6418,7 @@ function App(){
           {/* Followers List */}
           {expandedSection==="followers"&&followers.length>0?<div style={{marginBottom:16}}>
             <div style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark,marginBottom:10}}><Icon name="users" size={14} strokeWidth={1.75}/>Followers</div>
-            <div style={{background:"#fff",borderRadius:12,border:"1px solid "+C.bdr,overflow:"hidden"}}>
+            <div style={{background:"var(--surface)",borderRadius:12,border:"1px solid "+C.bdr,overflow:"hidden"}}>
               {followers.map(function(f,i){return(
                 <div key={f.username} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderBottom:i<followers.length-1?"1px solid "+C.bdr:"none"}}>
                   <div onClick={function(){setViewProfileUser(f.username);setViewProfileData({username:f.username,profilePic:f.profilePic,isFollowing:following.some(function(x){return x.username===f.username}),isPending:myPendingRequests.includes(f.username)})}} style={{display:"flex",alignItems:"center",gap:12,flex:1,cursor:"pointer"}}>
@@ -6328,7 +6433,7 @@ function App(){
                     }
                     <div style={{fontWeight:600,fontSize:14,color:C.dark}}>@{f.username}</div>
                   </div>
-                  <button onClick={function(){removeFollower(f.username)}} style={{padding:"6px 12px",borderRadius:6,border:"1px solid #ddd",background:"#fff",color:"#999",fontSize:11,cursor:"pointer"}}>Remove</button>
+                  <button onClick={function(){removeFollower(f.username)}} style={{padding:"6px 12px",borderRadius:6,border:"1px solid var(--border-strong)",background:"var(--surface)",color:"var(--light)",fontSize:11,cursor:"pointer"}}>Remove</button>
                 </div>
               )})}
             </div>
@@ -6337,7 +6442,7 @@ function App(){
           {/* Following List */}
           {expandedSection==="following"&&following.length>0?<div style={{marginBottom:16}}>
             <div style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark,marginBottom:10}}><Icon name="sparkle" size={12} color={C.gold} strokeWidth={2}/>Following</div>
-            <div style={{background:"#fff",borderRadius:12,border:"1px solid "+C.bdr,overflow:"hidden"}}>
+            <div style={{background:"var(--surface)",borderRadius:12,border:"1px solid "+C.bdr,overflow:"hidden"}}>
               {following.map(function(f,i){return(
                 <div key={f.username} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderBottom:i<following.length-1?"1px solid "+C.bdr:"none"}}>
                   <div onClick={function(){setViewProfileUser(f.username);setViewProfileData({username:f.username,profilePic:f.profilePic,isFollowing:true,isPending:false})}} style={{display:"flex",alignItems:"center",gap:12,flex:1,cursor:"pointer"}}>
@@ -6364,7 +6469,7 @@ function App(){
           </div>:null}
           
           {/* Empty state */}
-          {followers.length===0&&following.length===0&&followRequests.length===0&&suggestedFriends.length===0?<div style={{textAlign:"center",padding:30,background:"#fff",borderRadius:12,border:"1px solid "+C.bdr}}>
+          {followers.length===0&&following.length===0&&followRequests.length===0&&suggestedFriends.length===0?<div style={{textAlign:"center",padding:30,background:"var(--surface)",borderRadius:12,border:"1px solid "+C.bdr}}>
             <div style={{marginBottom:12,opacity:.35}}><Icon name="users" size={32} strokeWidth={1.5}/></div>
             <div style={{fontSize:14,fontWeight:600,color:C.dark,marginBottom:4}}>Connect with friends!</div>
             <div style={{fontSize:12,color:C.light}}>Search for users above or wait for suggestions</div>
@@ -6383,7 +6488,7 @@ function App(){
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
           {["Out to Eat","Leftovers","Takeout","Skipping this Meal"].map(function(sug){
-            return <button key={sug} onClick={function(){addPlaceholder(showPlaceholder,sug)}} style={{padding:"12px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:"#fff",color:C.ink,fontSize:14,fontWeight:500,cursor:"pointer",textAlign:"left"}}>{sug}</button>
+            return <button key={sug} onClick={function(){addPlaceholder(showPlaceholder,sug)}} style={{padding:"12px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontSize:14,fontWeight:500,cursor:"pointer",textAlign:"left"}}>{sug}</button>
           })}
         </div>
         <div style={{display:"flex",gap:8}}>
@@ -6399,7 +6504,7 @@ function App(){
           <button onClick={function(){setSelDate(null);setEm(null);setEditIdx(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button>
         </div>
         <div style={{position:"relative",marginBottom:12}}>
-          {em.photo?<div style={{position:"relative"}}><img src={em.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/><button onClick={function(){fileRef.current&&fileRef.current.click()}} style={Object.assign({},btn("rgba(0,0,0,0.6)"),{position:"absolute",bottom:8,right:8,padding:"4px 10px",display:"flex",alignItems:"center"})}><Icon name="camera" size={13} color="#fff" strokeWidth={1.75}/></button></div>:<div onClick={function(){fileRef.current&&fileRef.current.click()}} style={{width:"100%",height:120,borderRadius:10,border:"2px dashed #ddd",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",background:"#fafafe"}}><Icon name="camera" size={26} color="#999" strokeWidth={1.5}/><span style={{fontSize:13,opacity:.5,marginTop:4}}>Add photo</span></div>}
+          {em.photo?<div style={{position:"relative"}}><img src={em.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/><button onClick={function(){fileRef.current&&fileRef.current.click()}} style={Object.assign({},btn("rgba(0,0,0,0.6)"),{position:"absolute",bottom:8,right:8,padding:"4px 10px",display:"flex",alignItems:"center"})}><Icon name="camera" size={13} color="#fff" strokeWidth={1.75}/></button></div>:<div onClick={function(){fileRef.current&&fileRef.current.click()}} style={{width:"100%",height:120,borderRadius:10,border:"2px dashed var(--border-strong)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",background:"var(--surface)"}}><Icon name="camera" size={26} color="var(--light)" strokeWidth={1.5}/><span style={{fontSize:13,opacity:.5,marginTop:4}}>Add photo</span></div>}
           <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={function(e){handlePhoto(e,setEm)}}/>
         </div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Name *</label><input style={inp} placeholder="e.g. Mom's Chicken Parm" value={em.name} onChange={function(e){setEm(function(m){return Object.assign({},m,{name:e.target.value})})}}/></div>
@@ -6407,8 +6512,8 @@ function App(){
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Ingredients</label>
           {em.ingredients.map(function(g,i){return <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",fontSize:13}}><span style={{flex:1}}>{formatIng(g)}</span><button onClick={function(){setEm(function(m){return Object.assign({},m,{ingredients:m.ingredients.filter(function(_,j){return j!==i})})})} } style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={12} strokeWidth={2}/></button></div>})}
           <div style={{display:"flex",gap:4,marginTop:4}}>
-            <input style={{width:50,padding:"8px 6px",borderRadius:8,border:"1px solid #ddd",fontSize:13,textAlign:"center"}} placeholder="Qty" value={nqty2} onChange={function(e){setNqty2(e.target.value)}}/>
-            <select style={{padding:"8px 4px",borderRadius:8,border:"1px solid #ddd",fontSize:12}} value={nunit2} onChange={function(e){setNunit2(e.target.value)}}>{UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"unit")})}</select>
+            <input style={{width:50,padding:"8px 6px",borderRadius:8,border:"1px solid var(--border-strong)",fontSize:13,textAlign:"center",background:"var(--surface)",color:"var(--ink)"}} placeholder="Qty" value={nqty2} onChange={function(e){setNqty2(e.target.value)}}/>
+            <select style={{padding:"8px 4px",borderRadius:8,border:"1px solid var(--border-strong)",fontSize:12,background:"var(--surface)",color:"var(--ink)"}} value={nunit2} onChange={function(e){setNunit2(e.target.value)}}>{UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"unit")})}</select>
             <input style={Object.assign({},inp,{flex:1})} placeholder="Ingredient" value={ni2} onChange={function(e){setNi2(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter")addI()}}/>
             <button onClick={addI} style={btn(C.dark)}>Add</button>
           </div>
@@ -6426,28 +6531,28 @@ function App(){
       {rpick&&<div style={ovl} onClick={function(){setRpick(null)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontWeight:700,fontSize:17}}>Add Meal for {new Date(rpick+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div><button onClick={function(){setRpick(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button></div>
         <button onClick={function(){openEdit(rpick);setRpick(null)}} style={{width:"100%",padding:12,marginBottom:14,borderRadius:10,border:"1px dashed "+C.bdr,background:"transparent",cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark}}>+ Create New Meal</button>
-        {favorites.length>0?<div style={{marginBottom:12}}><div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:700,color:C.blushDark,marginBottom:6}}><Icon name="heart" size={12} color={C.blushDark} filled={true} strokeWidth={2}/>Favorites</div>{recipes.filter(function(r){return favorites.includes(r.id)}).map(function(r){return <div key={r.id} onClick={function(){var u=Object.assign({},meals);var list=getMealsForDay(rpick).slice();list.push(Object.assign({},r));u[rpick]=list;svM(u);setRpick(null)}} style={{display:"flex",alignItems:"center",gap:10,padding:10,borderRadius:10,border:"1px solid #eee",marginBottom:6,cursor:"pointer",background:"#F5EBE6"}}><div><div style={{fontWeight:600,fontSize:14}}>{r.name}</div>{r.time?<div style={{fontSize:11,opacity:.5}}>{r.time}</div>:null}</div></div>})}</div>:null}
+        {favorites.length>0?<div style={{marginBottom:12}}><div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:700,color:C.blushDark,marginBottom:6}}><Icon name="heart" size={12} color={C.blushDark} filled={true} strokeWidth={2}/>Favorites</div>{recipes.filter(function(r){return favorites.includes(r.id)}).map(function(r){return <div key={r.id} onClick={function(){var u=Object.assign({},meals);var list=getMealsForDay(rpick).slice();list.push(Object.assign({},r));u[rpick]=list;svM(u);setRpick(null)}} style={{display:"flex",alignItems:"center",gap:10,padding:10,borderRadius:10,border:"1px solid var(--border-strong)",marginBottom:6,cursor:"pointer",background:"var(--blush)"}}><div><div style={{fontWeight:600,fontSize:14}}>{r.name}</div>{r.time?<div style={{fontSize:11,opacity:.5}}>{r.time}</div>:null}</div></div>})}</div>:null}
         {recipes.length===0?<div style={{textAlign:"center",padding:"24px 20px"}}>
           <div style={{marginBottom:8,opacity:.35}}><Icon name="book" size={28} color={C.dark} strokeWidth={1.25}/></div>
           <div style={{fontSize:13,fontWeight:600,color:C.dark,marginBottom:4}}>No saved recipes yet</div>
           <div style={{fontSize:11,color:C.light}}>Create one in the Recipes tab to add it here.</div>
         </div>:null}
         {recipes.length>0?<div style={{fontSize:12,fontWeight:700,color:C.light,marginBottom:6}}>All Recipes</div>:null}
-        {recipes.filter(function(r){return!favorites.includes(r.id)}).map(function(r){return <div key={r.id} onClick={function(){var u=Object.assign({},meals);var list=getMealsForDay(rpick).slice();list.push(Object.assign({},r));u[rpick]=list;svM(u);setRpick(null)}} style={{display:"flex",alignItems:"center",gap:10,padding:10,borderRadius:10,border:"1px solid #eee",marginBottom:6,cursor:"pointer",background:"#fafaff"}}><div><div style={{fontWeight:600,fontSize:14}}>{r.name}</div>{r.time?<div style={{fontSize:11,opacity:.5}}>{r.time}</div>:null}</div></div>})}
+        {recipes.filter(function(r){return!favorites.includes(r.id)}).map(function(r){return <div key={r.id} onClick={function(){var u=Object.assign({},meals);var list=getMealsForDay(rpick).slice();list.push(Object.assign({},r));u[rpick]=list;svM(u);setRpick(null)}} style={{display:"flex",alignItems:"center",gap:10,padding:10,borderRadius:10,border:"1px solid var(--border-strong)",marginBottom:6,cursor:"pointer",background:"var(--surface)"}}><div><div style={{fontWeight:600,fontSize:14}}>{r.name}</div>{r.time?<div style={{fontSize:11,opacity:.5}}>{r.time}</div>:null}</div></div>})}
       </div></div>}
 
       {/* ADD RECIPE */}
       {showRF&&<div style={ovl} onClick={function(){setShowRF(false)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontWeight:700,fontSize:17}}>Add Recipe</div><button onClick={function(){setShowRF(false)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button></div>
-        <div style={{marginBottom:12}}>{rf.photo?<img src={rf.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/>:<div onClick={function(){rfRef.current&&rfRef.current.click()}} style={{width:"100%",height:100,borderRadius:10,border:"2px dashed #ddd",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon name="camera" size={26} color="#999" strokeWidth={1.5}/></div>}<input ref={rfRef} type="file" accept="image/*" style={{display:"none"}} onChange={function(e){handlePhoto(e,setRf)}}/></div>
+        <div style={{marginBottom:12}}>{rf.photo?<img src={rf.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/>:<div onClick={function(){rfRef.current&&rfRef.current.click()}} style={{width:"100%",height:100,borderRadius:10,border:"2px dashed var(--border-strong)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon name="camera" size={26} color="var(--light)" strokeWidth={1.5}/></div>}<input ref={rfRef} type="file" accept="image/*" style={{display:"none"}} onChange={function(e){handlePhoto(e,setRf)}}/></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Name *</label><input style={inp} value={rf.name} onChange={function(e){setRf(function(m){return Object.assign({},m,{name:e.target.value})})}}/></div>
-        <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Category <span style={{color:"#c0392b"}}>*</span></label><div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=rf.recipeType===t.id;return <button key={t.id} onClick={function(){setRf(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"4px 8px",borderRadius:8,border:active?"2px solid "+C.dark:"1px solid #eee",background:active?C.blushMed:"#fff",cursor:"pointer",fontSize:11,fontWeight:600}}><CatTag type={t}/></button>})}</div></div>
+        <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Category <span style={{color:"#c0392b"}}>*</span></label><div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=rf.recipeType===t.id;return <button key={t.id} onClick={function(){setRf(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"4px 8px",borderRadius:8,border:active?"2px solid "+C.dark:"1px solid var(--border-strong)",background:active?C.blushMed:"var(--surface)",cursor:"pointer",fontSize:11,fontWeight:600}}><CatTag type={t}/></button>})}</div></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Time</label><input style={inp} value={rf.time} onChange={function(e){setRf(function(m){return Object.assign({},m,{time:e.target.value})})}}/></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Ingredients</label>
           {rf.ingredients.map(function(g,i){return <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",fontSize:13}}><span style={{flex:1}}>{formatIng(g)}</span><button onClick={function(){setRf(function(m){return Object.assign({},m,{ingredients:m.ingredients.filter(function(_,j){return j!==i})})})}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={12} strokeWidth={2}/></button></div>})}
           <div style={{display:"flex",gap:4,marginTop:4}}>
-            <input style={{width:50,padding:"8px 6px",borderRadius:8,border:"1px solid #ddd",fontSize:13,textAlign:"center"}} placeholder="Qty" value={rqty} onChange={function(e){setRqty(e.target.value)}}/>
-            <select style={{padding:"8px 4px",borderRadius:8,border:"1px solid #ddd",fontSize:12}} value={runit} onChange={function(e){setRunit(e.target.value)}}>{UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"unit")})}</select>
+            <input style={{width:50,padding:"8px 6px",borderRadius:8,border:"1px solid var(--border-strong)",fontSize:13,textAlign:"center",background:"var(--surface)",color:"var(--ink)"}} placeholder="Qty" value={rqty} onChange={function(e){setRqty(e.target.value)}}/>
+            <select style={{padding:"8px 4px",borderRadius:8,border:"1px solid var(--border-strong)",fontSize:12,background:"var(--surface)",color:"var(--ink)"}} value={runit} onChange={function(e){setRunit(e.target.value)}}>{UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"unit")})}</select>
             <input style={Object.assign({},inp,{flex:1})} value={rni} onChange={function(e){setRni(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter"&&rni.trim()){setRf(function(m){return Object.assign({},m,{ingredients:m.ingredients.concat([{name:rni.trim(),qty:rqty,unit:runit}])})});setRni("");setRqty("");setRunit("")}}}/>
             <button onClick={function(){if(rni.trim()){setRf(function(m){return Object.assign({},m,{ingredients:m.ingredients.concat([{name:rni.trim(),qty:rqty,unit:runit}])})});setRni("");setRqty("");setRunit("")}}} style={btn(C.dark)}>Add</button>
           </div>
@@ -6457,12 +6562,12 @@ function App(){
         <div style={{marginBottom:14}}>
           <label style={{fontSize:12,fontWeight:600,opacity:.6}}>Visibility</label>
           <div style={{display:"flex",gap:8,marginTop:6}}>
-            <button onClick={function(){setRf(function(m){return Object.assign({},m,{isPublic:true})})}} style={{flex:1,padding:"10px 12px",borderRadius:10,border:rf.isPublic!==false?"2px solid "+C.dark:"1px solid "+C.bdr,background:rf.isPublic!==false?C.blushMed:"#fff",cursor:"pointer",textAlign:"center"}}>
+            <button onClick={function(){setRf(function(m){return Object.assign({},m,{isPublic:true})})}} style={{flex:1,padding:"10px 12px",borderRadius:10,border:rf.isPublic!==false?"2px solid "+C.dark:"1px solid "+C.bdr,background:rf.isPublic!==false?C.blushMed:"var(--surface)",cursor:"pointer",textAlign:"center"}}>
               <div style={{marginBottom:2,display:"flex",justifyContent:"center"}}><Icon name="users" size={15} color={C.dark} strokeWidth={1.75}/></div>
               <div style={{fontSize:12,fontWeight:600,color:C.dark}}>Public</div>
               <div style={{fontSize:10,color:C.light}}>Visible to followers</div>
             </button>
-            <button onClick={function(){setRf(function(m){return Object.assign({},m,{isPublic:false})})}} style={{flex:1,padding:"10px 12px",borderRadius:10,border:rf.isPublic===false?"2px solid "+C.dark:"1px solid "+C.bdr,background:rf.isPublic===false?C.blushMed:"#fff",cursor:"pointer",textAlign:"center"}}>
+            <button onClick={function(){setRf(function(m){return Object.assign({},m,{isPublic:false})})}} style={{flex:1,padding:"10px 12px",borderRadius:10,border:rf.isPublic===false?"2px solid "+C.dark:"1px solid "+C.bdr,background:rf.isPublic===false?C.blushMed:"var(--surface)",cursor:"pointer",textAlign:"center"}}>
               <div style={{marginBottom:2,display:"flex",justifyContent:"center"}}><Icon name="lock" size={15} color={C.dark} strokeWidth={1.75}/></div>
               <div style={{fontSize:12,fontWeight:600,color:C.dark}}>Private</div>
               <div style={{fontSize:10,color:C.light}}>Only you can see</div>
@@ -6475,13 +6580,13 @@ function App(){
       {/* EDIT RECIPE */}
       {editRecipe&&<div style={ovl} onClick={function(){setEditRecipe(null)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontWeight:700,fontSize:17}}>Edit Recipe</div><button onClick={function(){setEditRecipe(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button></div>
-        <div style={{marginBottom:12}}>{editRecipe.photo?<div style={{position:"relative"}}><img src={editRecipe.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/><button onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){setEditRecipe(function(m){return Object.assign({},m,{photo:e.target.result})})};rd.readAsDataURL(f)};inp.click()}} style={Object.assign({},btn("rgba(0,0,0,0.6)"),{position:"absolute",bottom:8,right:8,padding:"4px 10px",display:"flex",alignItems:"center"})}><Icon name="camera" size={13} color="#fff" strokeWidth={1.75}/></button></div>:<div onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){setEditRecipe(function(m){return Object.assign({},m,{photo:e.target.result})})};rd.readAsDataURL(f)};inp.click()}} style={{width:"100%",height:100,borderRadius:10,border:"2px dashed #ddd",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon name="camera" size={26} color="#999" strokeWidth={1.5}/></div>}</div>
+        <div style={{marginBottom:12}}>{editRecipe.photo?<div style={{position:"relative"}}><img src={editRecipe.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/><button onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){setEditRecipe(function(m){return Object.assign({},m,{photo:e.target.result})})};rd.readAsDataURL(f)};inp.click()}} style={Object.assign({},btn("rgba(0,0,0,0.6)"),{position:"absolute",bottom:8,right:8,padding:"4px 10px",display:"flex",alignItems:"center"})}><Icon name="camera" size={13} color="#fff" strokeWidth={1.75}/></button></div>:<div onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){setEditRecipe(function(m){return Object.assign({},m,{photo:e.target.result})})};rd.readAsDataURL(f)};inp.click()}} style={{width:"100%",height:100,borderRadius:10,border:"2px dashed var(--border-strong)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon name="camera" size={26} color="var(--light)" strokeWidth={1.5}/></div>}</div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Name *</label><input style={inp} value={editRecipe.name} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{name:e.target.value})})}}/></div>
-        <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Category <span style={{color:"#c0392b"}}>*</span></label><div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=editRecipe.recipeType===t.id;return <button key={t.id} onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"4px 8px",borderRadius:8,border:active?"2px solid "+C.dark:"1px solid #eee",background:active?C.blushMed:"#fff",cursor:"pointer",fontSize:11,fontWeight:600}}><CatTag type={t}/></button>})}</div></div>
+        <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Category <span style={{color:"#c0392b"}}>*</span></label><div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=editRecipe.recipeType===t.id;return <button key={t.id} onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"4px 8px",borderRadius:8,border:active?"2px solid "+C.dark:"1px solid var(--border-strong)",background:active?C.blushMed:"var(--surface)",cursor:"pointer",fontSize:11,fontWeight:600}}><CatTag type={t}/></button>})}</div></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Time</label><input style={inp} value={editRecipe.time} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{time:e.target.value})})}}/></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Ingredients</label>
           {editRecipe.ingredients.map(function(g,i){
-            return <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 0",fontSize:13,borderBottom:"1px solid #eee"}}>
+            return <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 0",fontSize:13,borderBottom:"1px solid var(--border-strong)"}}>
               <button onClick={function(){
                 // Load ingredient into edit fields
                 setEditIngIdx(i);
@@ -6494,8 +6599,8 @@ function App(){
             </div>
           })}
           <div style={{display:"flex",gap:4,marginTop:8}}>
-            <input style={{width:50,padding:"8px 6px",borderRadius:8,border:"1px solid #ddd",fontSize:13,textAlign:"center"}} placeholder="Qty" value={editRecipeQty} onChange={function(e){setEditRecipeQty(e.target.value)}}/>
-            <select style={{padding:"8px 4px",borderRadius:8,border:"1px solid #ddd",fontSize:12}} value={editRecipeUnit} onChange={function(e){setEditRecipeUnit(e.target.value)}}>{UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"unit")})}</select>
+            <input style={{width:50,padding:"8px 6px",borderRadius:8,border:"1px solid var(--border-strong)",fontSize:13,textAlign:"center",background:"var(--surface)",color:"var(--ink)"}} placeholder="Qty" value={editRecipeQty} onChange={function(e){setEditRecipeQty(e.target.value)}}/>
+            <select style={{padding:"8px 4px",borderRadius:8,border:"1px solid var(--border-strong)",fontSize:12,background:"var(--surface)",color:"var(--ink)"}} value={editRecipeUnit} onChange={function(e){setEditRecipeUnit(e.target.value)}}>{UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"unit")})}</select>
             <input style={Object.assign({},inp,{flex:1})} placeholder="Ingredient name" value={editRecipeIng} onChange={function(e){setEditRecipeIng(e.target.value)}} onKeyDown={function(e){
               if(e.key==="Enter"&&editRecipeIng.trim()){
                 if(editIngIdx>=0){
@@ -6535,12 +6640,12 @@ function App(){
         <div style={{marginBottom:14}}>
           <label style={{fontSize:12,fontWeight:600,opacity:.6}}>Visibility</label>
           <div style={{display:"flex",gap:8,marginTop:6}}>
-            <button onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{isPublic:true})})}} style={{flex:1,padding:"10px 12px",borderRadius:10,border:editRecipe.isPublic!==false?"2px solid "+C.dark:"1px solid "+C.bdr,background:editRecipe.isPublic!==false?C.blushMed:"#fff",cursor:"pointer",textAlign:"center"}}>
+            <button onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{isPublic:true})})}} style={{flex:1,padding:"10px 12px",borderRadius:10,border:editRecipe.isPublic!==false?"2px solid "+C.dark:"1px solid "+C.bdr,background:editRecipe.isPublic!==false?C.blushMed:"var(--surface)",cursor:"pointer",textAlign:"center"}}>
               <div style={{marginBottom:2,display:"flex",justifyContent:"center"}}><Icon name="users" size={15} color={C.dark} strokeWidth={1.75}/></div>
               <div style={{fontSize:12,fontWeight:600,color:C.dark}}>Public</div>
               <div style={{fontSize:10,color:C.light}}>Visible to followers</div>
             </button>
-            <button onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{isPublic:false})})}} style={{flex:1,padding:"10px 12px",borderRadius:10,border:editRecipe.isPublic===false?"2px solid "+C.dark:"1px solid "+C.bdr,background:editRecipe.isPublic===false?C.blushMed:"#fff",cursor:"pointer",textAlign:"center"}}>
+            <button onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{isPublic:false})})}} style={{flex:1,padding:"10px 12px",borderRadius:10,border:editRecipe.isPublic===false?"2px solid "+C.dark:"1px solid "+C.bdr,background:editRecipe.isPublic===false?C.blushMed:"var(--surface)",cursor:"pointer",textAlign:"center"}}>
               <div style={{marginBottom:2,display:"flex",justifyContent:"center"}}><Icon name="lock" size={15} color={C.dark} strokeWidth={1.75}/></div>
               <div style={{fontSize:12,fontWeight:600,color:C.dark}}>Private</div>
               <div style={{fontSize:10,color:C.light}}>Only you can see</div>
@@ -6557,7 +6662,7 @@ function App(){
             var stamped=stampNewRecipe(forked,userId,"manual");
             svR(recipes.concat([stamped]));
             setEditRecipe(null);setEditRecipeQty("");setEditRecipeUnit("");
-          }} style={{width:"100%",marginTop:8,padding:"10px 12px",borderRadius:10,border:"1px solid "+C.bdr,background:"#fff",color:C.dark,fontWeight:600,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}><Icon name="swap" size={13} strokeWidth={1.75}/>Save as New Recipe</button>
+          }} style={{width:"100%",marginTop:8,padding:"10px 12px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.dark,fontWeight:600,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}><Icon name="swap" size={13} strokeWidth={1.75}/>Save as New Recipe</button>
         :null}
       </div></div>}
 
@@ -6567,7 +6672,7 @@ function App(){
         <div style={{display:"flex",alignItems:"center",gap:10,padding:12,background:C.blush,borderRadius:10,marginBottom:16}}>{r2cal.photo?<img src={r2cal.photo} style={{width:48,height:48,borderRadius:10,objectFit:"cover",background:C.blush}} alt=""/>:<div style={{width:48,height:48,borderRadius:10,background:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="plate" size={21} color={C.dark} strokeWidth={1.25}/></div>}<div><div style={{fontWeight:700,fontSize:15}}>{r2cal.name}</div></div></div>
         <div style={{fontWeight:600,fontSize:13,marginBottom:8}}>This week</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:16}}>
-          {wd.map(function(date,i){var k=dk(date),isT=k===todayK,hm=meals[k];return <button key={k} onClick={function(){var u=Object.assign({},meals);var list=getMealsForDay(k).slice();list.push({name:r2cal.name,emoji:r2cal.emoji,time:r2cal.time,ingredients:(r2cal.ingredients||[]).slice(),notes:r2cal.notes||"",photo:r2cal.photo||null});u[k]=list;svM(u);setR2cal(null)}} style={{padding:10,borderRadius:10,border:isT?"2px solid "+C.dark:"1px solid "+C.bdr,background:hm?C.blushMed:C.card,cursor:"pointer",textAlign:"center"}}><div style={{fontSize:11,fontWeight:700,color:C.light}}>{DAYS_FULL[i].slice(0,3)}</div><div style={{fontSize:16,fontWeight:800,color:isT?C.dark:"#8B7355"}}>{date.getDate()}</div>{hm?<div style={{fontSize:9,color:C.blushDark}}>has meal</div>:null}</button>})}
+          {wd.map(function(date,i){var k=dk(date),isT=k===todayK,hm=meals[k];return <button key={k} onClick={function(){var u=Object.assign({},meals);var list=getMealsForDay(k).slice();list.push({name:r2cal.name,emoji:r2cal.emoji,time:r2cal.time,ingredients:(r2cal.ingredients||[]).slice(),notes:r2cal.notes||"",photo:r2cal.photo||null});u[k]=list;svM(u);setR2cal(null)}} style={{padding:10,borderRadius:10,border:isT?"2px solid "+C.dark:"1px solid "+C.bdr,background:hm?C.blushMed:C.card,cursor:"pointer",textAlign:"center"}}><div style={{fontSize:11,fontWeight:700,color:C.light}}>{DAYS_FULL[i].slice(0,3)}</div><div style={{fontSize:16,fontWeight:800,color:isT?C.dark:"var(--dark)"}}>{date.getDate()}</div>{hm?<div style={{fontSize:9,color:C.blushDark}}>has meal</div>:null}</button>})}
         </div>
         <div style={{fontWeight:600,fontSize:13,marginBottom:6}}>Or pick a date</div>
         <input type="date" value={r2date} onChange={function(e){setR2date(e.target.value)}} style={Object.assign({},inp,{marginBottom:12})}/>
@@ -6575,9 +6680,9 @@ function App(){
       </div></div>}
 
       {/* SHARE RECIPE / COOKING VIEW */}
-      {shareR&&<div style={ovl} onClick={function(){setShareR(null);setShareExpandIng(true);setShareExpandInst(false);setShareToUser("");setShareToStatus("");setShareMode(null)}}><div style={{background:"#fff",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={function(e){e.stopPropagation()}}>
+      {shareR&&<div style={ovl} onClick={function(){setShareR(null);setShareExpandIng(true);setShareExpandInst(false);setShareToUser("");setShareToStatus("");setShareMode(null)}}><div style={{background:"var(--surface)",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={function(e){e.stopPropagation()}}>
         {/* Fixed Header */}
-        <div style={{padding:"max(16px, env(safe-area-inset-top)) 20px 16px",borderBottom:"1px solid "+C.bdr,background:"#fff",flexShrink:0}}>
+        <div style={{padding:"max(16px, env(safe-area-inset-top)) 20px 16px",borderBottom:"1px solid "+C.bdr,background:"var(--surface)",flexShrink:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div style={{display:"flex",alignItems:"center",gap:12}}>
               {shareR.photo?
@@ -6603,7 +6708,7 @@ function App(){
               <span style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark}}><Icon name="list" size={14} strokeWidth={1.75}/>Ingredients ({shareR.ingredients.length})</span>
               <span style={{fontSize:12,color:C.light}}>{shareExpandIng?"▲":"▼"}</span>
             </button>
-            {shareExpandIng?<div style={{background:"#fff",border:"1px solid "+C.bdr,borderTop:"none",borderRadius:"0 0 12px 12px",padding:16}}>
+            {shareExpandIng?<div style={{background:"var(--surface)",border:"1px solid "+C.bdr,borderTop:"none",borderRadius:"0 0 12px 12px",padding:16}}>
               {shareR.ingredients.map(function(g,j){return <div key={j} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:j<shareR.ingredients.length-1?"1px solid "+C.bdr:"none"}}>
                 <div style={{width:6,height:6,borderRadius:3,background:C.blushDark,flexShrink:0}}/>
                 <span style={{fontSize:15,color:C.dark}}>{formatIng(g)}</span>
@@ -6617,7 +6722,7 @@ function App(){
               <span style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark}}><Icon name="filetext" size={14} strokeWidth={1.75}/>Instructions</span>
               <span style={{fontSize:12,color:C.light}}>{shareExpandInst?"▲":"▼"}</span>
             </button>
-            {shareExpandInst?<div style={{background:"#fff",border:"1px solid "+C.bdr,borderTop:"none",borderRadius:"0 0 12px 12px",padding:16}}>
+            {shareExpandInst?<div style={{background:"var(--surface)",border:"1px solid "+C.bdr,borderTop:"none",borderRadius:"0 0 12px 12px",padding:16}}>
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
                 {parseInstructionSteps(shareR.notes).map(function(step,i){return <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start"}}>
                   <div style={{flexShrink:0,width:22,height:22,borderRadius:11,background:C.gold,color:"#fff",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{i+1}</div>
@@ -6640,7 +6745,7 @@ function App(){
         </div>
         
         {/* Fixed Footer Actions */}
-        <div style={{borderTop:"1px solid "+C.bdr,background:"#fff",flexShrink:0}}>
+        <div style={{borderTop:"1px solid "+C.bdr,background:"var(--surface)",flexShrink:0}}>
           
           {/* Share Options Panel */}
           {shareMode?<div style={{padding:16}}>
@@ -6669,7 +6774,7 @@ function App(){
                     value={shareToUser}
                     onChange={function(e){setShareToUser(e.target.value);setShareToStatus("")}}
                     placeholder="Search or type @username..."
-                    style={{width:"100%",padding:"14px 16px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,outline:"none",boxSizing:"border-box"}}
+                    style={{width:"100%",padding:"14px 16px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,outline:"none",boxSizing:"border-box",background:C.card,color:C.ink}}
                   />
                 </div>
                 
@@ -6686,7 +6791,7 @@ function App(){
                       var uname=typeof f==="string"?f:f.username;
                       var pic=typeof f==="string"?null:f.profilePic;
                       var isSelected=shareToUser.toLowerCase().replace(/^@/,"")===uname.toLowerCase();
-                      return <div key={uname} onClick={function(){setShareToUser(uname)}} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",cursor:"pointer",borderBottom:i<filtered.length-1?"1px solid "+C.bdr:"none",background:isSelected?C.blush:"#fff"}}>
+                      return <div key={uname} onClick={function(){setShareToUser(uname)}} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",cursor:"pointer",borderBottom:i<filtered.length-1?"1px solid "+C.bdr:"none",background:isSelected?C.blush:"var(--surface)"}}>
                         <div style={{width:32,height:32,borderRadius:16,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
                           {pic?<img src={pic} style={{width:32,height:32,objectFit:"cover"}}/>:<Icon name="user" size={15} strokeWidth={1.75}/>}
                         </div>
@@ -6695,13 +6800,13 @@ function App(){
                       </div>
                     });
                   })()}
-                </div>:<div style={{padding:"32px 16px",textAlign:"center",border:"1px solid "+C.bdr,borderRadius:14,marginBottom:12,background:"#fff"}}>
+                </div>:<div style={{padding:"32px 16px",textAlign:"center",border:"1px solid "+C.bdr,borderRadius:14,marginBottom:12,background:"var(--surface)"}}>
                   <div style={{marginBottom:10,opacity:.35}}><Icon name="users" size={30} color={C.dark} strokeWidth={1.25}/></div>
                   <div style={{fontSize:14,color:C.ink,fontWeight:600}}>You're not following anyone yet</div>
                 </div>}
                 
                 {/* Send button */}
-                <button className="ft-card-tap" onClick={function(){shareToUserDirect(shareR,shareToUser)}} disabled={!shareToUser.trim()} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:shareToUser.trim()?C.dark:"#ccc",color:"#fff",fontWeight:600,fontSize:15,cursor:shareToUser.trim()?"pointer":"not-allowed"}}>Send to @{shareToUser||"..."}</button>
+                <button className="ft-card-tap" onClick={function(){shareToUserDirect(shareR,shareToUser)}} disabled={!shareToUser.trim()} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:shareToUser.trim()?C.dark:"var(--disabled)",color:"#fff",fontWeight:600,fontSize:15,cursor:shareToUser.trim()?"pointer":"not-allowed"}}>Send to @{shareToUser||"..."}</button>
                 
                 {shareToStatus&&shareToStatus.startsWith("error")?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,fontSize:13,marginTop:12,textAlign:"center",fontWeight:600,color:"#c0392b"}}><Icon name="x" size={13} strokeWidth={2.5}/>{shareToStatus.replace("error:","")}</div>:null}
               </div>}
@@ -6718,7 +6823,7 @@ function App(){
           {/* Options Menu */}
           {shareMode==="options"?<div style={{padding:"0 16px 16px"}}>
             <div style={{display:"flex",gap:10}}>
-              {user?<button onClick={function(){setShareMode("user")}} style={{flex:1,padding:"16px",borderRadius:12,border:"1px solid "+C.bdr,background:"#fff",cursor:"pointer",textAlign:"center"}}>
+              {user?<button onClick={function(){setShareMode("user")}} style={{flex:1,padding:"16px",borderRadius:12,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",textAlign:"center"}}>
                 <div style={{marginBottom:6,display:"flex",justifyContent:"center"}}><Icon name="user" size={22} strokeWidth={1.5}/></div>
                 <div style={{fontSize:13,fontWeight:600,color:C.dark}}>Send to User</div>
                 <div style={{fontSize:11,color:C.light,marginTop:2}}>@username</div>
@@ -6739,7 +6844,7 @@ function App(){
                   setCopyFeedback("text");
                   setTimeout(function(){setCopyFeedback("")},2000);
                 }
-              }} style={{flex:1,padding:"16px",borderRadius:12,border:"1px solid "+C.bdr,background:copyFeedback==="text"?"#d4edda":"#fff",cursor:"pointer",textAlign:"center"}}>
+              }} style={{flex:1,padding:"16px",borderRadius:12,border:"1px solid "+C.bdr,background:copyFeedback==="text"?"#d4edda":"var(--surface)",cursor:"pointer",textAlign:"center"}}>
                 <div style={{marginBottom:6,display:"flex",justifyContent:"center"}}>{copyFeedback==="text"?<Icon name="check" size={22} strokeWidth={2}/>:<Icon name="clipboard" size={22} strokeWidth={1.5}/>}</div>
                 <div style={{fontSize:13,fontWeight:600,color:copyFeedback==="text"?"#155724":C.dark}}>{copyFeedback==="text"?"Copied!":"Copy Text"}</div>
                 <div style={{fontSize:11,color:C.light,marginTop:2}}>Full recipe</div>
@@ -6774,7 +6879,7 @@ function App(){
             
             {/* Add photo button */}
             <label htmlFor="scanPhotoInput" style={{aspectRatio:"1",borderRadius:10,border:"2px dashed "+C.bdr,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",background:C.blush}}>
-              <Icon name="camera" size={26} color="#999" strokeWidth={1.5}/>
+              <Icon name="camera" size={26} color="var(--light)" strokeWidth={1.5}/>
               <span style={{fontSize:11,color:C.dark,marginTop:4}}>{scanPhotos.length===0?"Add Photo":"Add More"}</span>
             </label>
             <input id="scanPhotoInput" type="file" accept="image/*" multiple style={{display:"none"}} onChange={function(ev){
@@ -6801,7 +6906,7 @@ function App(){
               processScanPhotos(scanPhotos);
             }} 
             disabled={aiScanLoading||scanPhotos.length===0}
-            style={{width:"100%",padding:"14px",borderRadius:12,border:"none",background:scanPhotos.length>0&&!aiScanLoading?C.dark:"#ccc",color:"#fff",fontWeight:600,fontSize:15,cursor:scanPhotos.length>0&&!aiScanLoading?"pointer":"not-allowed"}}
+            style={{width:"100%",padding:"14px",borderRadius:12,border:"none",background:scanPhotos.length>0&&!aiScanLoading?C.dark:"var(--disabled)",color:"#fff",fontWeight:600,fontSize:15,cursor:scanPhotos.length>0&&!aiScanLoading?"pointer":"not-allowed"}}
           >
             {aiScanLoading?"Analyzing...":"Scan"}
           </button>
@@ -6819,14 +6924,14 @@ function App(){
         <div style={{display:"flex",borderBottom:"1px solid "+C.bdr,flexShrink:0}}>
           {[["text","filetext","Text"],["url","globe","URL"],["pdf","filetext","PDF"]].map(function(t){
             var active=importTab===t[0];
-            return <button key={t[0]} onClick={function(){setImportTab(t[0])}} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,flex:1,padding:"12px",border:"none",borderBottom:active?"2px solid "+C.dark:"2px solid transparent",background:active?C.blush:"#fff",cursor:"pointer",fontSize:13,fontWeight:active?700:500,color:active?C.dark:C.light}}><Icon name={t[1]} size={13} strokeWidth={1.75}/>{t[2]}</button>
+            return <button key={t[0]} onClick={function(){setImportTab(t[0])}} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,flex:1,padding:"12px",border:"none",borderBottom:active?"2px solid "+C.dark:"2px solid transparent",background:active?C.blush:"var(--surface)",cursor:"pointer",fontSize:13,fontWeight:active?700:500,color:active?C.dark:C.light}}><Icon name={t[1]} size={13} strokeWidth={1.75}/>{t[2]}</button>
           })}
         </div>
         
         <div style={{padding:20,overflowY:"auto",flex:1}}>
           {/* Loading state */}
           {importLoading?<div style={{textAlign:"center",padding:30}}>
-            <div style={{marginBottom:12}}><Icon name="hourglass" size={28} color="#8B7355" strokeWidth={1.75}/></div>
+            <div style={{marginBottom:12}}><Icon name="hourglass" size={28} color="var(--dark)" strokeWidth={1.75}/></div>
             <div style={{fontSize:14,fontWeight:600,color:C.dark,marginBottom:4}}>Importing Recipe...</div>
             <div style={{fontSize:12,color:C.light}}>{importStatus}</div>
           </div>:null}
@@ -6841,7 +6946,7 @@ function App(){
                 value={importPasteAll} 
                 onChange={function(e){setImportPasteAll(e.target.value)}} 
                 placeholder="Paste your recipe here...&#10;&#10;Example:&#10;&#10;Grandma's Chocolate Chip Cookies&#10;&#10;Ingredients:&#10;2 cups flour&#10;1 cup sugar&#10;1/2 cup butter&#10;2 eggs&#10;1 cup chocolate chips&#10;&#10;Instructions:&#10;1. Preheat oven to 350°F&#10;2. Mix dry ingredients&#10;3. Add wet ingredients&#10;4. Fold in chocolate chips&#10;5. Bake for 12 minutes" 
-                style={{width:"100%",padding:"14px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",minHeight:250,resize:"vertical",fontFamily:"inherit",lineHeight:1.6}}
+                style={{width:"100%",padding:"14px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",minHeight:250,resize:"vertical",fontFamily:"inherit",lineHeight:1.6,background:C.card,color:C.ink}}
               />
             </div>
             <button 
@@ -6892,7 +6997,7 @@ function App(){
               }} 
               disabled={!importPasteAll.trim()}
               className="ft-card-tap"
-              style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",padding:"14px",borderRadius:10,border:"none",background:importPasteAll.trim()?C.dark:"#ccc",color:"#fff",fontSize:15,fontWeight:600,cursor:importPasteAll.trim()?"pointer":"not-allowed"}}
+              style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",padding:"14px",borderRadius:10,border:"none",background:importPasteAll.trim()?C.dark:"var(--disabled)",color:"#fff",fontSize:15,fontWeight:600,cursor:importPasteAll.trim()?"pointer":"not-allowed"}}
             >
               <Icon name="sparkle" size={15} strokeWidth={2}/> Parse & Save Recipe
             </button>
@@ -6918,8 +7023,8 @@ function App(){
               <input 
                 value={importPasteName} 
                 onChange={function(e){setImportPasteName(e.target.value)}} 
-                placeholder="e.g., Grandma's Chocolate Chip Cookies" 
-                style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box"}}
+                placeholder="e.g., Grandma's Chocolate Chip Cookies"
+                style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",background:C.card,color:C.ink}}
               />
             </div>
             <div style={{marginBottom:14}}>
@@ -6927,8 +7032,8 @@ function App(){
               <textarea 
                 value={importPasteIngredients} 
                 onChange={function(e){setImportPasteIngredients(e.target.value)}} 
-                placeholder="One per line:&#10;2 cups flour&#10;1 cup sugar&#10;1/2 cup butter" 
-                style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:13,boxSizing:"border-box",minHeight:100,resize:"vertical",fontFamily:"inherit",lineHeight:1.5}}
+                placeholder="One per line:&#10;2 cups flour&#10;1 cup sugar&#10;1/2 cup butter"
+                style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:13,boxSizing:"border-box",minHeight:100,resize:"vertical",fontFamily:"inherit",lineHeight:1.5,background:C.card,color:C.ink}}
               />
             </div>
             <div style={{marginBottom:16}}>
@@ -6936,14 +7041,14 @@ function App(){
               <textarea 
                 value={importPasteDirections} 
                 onChange={function(e){setImportPasteDirections(e.target.value)}} 
-                placeholder="Paste directions/instructions here..." 
-                style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:13,boxSizing:"border-box",minHeight:100,resize:"vertical",fontFamily:"inherit",lineHeight:1.5}}
+                placeholder="Paste directions/instructions here..."
+                style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:13,boxSizing:"border-box",minHeight:100,resize:"vertical",fontFamily:"inherit",lineHeight:1.5,background:C.card,color:C.ink}}
               />
             </div>
             <div style={{display:"flex",gap:8}}>
               <button 
                 onClick={function(){setImportTab("text")}}
-                style={{flex:1,padding:"14px",borderRadius:10,border:"1px solid "+C.bdr,background:"#fff",color:C.dark,fontSize:14,fontWeight:600,cursor:"pointer"}}
+                style={{flex:1,padding:"14px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.dark,fontSize:14,fontWeight:600,cursor:"pointer"}}
               >
                 ← Back
               </button>
@@ -6970,7 +7075,7 @@ function App(){
                   setExpR(newRecipe.id);
                 }} 
                 disabled={!importPasteName.trim()} 
-                style={{flex:2,padding:"14px",borderRadius:10,border:"none",background:importPasteName.trim()?C.dark:"#ccc",color:"#fff",fontSize:14,fontWeight:600,cursor:importPasteName.trim()?"pointer":"not-allowed"}}
+                style={{flex:2,padding:"14px",borderRadius:10,border:"none",background:importPasteName.trim()?C.dark:"var(--disabled)",color:"#fff",fontSize:14,fontWeight:600,cursor:importPasteName.trim()?"pointer":"not-allowed"}}
               >
                 Save Recipe
               </button>
@@ -6988,8 +7093,8 @@ function App(){
                   type="url" 
                   value={importUrl} 
                   onChange={function(e){setImportUrl(e.target.value)}} 
-                  placeholder="https://..." 
-                  style={{flex:1,padding:"14px 16px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box"}}
+                  placeholder="https://..."
+                  style={{flex:1,padding:"14px 16px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box",background:C.card,color:C.ink}}
                 />
                 <button 
                   onClick={function(){
@@ -7020,7 +7125,7 @@ function App(){
             <button 
               onClick={function(){importFromUrl(importUrl)}} 
               disabled={!importUrl.trim()} 
-              style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:importUrl.trim()?C.dark:"#ccc",color:"#fff",fontSize:15,fontWeight:600,cursor:importUrl.trim()?"pointer":"not-allowed"}}
+              style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:importUrl.trim()?C.dark:"var(--disabled)",color:"#fff",fontSize:15,fontWeight:600,cursor:importUrl.trim()?"pointer":"not-allowed"}}
             >
               Import
             </button>
@@ -7092,13 +7197,13 @@ function ConfigScreen(props) {
   
   return React.createElement("div",{style:{maxWidth:500,margin:"0 auto",padding:"40px 20px",textAlign:"center"}},
     React.createElement("img",{src:CONFIG_BEE,style:{width:80,height:80,marginBottom:20}}),
-    React.createElement("h1",{style:{fontSize:28,color:"#8B7355",marginBottom:10}},"The Family Table"),
-    React.createElement("p",{style:{color:"#A69485",marginBottom:30}},"One-time Firebase setup"),
-    React.createElement("div",{style:{background:"#fff",borderRadius:12,padding:20,textAlign:"left",border:"1px solid rgba(139,115,85,0.2)"}},
+    React.createElement("h1",{style:{fontSize:28,color:"var(--dark)",marginBottom:10}},"The Family Table"),
+    React.createElement("p",{style:{color:"var(--light)",marginBottom:30}},"One-time Firebase setup"),
+    React.createElement("div",{style:{background:"var(--surface)",borderRadius:12,padding:20,textAlign:"left",border:"1px solid rgba(139,115,85,0.2)"}},
       err?React.createElement("div",{style:{background:"#FEE",color:"#C00",padding:12,borderRadius:8,marginBottom:16}},err):null,
-      React.createElement("textarea",{value:txt,onChange:function(e){setTxt(e.target.value)},placeholder:"Paste Firebase config...",style:{width:"100%",height:180,padding:12,border:"1px solid #ddd",borderRadius:8,fontFamily:"monospace",fontSize:12,marginBottom:16}}),
-      React.createElement("button",{onClick:submit,disabled:!txt.trim()||busy,style:{width:"100%",padding:16,background:txt.trim()&&!busy?"#8B7355":"#ccc",color:"#fff",border:"none",borderRadius:10,fontSize:16,fontWeight:600,cursor:txt.trim()&&!busy?"pointer":"not-allowed"}},busy?"Connecting...":"Connect"),
-      React.createElement("button",{onClick:reset,style:{width:"100%",padding:12,background:"transparent",color:"#999",border:"1px solid #ddd",borderRadius:10,fontSize:14,marginTop:10,cursor:"pointer"}},"Reset")
+      React.createElement("textarea",{value:txt,onChange:function(e){setTxt(e.target.value)},placeholder:"Paste Firebase config...",style:{width:"100%",height:180,padding:12,border:"1px solid var(--border-strong)",borderRadius:8,fontFamily:"monospace",fontSize:12,marginBottom:16,background:"var(--surface)",color:"var(--ink)"}}),
+      React.createElement("button",{onClick:submit,disabled:!txt.trim()||busy,style:{width:"100%",padding:16,background:txt.trim()&&!busy?"var(--dark)":"var(--disabled)",color:"#fff",border:"none",borderRadius:10,fontSize:16,fontWeight:600,cursor:txt.trim()&&!busy?"pointer":"not-allowed"}},busy?"Connecting...":"Connect"),
+      React.createElement("button",{onClick:reset,style:{width:"100%",padding:12,background:"transparent",color:"var(--light)",border:"1px solid var(--border-strong)",borderRadius:10,fontSize:14,marginTop:10,cursor:"pointer"}},"Reset")
     )
   );
 }
