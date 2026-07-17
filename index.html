@@ -282,7 +282,12 @@
           };
           const currentUid = auth && auth.currentUser && auth.currentUser.uid;
           if (currentUid) payload.ownerUid = currentUid;
-          await db.collection("data").doc(key).set(payload);
+          // merge:true so a write can never blank out ownerUid. The stored doc
+          // only ever holds {value, updatedAt, ownerUid} and value is rewritten
+          // in full each time, so merge changes nothing about the data - it
+          // just stops a write that omitted ownerUid from stripping it, which
+          // would otherwise lock the owner out under the owner-only rules.
+          await db.collection("data").doc(key).set(payload, { merge: true });
           console.log("Storage set success:", key, "length:", value.length);
           return { key, value, shared };
         } catch (e) {
