@@ -39,8 +39,12 @@ the rules change.
 - **Anonymous AI-worker abuse.** The Cloudflare AI proxy accepted POSTs from
   anyone with the URL. It now requires a valid Firebase ID token on every
   request (RS256 verified against Google's JWK keys, plus aud/iss/exp checks),
-  so only signed-in users of this project can call it. See the rate-limiting
-  caveat under Open below.
+  so only signed-in users of this project can call it.
+- **AI-worker call flooding.** On top of token verification, the worker rate
+  limits per user (default 30 calls / 10 min) using a Cloudflare KV namespace
+  bound as `AI_RATE_LIMIT`, keyed by the token's uid. Fails open if the binding
+  is missing, so it never breaks AI for real users. Tunable at the top of
+  `recipe-proxy-worker.js`.
 
 ## Open — known and accepted
 
@@ -71,18 +75,7 @@ key prefix and keep the old any-authenticated-writer behaviour.
   mutation, or restructuring follows into per-edge documents with ownership.
   Needs the Blaze plan.
 
-### 3. AI proxy worker has no per-account rate limit
-`recipe-proxy-worker.js` now verifies a Firebase ID token on every request, so
-anonymous abuse is closed - a caller must be a signed-in user of this project.
-What remains: a *single* authenticated account can still call the AI endpoints
-in a loop, since there's no per-account or per-IP rate limit.
-
-- **Real fix:** count calls per uid (the token's `sub`) in a Cloudflare KV or
-  Durable Object binding and reject over a threshold. Needs a binding declared
-  in the worker's config, which is why it wasn't done inline. A dashboard-level
-  WAF rate-limiting rule is a zero-code partial stopgap.
-
-### 4. Orphaned photos on recipe deletion
+### 3. Orphaned photos on recipe deletion
 Deleting a recipe does not delete its Storage photo. This is intentional:
 recipes are *copied* between users and copies share the photo URL, so eager
 deletion would break another user's saved copy. Storage therefore only grows.
