@@ -71,6 +71,37 @@ async function verifyFirebaseToken(token) {
   return payload; // includes sub (the user's uid)
 }
 
+// --- Per-user rate limiting -------------------------------------------------
+// Token verification ties every AI call to an account, but nothing stops one
+// account from looping the endpoints. This caps calls per user per window.
+//
+// It needs a KV namespace bound to the worker as AI_RATE_LIMIT. If that binding
+// is missing, or KV errors, this FAILS OPEN (allows the call) - an optional
+// abuse guard must never break AI for real users. So the worker is safe to
+// deploy before the binding exists; rate limiting simply activates once it's
+// added. Tune these two numbers to taste.
+const RATE_LIMIT_MAX = 30;          // max requests...
+const RATE_LIMIT_WINDOW_SEC = 600;  // ...per this many seconds (10 minutes)
+
+async function withinRateLimit(env, uid) {
+  const kv = env.AI_RATE_LIMIT;
+  if (!kv) return true; // binding not configured yet -> don't block anyone
+  try {
+    // Fixed window: all requests in the same 10-minute bucket share a counter.
+    const windowId = Math.floor(Date.now() / 1000 / RATE_LIMIT_WINDOW_SEC);
+    const key = "rl:" + uid + ":" + windowId;
+    const current = parseInt((await kv.get(key)) || "0", 10);
+    if (current >= RATE_LIMIT_MAX) return false;
+    // read-then-write isn't atomic; under a burst a couple of extra calls can
+    // slip through, which is fine for abuse prevention. TTL cleans up old
+    // windows automatically.
+    await kv.put(key, String(current + 1), { expirationTtl: RATE_LIMIT_WINDOW_SEC * 2 });
+    return true;
+  } catch (e) {
+    return true; // KV hiccup -> fail open rather than break AI
+  }
+}
+
 export default {
   async fetch(request, env) {
     // Handle CORS preflight. Authorization must be listed here: the client now
@@ -106,11 +137,23 @@ export default {
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
       });
     }
+    let uid;
     try {
-      await verifyFirebaseToken(bearer[1]);
+      const claims = await verifyFirebaseToken(bearer[1]);
+      uid = claims.sub;
     } catch (e) {
       return new Response(JSON.stringify({ error: "Invalid or expired session - please sign in again." }), {
         status: 401,
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+      });
+    }
+
+    // Rate limit per user. Checked before dispatch, so even malformed requests
+    // count against the cap - an attacker's loop is throttled regardless of
+    // what it sends.
+    if (!(await withinRateLimit(env, uid))) {
+      return new Response(JSON.stringify({ error: "You're doing that a lot - please wait a few minutes and try again." }), {
+        status: 429,
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
       });
     }
