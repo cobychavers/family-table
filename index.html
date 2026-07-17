@@ -259,6 +259,16 @@
           return null;
         }
       },
+      // Documents in this collection are keyed like "dm_meals_<username>", but
+      // the key cannot be used to prove ownership in security rules: usernames
+      // may contain underscores, so "dm_meals_coby_chavers" is ambiguous about
+      // where the name begins, and "dm_recipe_<user>_<id>" puts it in the
+      // middle. Stamping the owner's uid as a field instead lets the rules
+      // check ownership directly, with no parsing and no ambiguity.
+      //
+      // Social documents (followers/following/requests/inbox) are written by
+      // *other* users by design - the rules carve those out by key prefix,
+      // which is safe because the prefix match doesn't depend on the username.
       set: async (key, value, shared) => {
         if (!db) {
           console.error("Storage set failed - Firebase not connected");
@@ -266,10 +276,13 @@
           return null;
         }
         try {
-          await db.collection("data").doc(key).set({ 
-            value, 
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp() 
-          });
+          const payload = {
+            value,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          };
+          const currentUid = auth && auth.currentUser && auth.currentUser.uid;
+          if (currentUid) payload.ownerUid = currentUid;
+          await db.collection("data").doc(key).set(payload);
           console.log("Storage set success:", key, "length:", value.length);
           return { key, value, shared };
         } catch (e) {
