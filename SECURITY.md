@@ -36,6 +36,11 @@ the rules change.
 - **Signup ceiling / lost updates.** Profiles were one shared document with a
   read-modify-write on every change (1 MiB cap, ~1 write/sec, silent
   last-write-wins). Split into per-uid documents with targeted merges.
+- **Anonymous AI-worker abuse.** The Cloudflare AI proxy accepted POSTs from
+  anyone with the URL. It now requires a valid Firebase ID token on every
+  request (RS256 verified against Google's JWK keys, plus aud/iss/exp checks),
+  so only signed-in users of this project can call it. See the rate-limiting
+  caveat under Open below.
 
 ## Open — known and accepted
 
@@ -66,14 +71,16 @@ key prefix and keep the old any-authenticated-writer behaviour.
   mutation, or restructuring follows into per-edge documents with ownership.
   Needs the Blaze plan.
 
-### 3. AI proxy worker has no auth or rate limit
-`recipe-proxy-worker.js` (Cloudflare) accepts POSTs from any origin with no
-authentication and no rate limiting. Anyone who reads the client JS can call
-it in a loop and run up the Anthropic bill.
+### 3. AI proxy worker has no per-account rate limit
+`recipe-proxy-worker.js` now verifies a Firebase ID token on every request, so
+anonymous abuse is closed - a caller must be a signed-in user of this project.
+What remains: a *single* authenticated account can still call the AI endpoints
+in a loop, since there's no per-account or per-IP rate limit.
 
-- **Real fix:** verify a Firebase ID token server-side in the worker, plus a
-  per-user/IP rate limit. An `Origin` allowlist is a weaker stopgap (the
-  header is spoofable) but deters casual abuse.
+- **Real fix:** count calls per uid (the token's `sub`) in a Cloudflare KV or
+  Durable Object binding and reject over a threshold. Needs a binding declared
+  in the worker's config, which is why it wasn't done inline. A dashboard-level
+  WAF rate-limiting rule is a zero-code partial stopgap.
 
 ### 4. Orphaned photos on recipe deletion
 Deleting a recipe does not delete its Storage photo. This is intentional:
