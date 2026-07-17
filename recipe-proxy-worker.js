@@ -1,12 +1,88 @@
+// --- Firebase ID token verification ---------------------------------------
+// Gates the AI endpoints behind a real Firebase ID token, so only signed-in
+// users of this project can call them. The RS256 signature is checked against
+// Google's published secure-token public keys (JWK form, so WebCrypto can
+// import them directly - the x509/PEM endpoint would need ASN.1 parsing).
+// No external library and no KV binding required.
+const FIREBASE_PROJECT_ID = "the-family-table-81b4d";
+const FIREBASE_JWK_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
+
+// Google rotates these keys ~daily. Cache them for the isolate's lifetime and
+// refetch on a kid miss (a freshly-rotated key the cache hasn't seen yet).
+let _fbKeyCache = { keys: null, fetchedAt: 0 };
+
+function b64urlToString(s) {
+  s = s.replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) s += "=";
+  return atob(s);
+}
+function b64urlToBytes(s) {
+  const bin = b64urlToString(s);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+async function getFirebaseKeys(forceRefresh) {
+  const now = Date.now();
+  if (!forceRefresh && _fbKeyCache.keys && (now - _fbKeyCache.fetchedAt) < 3600 * 1000) {
+    return _fbKeyCache.keys;
+  }
+  const res = await fetch(FIREBASE_JWK_URL);
+  if (!res.ok) throw new Error("Could not fetch Google public keys");
+  const data = await res.json();
+  _fbKeyCache = { keys: data.keys || [], fetchedAt: now };
+  return _fbKeyCache.keys;
+}
+
+async function verifyFirebaseToken(token) {
+  const parts = token.split(".");
+  if (parts.length !== 3) throw new Error("Malformed token");
+  const header = JSON.parse(b64urlToString(parts[0]));
+  const payload = JSON.parse(b64urlToString(parts[1]));
+
+  if (header.alg !== "RS256") throw new Error("Unexpected token algorithm");
+
+  // Cheap claim checks first, before spending a signature verification.
+  const now = Math.floor(Date.now() / 1000);
+  if (payload.aud !== FIREBASE_PROJECT_ID) throw new Error("Wrong audience");
+  if (payload.iss !== "https://securetoken.google.com/" + FIREBASE_PROJECT_ID) throw new Error("Wrong issuer");
+  if (!payload.sub) throw new Error("Missing subject");
+  if (typeof payload.exp !== "number" || payload.exp <= now) throw new Error("Token expired");
+  if (typeof payload.iat !== "number" || payload.iat > now + 300) throw new Error("Token issued in the future");
+
+  // Verify the RS256 signature against the matching Google key.
+  let keys = await getFirebaseKeys(false);
+  let jwk = keys.find((k) => k.kid === header.kid);
+  if (!jwk) { keys = await getFirebaseKeys(true); jwk = keys.find((k) => k.kid === header.kid); }
+  if (!jwk) throw new Error("No matching signing key");
+
+  const cryptoKey = await crypto.subtle.importKey(
+    "jwk",
+    { kty: jwk.kty, n: jwk.n, e: jwk.e, alg: "RS256", ext: true },
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["verify"]
+  );
+  const signed = new TextEncoder().encode(parts[0] + "." + parts[1]);
+  const valid = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", cryptoKey, b64urlToBytes(parts[2]), signed);
+  if (!valid) throw new Error("Invalid token signature");
+
+  return payload; // includes sub (the user's uid)
+}
+
 export default {
   async fetch(request, env) {
-    // Handle CORS preflight
+    // Handle CORS preflight. Authorization must be listed here: the client now
+    // sends a Bearer token, which makes the request non-simple and triggers
+    // this preflight - if the header isn't allowed, the browser blocks the
+    // real request before it's ever sent.
     if (request.method === "OPTIONS") {
       return new Response(null, {
         headers: {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type"
+          "Access-Control-Allow-Headers": "Content-Type, Authorization"
         }
       });
     }
@@ -14,6 +90,27 @@ export default {
     if (request.method !== "POST") {
       return new Response(JSON.stringify({ error: "POST required" }), {
         status: 405,
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+      });
+    }
+
+    // Require a valid Firebase ID token for every AI operation. Without this,
+    // anyone who found this URL in the client JS could POST to it and spend the
+    // Anthropic budget. Verifying the token restricts calls to signed-in users
+    // of this specific Firebase project, and ties each call to a uid.
+    const authHeader = request.headers.get("Authorization") || "";
+    const bearer = authHeader.match(/^Bearer (.+)$/);
+    if (!bearer) {
+      return new Response(JSON.stringify({ error: "Authentication required" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+      });
+    }
+    try {
+      await verifyFirebaseToken(bearer[1]);
+    } catch (e) {
+      return new Response(JSON.stringify({ error: "Invalid or expired session - please sign in again." }), {
+        status: 401,
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
       });
     }

@@ -4683,13 +4683,9 @@ function App(){
     
     setAiScanStatus("Analyzing " + photos.length + " photo" + (photos.length > 1 ? "s" : "") + "...");
     
-    fetch(RECIPE_PROXY_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "scan",
-        images: imageDataArray
-      })
+    proxyFetch({
+      type: "scan",
+      images: imageDataArray
     })
     .then(function(response) { return response.json(); })
     .then(function(data) {
@@ -4718,7 +4714,23 @@ function App(){
 
   // Import recipe from URL (website, Instagram, TikTok, Facebook)
   var RECIPE_PROXY_URL = "https://recipe-proxy.coby-chavers.workers.dev";
-  
+
+  // All AI calls go through here so they carry the signed-in user's Firebase
+  // ID token. The worker verifies that token, so the AI endpoints can only be
+  // driven by an authenticated user of this app - not by anyone who finds the
+  // worker URL in the client JS and POSTs to it directly. Returns the same
+  // promise-of-Response shape as fetch(), so existing .then(r=>r.json())
+  // chains are unchanged.
+  function proxyFetch(payload){
+    var headers = { "Content-Type": "application/json" };
+    var cu = firebase.auth().currentUser;
+    var tokenP = cu ? cu.getIdToken() : Promise.resolve(null);
+    return tokenP.catch(function(){ return null; }).then(function(tok){
+      if(tok) headers["Authorization"] = "Bearer " + tok;
+      return fetch(RECIPE_PROXY_URL, { method:"POST", headers:headers, body:JSON.stringify(payload) });
+    });
+  }
+
   function importFromUrl(url) {
     if (!url.trim()) return;
     
@@ -4739,11 +4751,7 @@ function App(){
     
     var sourceType = "website";
     
-    fetch(RECIPE_PROXY_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "url", url: url })
-    })
+    proxyFetch({ type: "url", url: url })
     .then(function(response) { return response.json(); })
     .then(function(data) {
       if (data.error) throw new Error(data.error);
@@ -4845,14 +4853,10 @@ function App(){
       var base64 = ev.target.result.split(",")[1];
       setImportStatus("Extracting recipe from PDF...");
       
-      fetch(RECIPE_PROXY_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          type: "pdf", 
-          imageData: base64, 
-          mimeType: "application/pdf" 
-        })
+      proxyFetch({
+        type: "pdf",
+        imageData: base64,
+        mimeType: "application/pdf"
       })
       .then(function(response) { return response.json(); })
       .then(function(data) {
@@ -4953,11 +4957,7 @@ function App(){
     }
 
     setChefLoading(true);
-    fetch(RECIPE_PROXY_URL,{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({type:"ingredient_swap",recipeName:recipeName,ingredients:ingredients,recipeText:recipeText,request:request})
-    })
+    proxyFetch({type:"ingredient_swap",recipeName:recipeName,ingredients:ingredients,recipeText:recipeText,request:request})
     .then(function(r){return r.json()})
     .then(function(data){
       setChefLoading(false);
@@ -5047,11 +5047,7 @@ function App(){
 
     setChefLoading(true);
 
-    fetch(RECIPE_PROXY_URL,{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({type:"chef_chat",messages:history.slice(-10)})
-    })
+    proxyFetch({type:"chef_chat",messages:history.slice(-10)})
     .then(function(response){return response.json()})
     .then(function(data){
       if(data.error)throw new Error(data.error);
@@ -5069,11 +5065,7 @@ function App(){
   function saveChefIdeaAsRecipe(text){
     if(!isOnline){ alert("Saving this idea as a recipe requires an internet connection. Please try again once you're back online."); return; }
     setChefLoading(true);
-    fetch(RECIPE_PROXY_URL,{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({type:"parse_text",text:text})
-    })
+    proxyFetch({type:"parse_text",text:text})
     .then(function(response){return response.json()})
     .then(function(data){
       if(data.error)throw new Error(data.error);
@@ -7119,11 +7111,7 @@ function App(){
                 setImportStatus("Organizing recipe with AI...");
                 
                 // Send to Cloudflare worker to parse with AI
-                fetch(RECIPE_PROXY_URL, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ type: "parse_text", text: importPasteAll })
-                })
+                proxyFetch({ type: "parse_text", text: importPasteAll })
                 .then(function(response) { return response.json(); })
                 .then(function(data) {
                   if (data.error) throw new Error(data.error);
