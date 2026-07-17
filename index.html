@@ -115,8 +115,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
 </head>
 <body>
@@ -305,19 +305,12 @@
           console.error("Storage delete error:", key, e);
           return null;
         }
-      },
-      list: async (prefix, shared) => {
-        if (!db) return { keys: [], prefix, shared };
-        try {
-          const snapshot = await db.collection("data").get();
-          const keys = [];
-          snapshot.forEach(doc => { if (!prefix || doc.id.startsWith(prefix)) keys.push(doc.id); });
-          return { keys, prefix, shared };
-        } catch (e) {
-          console.error("Storage list error:", e);
-          return { keys: [], prefix, shared };
-        }
       }
+      // NOTE: there is deliberately no list() here. The old one did
+      // db.collection("data").get() - downloading the entire database to the
+      // client and filtering by prefix in JS. It had no callers, so it's
+      // removed rather than left as a landmine that quietly pulls every user's
+      // data the moment someone wires it up.
     };
 
     // Favorite counters live in their own real Firestore collection (not the
@@ -3086,6 +3079,18 @@ function App(){
   // Load user data
   useEffect(function(){
     if(!authChecked)return;
+    // Nothing to load for a guest, and every read below would hit Firestore as
+    // an unauthenticated request and be denied - ~14 guaranteed permission
+    // errors on every pre-login render. Skip them, and clear any previous
+    // user's data from memory so logout can't leave it lingering behind the
+    // sign-in screen.
+    if(userId==="guest"){
+      setMeals({}); setRecipes([]); setFavorites([]);
+      setFollowing([]); setFollowers([]); setFollowRequests([]);
+      setMyPendingRequests([]); setUserInbox([]); setAllUsers({});
+      setUserEmail(""); setUserProfilePic(null); setIsPrivateProfile(false);
+      return;
+    }
     var userIdLower=userId.toLowerCase();
     
     // Helper to load from storage, trying both exact and lowercase keys

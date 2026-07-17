@@ -11,7 +11,7 @@
 // Bump CACHE_VERSION whenever the precache list or this file's logic
 // changes meaningfully - there's no build step, so this is a manual
 // convention.
-var CACHE_VERSION = "v4";
+var CACHE_VERSION = "v5";
 var CACHE_NAME = "family-table-shell-" + CACHE_VERSION;
 
 var SAME_ORIGIN_PRECACHE = [
@@ -32,8 +32,8 @@ var CROSS_ORIGIN_PRECACHE = [
   "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js",
   "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js",
   "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js",
-  "https://unpkg.com/react@18/umd/react.development.js",
-  "https://unpkg.com/react-dom@18/umd/react-dom.development.js",
+  "https://unpkg.com/react@18/umd/react.production.min.js",
+  "https://unpkg.com/react-dom@18/umd/react-dom.production.min.js",
   "https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"
 ];
 
