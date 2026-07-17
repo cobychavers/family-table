@@ -4708,7 +4708,7 @@ function App(){
     .catch(function(err) {
       setAiScanLoading(false);
       setAiScanStatus("");
-      alert("Scan failed: " + err.message);
+      alert(err.isRateLimit ? err.message : ("Scan failed: " + err.message));
     });
   }
 
@@ -4728,6 +4728,17 @@ function App(){
     return tokenP.catch(function(){ return null; }).then(function(tok){
       if(tok) headers["Authorization"] = "Bearer " + tok;
       return fetch(RECIPE_PROXY_URL, { method:"POST", headers:headers, body:JSON.stringify(payload) });
+    }).then(function(resp){
+      // Rate limit is its own thing, not a failure - surface it with a clean,
+      // self-contained message and a flag, so call sites can show just this
+      // instead of wrapping it in their generic "something went wrong, try
+      // again" text (which would double up the "try again").
+      if(resp.status === 429){
+        var e = new Error("AI limit reached - please wait a few minutes and try again.");
+        e.isRateLimit = true;
+        throw e;
+      }
+      return resp;
     });
   }
 
@@ -4832,7 +4843,7 @@ function App(){
     .catch(function(err) {
       setImportLoading(false);
       setImportStatus("");
-      alert("Import failed: " + err.message);
+      alert(err.isRateLimit ? err.message : ("Import failed: " + err.message));
     });
   }
 
@@ -4886,7 +4897,7 @@ function App(){
       .catch(function(err) {
         setImportLoading(false);
         setImportStatus("");
-        alert("Import failed: " + err.message);
+        alert(err.isRateLimit ? err.message : ("Import failed: " + err.message));
       });
     };
     reader.readAsDataURL(file);
@@ -4979,7 +4990,8 @@ function App(){
     })
     .catch(function(err){
       setChefLoading(false);
-      setChefMessages(history.concat([{role:"assistant",text:"Sorry, I had trouble finding substitutes - "+err.message+". Try again?"}]));
+      var msg=err.isRateLimit?err.message:("Sorry, I had trouble finding substitutes - "+err.message+". Try again?");
+      setChefMessages(history.concat([{role:"assistant",text:msg}]));
     });
   }
 
@@ -5057,7 +5069,8 @@ function App(){
       setChefLoading(false);
     })
     .catch(function(err){
-      setChefMessages(history.concat([{role:"assistant",text:"Sorry, I had trouble answering that - "+err.message+". Try again?"}]));
+      var msg=err.isRateLimit?err.message:("Sorry, I had trouble answering that - "+err.message+". Try again?");
+      setChefMessages(history.concat([{role:"assistant",text:msg}]));
       setChefLoading(false);
     });
   }
@@ -5086,7 +5099,7 @@ function App(){
     })
     .catch(function(err){
       setChefLoading(false);
-      alert("Couldn't save that as a recipe: "+err.message);
+      alert(err.isRateLimit?err.message:("Couldn't save that as a recipe: "+err.message));
     });
   }
 
@@ -7142,7 +7155,7 @@ function App(){
                 .catch(function(err) {
                   setImportLoading(false);
                   setImportStatus("");
-                  alert("Import failed: " + err.message);
+                  alert(err.isRateLimit ? err.message : ("Import failed: " + err.message));
                 });
               }} 
               disabled={!importPasteAll.trim()}
