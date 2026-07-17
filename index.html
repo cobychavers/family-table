@@ -412,6 +412,67 @@
       }
     };
 
+    // Per-user profile docs, keyed by Firebase uid.
+    //
+    // Replaces dm_users: a single Firestore document holding every user's
+    // profile as one JSON string. That shape had three separate problems, all
+    // of which this fixes:
+    //   - a 1 MiB document limit, which capped the whole app's signups;
+    //   - read-modify-write with no transaction on every profile change, so
+    //     two concurrent writes silently lost one of them;
+    //   - a ~1 write/sec limit on that one doc, shared by every user.
+    // Keying by uid (not username) also lets the rules enforce ownership with
+    // a plain request.auth.uid == uid check.
+    window.users = {
+      get: async (uid) => {
+        if (!db || !uid) return null;
+        try {
+          const doc = await db.collection("users").doc(uid).get();
+          return doc.exists ? doc.data() : null;
+        } catch (e) {
+          console.error("users get error:", e);
+          return null;
+        }
+      },
+
+      // Targeted merge into one user's own doc. Two users updating their
+      // profiles at the same time now touch different documents, so neither
+      // can clobber the other.
+      upsert: async (uid, fields) => {
+        if (!db || !uid) return null;
+        try {
+          await db.collection("users").doc(uid).set(fields, { merge: true });
+          return true;
+        } catch (e) {
+          console.error("users upsert error:", e);
+          return null;
+        }
+      },
+
+      // Every profile, returned keyed by username to match the shape the app
+      // already expects.
+      //
+      // This is still O(number of users) per call and has to become a real
+      // paginated/prefix query before it can serve a large user base - but it
+      // reads a queryable collection now rather than parsing one opaque blob,
+      // which is the part that has to change first.
+      all: async () => {
+        if (!db) return {};
+        try {
+          const snap = await db.collection("users").get();
+          const out = {};
+          snap.forEach((doc) => {
+            const d = doc.data();
+            if (d && d.username) out[d.username] = Object.assign({ firebaseUid: doc.id }, d);
+          });
+          return out;
+        } catch (e) {
+          console.error("users all error:", e);
+          return {};
+        }
+      }
+    };
+
     // Photo storage.
     //
     // Photos used to be base64 data URIs embedded directly in Firestore docs.
@@ -1340,18 +1401,19 @@ function AuthScreen(p){
         // profile without it would be unreachable. Runs after the Firebase
         // account exists so the rules can check the uid being claimed is ours.
         return window.usernames.claim(uid,userEmail,userCredential.user.uid).then(function(){
-          // Store user profile in Firestore
-          return window.storage.get("dm_users",true);
-        }).then(function(r){
-          var users=r?JSON.parse(r.value):{};
-          users[uid]={
+          // Write this account's own profile doc. Previously this read the
+          // single dm_users document, added a key, and wrote the whole thing
+          // back - which raced with any other concurrent signup and would have
+          // started failing outright once that doc reached 1 MiB.
+          return window.users.upsert(userCredential.user.uid,{
+            username:uid,
+            usernameLower:uid.toLowerCase(),
             email:userEmail,
             phone:userPhone||null,
             firebaseUid:userCredential.user.uid,
             created:Date.now(),
             emailVerified:false
-          };
-          return window.storage.set("dm_users",JSON.stringify(users),true);
+          });
         }).then(function(){
           setLoading(false);
           setSuccess("Account created! Please check your email to verify your account.");
@@ -2972,36 +3034,18 @@ function App(){
     // Listen for Firebase Auth state changes (the source of truth)
     var unsubscribe = auth.onAuthStateChanged(function(firebaseUser){
       if(firebaseUser){
-        // Firebase says someone is signed in - look up their username
-        window.storage.get("dm_users", true).then(function(r){
-          if(r && r.value){
-            var users = JSON.parse(r.value);
-            // Try to match by firebaseUid first, then fall back to email
-            var matchedUsername = null;
-            Object.keys(users).forEach(function(uname){
-              if(users[uname].firebaseUid === firebaseUser.uid){
-                matchedUsername = uname;
-              }
-            });
-            // If no UID match, try matching by email (catches cases where Firebase project was regenerated)
-            if(!matchedUsername && firebaseUser.email){
-              Object.keys(users).forEach(function(uname){
-                if(users[uname].email && users[uname].email.toLowerCase()===firebaseUser.email.toLowerCase()){
-                  matchedUsername = uname;
-                  // Update the stored firebaseUid so future logins are faster
-                  users[uname].firebaseUid = firebaseUser.uid;
-                  window.storage.set("dm_users", JSON.stringify(users), true).catch(function(){});
-                }
-              });
-            }
-            if(matchedUsername){
-              setUser(matchedUsername);
-              try{ localStorage.setItem("dm_session_local", matchedUsername); }catch(e){}
-            }
-            // Don't auto-sign-out if no match - let user re-attempt login
+        // Firebase says someone is signed in - resolve their username. This is
+        // now a single doc get keyed by uid, rather than downloading every
+        // user's profile and scanning for a matching firebaseUid.
+        window.users.get(firebaseUser.uid).then(function(profile){
+          if(profile && profile.username){
+            setUser(profile.username);
+            try{ localStorage.setItem("dm_session_local", profile.username); }catch(e){}
             setAuthChecked(true);
           } else {
-            // dm_users doc not found locally (e.g. offline with no cache yet)
+            // No profile doc for this uid (e.g. offline with no cache yet).
+            // Fall back to the last known local session rather than bouncing a
+            // genuinely authenticated user to the login screen.
             restoreFromLocalSession();
             setAuthChecked(true);
           }
@@ -3200,22 +3244,18 @@ function App(){
     loadWithFallback("dm_mypending_",setMyPendingRequests,true);
     
     // Load all users for search and suggestions
-    window.storage.get("dm_users",true).then(function(r){
-      if(r&&r.value){
-        var users=JSON.parse(r.value);
-        setAllUsers(users);
-        // Set user email, profile pic, and privacy setting
-        if(user&&users[userId]){
-          if(users[userId].email) setUserEmail(users[userId].email);
-          if(users[userId].profilePic) setUserProfilePic(users[userId].profilePic);
-          if(users[userId].isPrivate) setIsPrivateProfile(users[userId].isPrivate);
-          // Self-heal avatars saved before photos moved to Storage: re-save
-          // this one as a URL so it stops consuming the shared dm_users doc.
-          // Only touches the signed-in user's own entry, so the upload always
-          // lands under their own uid.
-          if(window.photoStore.isDataUrl(users[userId].profilePic)){
-            saveProfilePic(users[userId].profilePic);
-          }
+    window.users.all().then(function(users){
+      setAllUsers(users);
+      // Set user email, profile pic, and privacy setting
+      if(user&&users[userId]){
+        if(users[userId].email) setUserEmail(users[userId].email);
+        if(users[userId].profilePic) setUserProfilePic(users[userId].profilePic);
+        if(users[userId].isPrivate) setIsPrivateProfile(users[userId].isPrivate);
+        // Self-heal avatars saved before photos moved to Storage: re-save
+        // this one as a URL. Only touches the signed-in user's own entry, so
+        // the upload always lands under their own uid.
+        if(window.photoStore.isDataUrl(users[userId].profilePic)){
+          saveProfilePic(users[userId].profilePic);
         }
       }
     }).catch(function(e){
@@ -3561,10 +3601,8 @@ function App(){
     // Check if we already have the data from clicking in Following tab
     if(viewProfileData && viewProfileData.username && viewProfileData.username.toLowerCase() === viewProfileUser.toLowerCase()) return;
     
-    // Load from dm_users
-    window.storage.get("dm_users",true).then(function(r){
-      if(r && r.value){
-        var users = JSON.parse(r.value);
+    window.users.all().then(function(users){
+      if(users){
         var userData = users[viewProfileUser] || users[viewProfileUser.toLowerCase()];
         if(userData){
           setViewProfileData({
@@ -3609,13 +3647,12 @@ function App(){
     if(myPendingRequests.some(function(r){return r.toUser.toLowerCase()===targetLower})){setFollowStatus("error:You already sent a request to @"+target);return}
     
     // Check if user exists first
-    window.storage.get("dm_users",true).then(function(usersR){
-      if(!usersR){
+    window.users.all().then(function(users){
+      if(!users){
         setFollowStatus("error:No users found");
         return;
       }
-      var users=JSON.parse(usersR.value);
-      
+
       // Find user (case-insensitive lookup)
       var foundUser=null;
       if(users[target]){
@@ -3915,10 +3952,9 @@ function App(){
     if(targetLower===userId.toLowerCase()){setShareToStatus("error:You can't share to yourself");return}
     
     // Check if user exists
-    window.storage.get("dm_users",true).then(function(r){
-      if(!r||!r.value){setShareToStatus("error:User not found");return}
-      var users=JSON.parse(r.value);
-      
+    window.users.all().then(function(users){
+      if(!users){setShareToStatus("error:User not found");return}
+
       // Find user case-insensitively
       var foundUsername=null;
       Object.keys(users).forEach(function(u){
@@ -4017,13 +4053,11 @@ function App(){
       // Fall back to inlining if the upload failed, so a Storage problem
       // doesn't block someone setting an avatar.
       var stored = url || pic;
-      return window.storage.get("dm_users",true).then(function(r){
-        if(!r)return;
-        var users=JSON.parse(r.value);
-        if(!users[userId])return;
-        users[userId].profilePic=stored;
-        return window.storage.set("dm_users",JSON.stringify(users),true);
-      }).then(function(result){
+      var uid = firebase.auth().currentUser && firebase.auth().currentUser.uid;
+      if(!uid) throw new Error("not signed in");
+      // Targeted write to this user's own doc - no read-modify-write of a
+      // document shared with every other user.
+      return window.users.upsert(uid,{profilePic:stored}).then(function(result){
         if(result){
           setUserProfilePic(stored);
           setProfileSuccess("Profile picture updated!");
@@ -4108,27 +4142,17 @@ function App(){
       return;
     }
     
-    // Get current user's email to reauthenticate
-    window.storage.get("dm_users",true).then(function(r){
-      if(!r){
-        setPasswordError("Error accessing account");
-        return Promise.reject("no_users");
-      }
-      var users=JSON.parse(r.value);
-      var userLower=userId.toLowerCase();
-      var userEmail=null;
-      Object.keys(users).forEach(function(u){
-        if(u.toLowerCase()===userLower)userEmail=users[u].email;
-      });
-      
-      if(!userEmail){
+    // Reauthenticate with the current password. The signed-in Firebase user
+    // already carries the email, so this needs no Firestore read at all -
+    // it previously downloaded every user's profile just to find its own.
+    Promise.resolve().then(function(){
+      var currentUser = auth.currentUser;
+      if(!currentUser || !currentUser.email){
         setPasswordError("Account not found");
         return Promise.reject("no_email");
       }
-      
-      // Reauthenticate with current password
-      var credential=firebase.auth.EmailAuthProvider.credential(userEmail, currentPassword);
-      return auth.currentUser.reauthenticateWithCredential(credential);
+      var credential=firebase.auth.EmailAuthProvider.credential(currentUser.email, currentPassword);
+      return currentUser.reauthenticateWithCredential(credential);
     }).then(function(){
       // Update password
       return auth.currentUser.updatePassword(newPassword);
@@ -4341,17 +4365,11 @@ function App(){
         });
     });
     
-    // Update public recipe count in user profile
+    // Update public recipe count in user profile. This fires on every recipe
+    // save, so it used to rewrite the whole shared user document each time.
     var publicCount = recipes.filter(function(r) { return r.isPublic !== false; }).length;
-    window.storage.get("dm_users", true).then(function(r) {
-      if (r && r.value) {
-        var users = JSON.parse(r.value);
-        if (users[userId]) {
-          users[userId].publicRecipeCount = publicCount;
-          return window.storage.set("dm_users", JSON.stringify(users), true);
-        }
-      }
-    }).catch(function() {});
+    var countUid = firebase.auth().currentUser && firebase.auth().currentUser.uid;
+    if (countUid) window.users.upsert(countUid, { publicRecipeCount: publicCount });
     
     console.log("Saved", recipes.length, "recipes individually");
   }
@@ -4436,12 +4454,11 @@ function App(){
     setPublicRecipesLoaded(true);
     console.log("Loading public recipes...");
     
-    window.storage.get("dm_users",true).then(function(usersR){
-      if(!usersR||!usersR.value){
+    window.users.all().then(function(users){
+      if(!users || Object.keys(users).length===0){
         console.log("No users found for public recipes");
         return;
       }
-      var users=JSON.parse(usersR.value);
       var allPublicRecipes=[];
       var usernames=Object.keys(users).filter(function(u){
         // Only include public accounts
@@ -5283,16 +5300,8 @@ function App(){
                     <button onClick={function(){
                       var newPrivacy=!isPrivateProfile;
                       setIsPrivateProfile(newPrivacy);
-                      // Save to user data
-                      window.storage.get("dm_users",true).then(function(r){
-                        if(r&&r.value){
-                          var users=JSON.parse(r.value);
-                          if(users[userId]){
-                            users[userId].isPrivate=newPrivacy;
-                            return window.storage.set("dm_users",JSON.stringify(users),true);
-                          }
-                        }
-                      });
+                      var uid=firebase.auth().currentUser&&firebase.auth().currentUser.uid;
+                      if(uid) window.users.upsert(uid,{isPrivate:newPrivacy});
                     }} style={{width:42,height:24,borderRadius:12,border:"none",background:isPrivateProfile?C.dark:C.blushDeep,cursor:"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}>
                       <div style={{width:18,height:18,borderRadius:9,background:"var(--surface)",position:"absolute",top:3,left:isPrivateProfile?21:3,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}/>
                     </button>
