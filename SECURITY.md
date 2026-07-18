@@ -40,11 +40,25 @@ the rules change.
   anyone with the URL. It now requires a valid Firebase ID token on every
   request (RS256 verified against Google's JWK keys, plus aud/iss/exp checks),
   so only signed-in users of this project can call it.
-- **AI-worker call flooding.** On top of token verification, the worker rate
-  limits per user (default 30 calls / 10 min) using a Cloudflare KV namespace
-  bound as `AI_RATE_LIMIT`, keyed by the token's uid. Fails open if the binding
-  is missing, so it never breaks AI for real users. Tunable at the top of
-  `recipe-proxy-worker.js`.
+- **AI-worker call flooding / runaway cost.** On top of token verification, the
+  worker enforces two per-user guards using a Cloudflare KV namespace bound as
+  `AI_RATE_LIMIT`, keyed by the token's uid:
+  - **Burst window** (default 30 calls / 10 min) stops rapid loops.
+  - **Monthly budget** (default $1.00 / user / calendar month, UTC) caps real
+    Anthropic spend. Each call's actual token + web-search usage is read from
+    the API response and charged against the allowance in integer
+    "micro-dollars" (millionths of $1), priced at claude-sonnet-5 *standard*
+    rates so the budget reflects worst-case cost. The call-type mix is therefore
+    irrelevant — a free JSON-LD import costs nothing, a cheap chef chat a little,
+    an expensive URL import more. The allowance is scaled by a per-user tier
+    multiplier read from KV key `tier:<uid>` (integer, default 1), so a future
+    payment flow can grant 2×/3×/… by writing that key; the worker only reads it.
+  Both guards fail open if the binding or KV is unavailable, so they never break
+  AI for real users. Tunable at the top of `recipe-proxy-worker.js`.
+
+  **Not yet built:** the payment collection that would *set* `tier:<uid>` (App
+  Store IAP or Stripe + receipt validation). Until that exists every user sits
+  at the 1× / $1.00 allowance.
 
 ## Open — known and accepted
 

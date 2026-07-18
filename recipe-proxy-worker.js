@@ -71,35 +71,136 @@ async function verifyFirebaseToken(token) {
   return payload; // includes sub (the user's uid)
 }
 
-// --- Per-user rate limiting -------------------------------------------------
+// --- Per-user limits --------------------------------------------------------
 // Token verification ties every AI call to an account, but nothing stops one
-// account from looping the endpoints. This caps calls per user per window.
+// account from looping the endpoints. Two independent guards, both backed by a
+// KV namespace bound as AI_RATE_LIMIT. If the binding is missing or KV errors,
+// every check FAILS OPEN (allows the call) - an optional guard must never break
+// AI for real users, so the worker is safe to deploy before the binding exists.
 //
-// It needs a KV namespace bound to the worker as AI_RATE_LIMIT. If that binding
-// is missing, or KV errors, this FAILS OPEN (allows the call) - an optional
-// abuse guard must never break AI for real users. So the worker is safe to
-// deploy before the binding exists; rate limiting simply activates once it's
-// added. Tune these two numbers to taste.
-const RATE_LIMIT_MAX = 30;          // max requests...
-const RATE_LIMIT_WINDOW_SEC = 600;  // ...per this many seconds (10 minutes)
+//   1. Burst window (count-based)  - stops rapid loops / hammering.
+//   2. Monthly budget (cost-based) - caps real Anthropic spend per user. Each
+//      call's actual token usage is read from the API response and charged
+//      against a per-user, per-month dollar allowance, so the *mix* of call
+//      types is irrelevant: everyone gets the same dollar budget, spent however
+//      they like. A cheap chef chat draws a little, an expensive URL import
+//      draws more, a free JSON-LD import draws nothing. The allowance can be
+//      raised per user via a "tier" multiplier (see getTierMultiplier) that a
+//      future payment flow would set.
 
-async function withinRateLimit(env, uid) {
+// Burst window
+const RATE_LIMIT_MAX = 30;            // max requests...
+const RATE_LIMIT_WINDOW_SEC = 600;    // ...per this many seconds (10 minutes)
+
+// Monthly budget. All money is tracked in "micro-dollars" (millionths of $1) as
+// integers, so there is no floating-point drift in KV. claude-sonnet-5 STANDARD
+// pricing is used deliberately (not the cheaper intro rate that expires
+// 2026-08-31), so the budget always reflects worst-case real cost.
+const PRICE_IN_PER_TOK = 3;           // $3  / 1M input tokens  -> 3 µ$/token
+const PRICE_OUT_PER_TOK = 15;         // $15 / 1M output tokens -> 15 µ$/token
+const PRICE_WEB_SEARCH = 10000;       // $10 / 1k web searches  -> 10000 µ$/search
+const MONTHLY_BUDGET_MICRO = 1000000; // $1.00 base allowance per user per month
+const MONTH_TTL_SEC = 60 * 60 * 24 * 63; // ~63 days: outlive the month, then auto-clean
+
+function monthKeyFor(prefix, uid) {
+  return prefix + uid + ":" + new Date().toISOString().slice(0, 7); // "...:YYYY-MM" (UTC)
+}
+
+// Accumulates the real cost of every Anthropic call made while handling one
+// request, in micro-dollars. callAnthropic() feeds it each response's usage.
+function createMeter() {
+  return {
+    microDollars: 0,
+    record(usage) {
+      if (!usage) return;
+      const inTok = usage.input_tokens || 0;
+      const outTok = usage.output_tokens || 0;
+      const searches = (usage.server_tool_use && usage.server_tool_use.web_search_requests) || 0;
+      this.microDollars += inTok * PRICE_IN_PER_TOK + outTok * PRICE_OUT_PER_TOK + searches * PRICE_WEB_SEARCH;
+    }
+  };
+}
+
+// Burst limit: check + increment the 10-minute counter. Returns true if allowed.
+async function checkBurst(env, uid) {
   const kv = env.AI_RATE_LIMIT;
   if (!kv) return true; // binding not configured yet -> don't block anyone
   try {
-    // Fixed window: all requests in the same 10-minute bucket share a counter.
     const windowId = Math.floor(Date.now() / 1000 / RATE_LIMIT_WINDOW_SEC);
     const key = "rl:" + uid + ":" + windowId;
     const current = parseInt((await kv.get(key)) || "0", 10);
     if (current >= RATE_LIMIT_MAX) return false;
-    // read-then-write isn't atomic; under a burst a couple of extra calls can
-    // slip through, which is fine for abuse prevention. TTL cleans up old
-    // windows automatically.
+    // read-then-write isn't atomic; a burst can slip a couple extra through,
+    // which is fine for abuse prevention. TTL cleans up old windows.
     await kv.put(key, String(current + 1), { expirationTtl: RATE_LIMIT_WINDOW_SEC * 2 });
     return true;
   } catch (e) {
     return true; // KV hiccup -> fail open rather than break AI
   }
+}
+
+// Per-user monthly allowance = base budget x tier multiplier. The multiplier is
+// read from KV key "tier:<uid>" (an integer, default 1). A payment flow is the
+// thing that writes that key - 2 for a 2x purchase, 3 for 3x, etc. The worker
+// only consumes it, and clamps to a sane range.
+async function getTierMultiplier(env, uid) {
+  const kv = env.AI_RATE_LIMIT;
+  if (!kv) return 1;
+  try {
+    const t = parseInt((await kv.get("tier:" + uid)) || "1", 10);
+    return (t >= 1 && t <= 20) ? t : 1;
+  } catch (e) {
+    return 1;
+  }
+}
+
+// Budget limit: read-only pre-check. Returns true if the user still has budget
+// left this month. The call's real cost is recorded AFTER it completes (see
+// recordSpend), so a single call can push the total slightly past the cap -
+// worst case one call's worth (a few cents), which is acceptable.
+async function withinBudget(env, uid) {
+  const kv = env.AI_RATE_LIMIT;
+  if (!kv) return true;
+  try {
+    const spent = parseInt((await kv.get(monthKeyFor("cost:", uid))) || "0", 10);
+    const allowance = MONTHLY_BUDGET_MICRO * (await getTierMultiplier(env, uid));
+    return spent < allowance;
+  } catch (e) {
+    return true;
+  }
+}
+
+// Add this request's metered cost to the user's monthly total. Best-effort:
+// a KV hiccup just means one call goes uncounted, never a broken response.
+async function recordSpend(env, uid, microDollars) {
+  if (!microDollars) return;
+  const kv = env.AI_RATE_LIMIT;
+  if (!kv) return;
+  try {
+    const key = monthKeyFor("cost:", uid);
+    const spent = parseInt((await kv.get(key)) || "0", 10);
+    await kv.put(key, String(spent + microDollars), { expirationTtl: MONTH_TTL_SEC });
+  } catch (e) {
+    // best-effort accounting; ignore
+  }
+}
+
+// Single choke point for every Anthropic Messages API call. Does the fetch,
+// meters the response's real token/tool usage, and surfaces API errors.
+async function callAnthropic(requestBody, apiKey, meter) {
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01"
+    },
+    body: JSON.stringify(requestBody)
+  });
+  const data = await response.json();
+  if (meter && data && data.usage) meter.record(data.usage);
+  if (data && data.error) throw new Error(data.error.message || "API error");
+  return data;
 }
 
 export default {
@@ -148,51 +249,47 @@ export default {
       });
     }
 
-    // Rate limit per user. Checked before dispatch, so even malformed requests
-    // count against the cap - an attacker's loop is throttled regardless of
-    // what it sends.
-    if (!(await withinRateLimit(env, uid))) {
+    // Guard 1: burst limit (abuse). Checked before dispatch, so even malformed
+    // requests count - an attacker's loop is throttled regardless of payload.
+    if (!(await checkBurst(env, uid))) {
       return new Response(JSON.stringify({ error: "You're doing that a lot - please wait a few minutes and try again." }), {
         status: 429,
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
       });
     }
 
+    // Guard 2: monthly budget (cost). If the user has already spent their dollar
+    // allowance for the month, block until it resets.
+    if (!(await withinBudget(env, uid))) {
+      return new Response(JSON.stringify({ error: "You've used this month's AI budget. It resets at the start of next month." }), {
+        status: 429,
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+      });
+    }
+
+    // One meter per request accumulates the real cost of whatever AI calls the
+    // chosen handler makes; recordSpend() charges it to the monthly budget.
+    const meter = createMeter();
     try {
       const body = await request.json();
       const { type } = body;
+      let payload;
 
       if (type === "chef_chat") {
-        // Handle recipe-idea chat - returns a plain-text reply, not a structured recipe
-        const reply = await chefChat(body.messages, env.ANTHROPIC_API_KEY);
-        return new Response(JSON.stringify({ success: true, reply }), {
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
-        });
-      }
-
-      if (type === "ingredient_swap") {
-        // Suggest substitutes for one ingredient in a recipe - returns its own
-        // {success, original, suggestions} shape, not the {success, recipe} shape below
-        const result = await ingredientSwap(body.recipeName, body.ingredients, body.recipeText, body.request, env.ANTHROPIC_API_KEY);
-        return new Response(JSON.stringify(result), {
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
-        });
-      }
-
-      let recipe;
-
-      if (type === "scan") {
-        // Handle image scanning
-        recipe = await scanImages(body.images, env.ANTHROPIC_API_KEY);
+        // Recipe-idea chat - returns a plain-text reply, not a structured recipe
+        payload = { success: true, reply: await chefChat(body.messages, env.ANTHROPIC_API_KEY, meter) };
+      } else if (type === "ingredient_swap") {
+        // Substitutes for one ingredient - returns its own {success, original,
+        // suggestions} shape, not the {success, recipe} shape
+        payload = await ingredientSwap(body.recipeName, body.ingredients, body.recipeText, body.request, env.ANTHROPIC_API_KEY, meter);
+      } else if (type === "scan") {
+        payload = { success: true, recipe: await scanImages(body.images, env.ANTHROPIC_API_KEY, meter) };
       } else if (type === "url") {
-        // Handle URL import
-        recipe = await importFromUrl(body.url, env.ANTHROPIC_API_KEY);
+        payload = { success: true, recipe: await importFromUrl(body.url, env.ANTHROPIC_API_KEY, meter) };
       } else if (type === "pdf") {
-        // Handle PDF import
-        recipe = await importFromPdf(body.imageData, body.mimeType, env.ANTHROPIC_API_KEY);
+        payload = { success: true, recipe: await importFromPdf(body.imageData, body.mimeType, env.ANTHROPIC_API_KEY, meter) };
       } else if (type === "parse_text") {
-        // Handle text parsing
-        recipe = await parseRecipeText(body.text, env.ANTHROPIC_API_KEY);
+        payload = { success: true, recipe: await parseRecipeText(body.text, env.ANTHROPIC_API_KEY, meter) };
       } else {
         return new Response(JSON.stringify({ error: "Invalid type. Use 'scan', 'url', 'pdf', 'parse_text', 'chef_chat', or 'ingredient_swap'" }), {
           status: 400,
@@ -200,11 +297,17 @@ export default {
         });
       }
 
-      return new Response(JSON.stringify({ success: true, recipe }), {
+      // Charge the metered cost against the user's monthly budget.
+      await recordSpend(env, uid, meter.microDollars);
+
+      return new Response(JSON.stringify(payload), {
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
       });
 
     } catch (err) {
+      // A call can fail after the API already ran (e.g. the reply didn't parse) -
+      // that still cost tokens, so record whatever was metered before failing.
+      await recordSpend(env, uid, meter.microDollars);
       return new Response(JSON.stringify({ error: err.message }), {
         status: 500,
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
@@ -214,7 +317,7 @@ export default {
 };
 
 // Scan images to extract recipe
-async function scanImages(images, apiKey) {
+async function scanImages(images, apiKey, meter) {
   if (!images || images.length === 0) {
     throw new Error("No images provided");
   }
@@ -236,25 +339,11 @@ async function scanImages(images, apiKey) {
 
   content.push({ type: "text", text: prompt });
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01"
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-5",
-      max_tokens: 2000,
-      messages: [{ role: "user", content }]
-    })
-  });
-
-  const data = await response.json();
-
-  if (data.error) {
-    throw new Error(data.error.message || "API error");
-  }
+  const data = await callAnthropic({
+    model: "claude-sonnet-5",
+    max_tokens: 2000,
+    messages: [{ role: "user", content }]
+  }, apiKey, meter);
 
   const text = data.content?.find(b => b.type === "text")?.text || "";
   const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
@@ -423,7 +512,7 @@ function jsonLdToAppRecipe(recipe, fallbackPhotoUrl) {
 }
 
 // Import from URL - fetch the page directly then use AI to extract
-async function importFromUrl(url, apiKey) {
+async function importFromUrl(url, apiKey, meter) {
   // First, try to fetch the URL directly
   let pageContent = "";
   let photoUrl = "";
@@ -564,21 +653,7 @@ For photo, include the main recipe image URL if found.`;
     }];
   }
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01"
-    },
-    body: JSON.stringify(requestBody)
-  });
-
-  const data = await response.json();
-
-  if (data.error) {
-    throw new Error(data.error.message || "API error");
-  }
+  const data = await callAnthropic(requestBody, apiKey, meter);
 
   // Find the text response
   const textBlock = data.content?.find(b => b.type === "text");
@@ -595,31 +670,24 @@ For photo, include the main recipe image URL if found.`;
 }
 
 // Import from PDF
-async function importFromPdf(imageData, mimeType, apiKey) {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01"
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-5",
-      max_tokens: 2000,
-      messages: [{
-        role: "user",
-        content: [
-          {
-            type: "document",
-            source: {
-              type: "base64",
-              media_type: mimeType || "application/pdf",
-              data: imageData
-            }
-          },
-          {
-            type: "text",
-            text: `Extract the recipe from this PDF. Return ONLY valid JSON with no other text:
+async function importFromPdf(imageData, mimeType, apiKey, meter) {
+  const data = await callAnthropic({
+    model: "claude-sonnet-5",
+    max_tokens: 2000,
+    messages: [{
+      role: "user",
+      content: [
+        {
+          type: "document",
+          source: {
+            type: "base64",
+            media_type: mimeType || "application/pdf",
+            data: imageData
+          }
+        },
+        {
+          type: "text",
+          text: `Extract the recipe from this PDF. Return ONLY valid JSON with no other text:
 {
   "name": "Recipe Name",
   "time": "30 min",
@@ -630,17 +698,10 @@ async function importFromPdf(imageData, mimeType, apiKey) {
 
 Format the notes as NUMBERED STEPS (1. 2. 3.) each on its own line.
 Valid recipeType: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, drinks, cocktails, other`
-          }
-        ]
-      }]
-    })
-  });
-
-  const data = await response.json();
-
-  if (data.error) {
-    throw new Error(data.error.message || "API error");
-  }
+        }
+      ]
+    }]
+  }, apiKey, meter);
 
   const text = data.content?.find(b => b.type === "text")?.text || "";
   const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
@@ -654,7 +715,7 @@ Valid recipeType: chicken, beef, pork, seafood, pasta, mexican, asian, soup, sal
 }
 
 // Parse recipe from pasted text
-async function parseRecipeText(text, apiKey) {
+async function parseRecipeText(text, apiKey, meter) {
   if (!text || !text.trim()) {
     throw new Error("No text provided");
   }
@@ -682,25 +743,11 @@ Important:
 - Valid recipeType: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, drinks, cocktails, other
 - If a source/credit is mentioned, include it`;
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01"
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-5",
-      max_tokens: 4000,
-      messages: [{ role: "user", content: prompt }]
-    })
-  });
-
-  const data = await response.json();
-
-  if (data.error) {
-    throw new Error(data.error.message || "API error");
-  }
+  const data = await callAnthropic({
+    model: "claude-sonnet-5",
+    max_tokens: 4000,
+    messages: [{ role: "user", content: prompt }]
+  }, apiKey, meter);
 
   const responseText = data.content?.find(b => b.type === "text")?.text || "";
   const cleaned = responseText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
@@ -714,7 +761,7 @@ Important:
 }
 
 // Recipe-idea brainstorming chat
-async function chefChat(messages, apiKey) {
+async function chefChat(messages, apiKey, meter) {
   if (!messages || messages.length === 0) {
     throw new Error("No messages provided");
   }
@@ -732,26 +779,12 @@ Keep tone practical and friendly. No long preambles, no markdown headers, no emo
     content: m.text
   }));
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01"
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-5",
-      max_tokens: 1200,
-      system: systemPrompt,
-      messages: anthropicMessages
-    })
-  });
-
-  const data = await response.json();
-
-  if (data.error) {
-    throw new Error(data.error.message || "API error");
-  }
+  const data = await callAnthropic({
+    model: "claude-sonnet-5",
+    max_tokens: 1200,
+    system: systemPrompt,
+    messages: anthropicMessages
+  }, apiKey, meter);
 
   const text = data.content?.find(b => b.type === "text")?.text || "";
   if (!text.trim()) {
@@ -769,7 +802,7 @@ Keep tone practical and friendly. No long preambles, no markdown headers, no emo
 // recipe context is given at all (ingredients/recipeText both absent), this
 // falls back to a standalone-ingredient prompt for requests like "what can I
 // use instead of buttermilk" that aren't tied to any saved recipe.
-async function ingredientSwap(recipeName, ingredients, recipeText, request, apiKey) {
+async function ingredientSwap(recipeName, ingredients, recipeText, request, apiKey, meter) {
   if (!request || !request.trim()) {
     throw new Error("No request provided");
   }
@@ -797,25 +830,11 @@ Identify the single ingredient they're asking about - it may be named directly (
 Return ONLY this JSON object with no other text, no markdown code fences, and no explanation before or after it:
 {"success":true,"original":"the ingredient name you identified (empty string if success is false)","suggestions":[{"substitute":"name","note":"short practical note"}],"message":"only used when success is false"}`;
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01"
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-5",
-      max_tokens: 1000,
-      messages: [{ role: "user", content: prompt }]
-    })
-  });
-
-  const data2 = await response.json();
-
-  if (data2.error) {
-    throw new Error(data2.error.message || "API error");
-  }
+  const data2 = await callAnthropic({
+    model: "claude-sonnet-5",
+    max_tokens: 1000,
+    messages: [{ role: "user", content: prompt }]
+  }, apiKey, meter);
 
   const replyText = data2.content?.find(b => b.type === "text")?.text || "";
   const cleaned = replyText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();

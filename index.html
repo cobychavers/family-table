@@ -4729,14 +4729,16 @@ function App(){
       if(tok) headers["Authorization"] = "Bearer " + tok;
       return fetch(RECIPE_PROXY_URL, { method:"POST", headers:headers, body:JSON.stringify(payload) });
     }).then(function(resp){
-      // Rate limit is its own thing, not a failure - surface it with a clean,
-      // self-contained message and a flag, so call sites can show just this
-      // instead of wrapping it in their generic "something went wrong, try
-      // again" text (which would double up the "try again").
+      // Rate limit is its own thing, not a failure - surface the worker's own
+      // message (the burst and monthly limits read differently) with a flag,
+      // so call sites show just this instead of wrapping it in their generic
+      // "something went wrong, try again" text (which would double up).
       if(resp.status === 429){
-        var e = new Error("AI limit reached - please wait a few minutes and try again.");
-        e.isRateLimit = true;
-        throw e;
+        return resp.json().catch(function(){ return {}; }).then(function(data){
+          var e = new Error(data.error || "AI limit reached - please try again later.");
+          e.isRateLimit = true;
+          throw e;
+        });
       }
       return resp;
     });
