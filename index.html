@@ -2122,7 +2122,31 @@ function GroceryTab(p){
       setShowImportGrocery(false);
     }
   }
-  
+
+  // GroceryTab is a different component from the recipes-tab proxyFetch, so it
+  // carries its own tiny copy: attach the Firebase ID token and surface the
+  // worker's 429 (budget/burst) message. Routing image/PDF grocery scans
+  // through the worker keeps the API key server-side and counts them against
+  // the monthly budget, instead of the old direct-to-Anthropic call.
+  var GROCERY_PROXY_URL="https://recipe-proxy.coby-chavers.workers.dev";
+  function groceryProxyFetch(payload){
+    var headers={"Content-Type":"application/json"};
+    var cu=firebase.auth().currentUser;
+    var tokenP=cu?cu.getIdToken():Promise.resolve(null);
+    return tokenP.catch(function(){return null}).then(function(tok){
+      if(tok)headers["Authorization"]="Bearer "+tok;
+      return fetch(GROCERY_PROXY_URL,{method:"POST",headers:headers,body:JSON.stringify(payload)});
+    }).then(function(resp){
+      if(resp.status===429){
+        return resp.json().catch(function(){return{}}).then(function(d){
+          var e=new Error(d.error||"AI limit reached - please try again later.");
+          e.isRateLimit=true;throw e;
+        });
+      }
+      return resp;
+    });
+  }
+
   function handleImportFile(e){
     var file=e.target.files&&e.target.files[0];
     if(!file)return;
@@ -2131,64 +2155,38 @@ function GroceryTab(p){
     var isImage=file.type.startsWith("image/");
     var isPDF=file.type==="application/pdf";
     
+    function handleScanResp(resp){ return resp.json(); }
+    function applyScanned(data){
+      if(!data||!data.success)throw new Error((data&&data.error)||"Scan failed");
+      var items=parseGroceryText(data.text||"");
+      if(items.length>0){
+        importGroceryItems(items);
+        setShowImportGrocery(false);
+      }
+      setImportGroceryLoading(false);
+    }
     if(isImage){
-      // Use AI to extract grocery items from image
+      // Extract grocery items from the image via the worker (keeps the API key
+      // server-side and counts the call against the monthly AI budget).
       var reader=new FileReader();
       reader.onload=function(ev){
         var base64=ev.target.result;
-        fetch("https://api.anthropic.com/v1/messages",{
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({
-            model:"claude-sonnet-4-20250514",
-            max_tokens:1000,
-            messages:[{role:"user",content:[
-              {type:"image",source:{type:"base64",media_type:file.type,data:base64.split(",")[1]}},
-              {type:"text",text:"Extract the grocery list items from this image. Return ONLY a simple list with one item per line. If there are quantities, include them. No explanations, just the list items."}
-            ]}]
-          })
-        }).then(function(r){return r.json()}).then(function(data){
-          var text=data.content&&data.content[0]&&data.content[0].text||"";
-          var items=parseGroceryText(text);
-          if(items.length>0){
-            importGroceryItems(items);
-            setShowImportGrocery(false);
-          }
-          setImportGroceryLoading(false);
-        }).catch(function(){
-          setImportGroceryLoading(false);
-          alert("Failed to process image. Please try pasting the text instead.");
-        });
+        groceryProxyFetch({type:"grocery_scan",images:[{base64:base64.split(",")[1],mediaType:file.type}]})
+          .then(handleScanResp).then(applyScanned).catch(function(err){
+            setImportGroceryLoading(false);
+            alert(err&&err.isRateLimit?err.message:"Failed to process image. Please try pasting the text instead.");
+          });
       };
       reader.readAsDataURL(file);
     }else if(isPDF){
-      // For PDF, try to read as text
       var reader=new FileReader();
       reader.onload=function(ev){
         var base64=ev.target.result;
-        fetch("https://api.anthropic.com/v1/messages",{
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({
-            model:"claude-sonnet-4-20250514",
-            max_tokens:1000,
-            messages:[{role:"user",content:[
-              {type:"document",source:{type:"base64",media_type:"application/pdf",data:base64.split(",")[1]}},
-              {type:"text",text:"Extract the grocery list items from this document. Return ONLY a simple list with one item per line. If there are quantities, include them. No explanations, just the list items."}
-            ]}]
-          })
-        }).then(function(r){return r.json()}).then(function(data){
-          var text=data.content&&data.content[0]&&data.content[0].text||"";
-          var items=parseGroceryText(text);
-          if(items.length>0){
-            importGroceryItems(items);
-            setShowImportGrocery(false);
-          }
-          setImportGroceryLoading(false);
-        }).catch(function(){
-          setImportGroceryLoading(false);
-          alert("Failed to process PDF. Please try pasting the text instead.");
-        });
+        groceryProxyFetch({type:"grocery_scan",pdf:{data:base64.split(",")[1],mimeType:"application/pdf"}})
+          .then(handleScanResp).then(applyScanned).catch(function(err){
+            setImportGroceryLoading(false);
+            alert(err&&err.isRateLimit?err.message:"Failed to process PDF. Please try pasting the text instead.");
+          });
       };
       reader.readAsDataURL(file);
     }else{
