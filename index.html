@@ -1235,9 +1235,15 @@ function formatQtyNum(num){
   return(whole>0?whole+" ":"")+n+"/"+d;
 }
 function tryMergeQty(aQty,aUnit,bQty,bUnit){
+  var aBlank=!(aQty||"").trim(),bBlank=!(bQty||"").trim();
   // Both genuinely blank (e.g. "salt" with no qty in either recipe) - nothing
   // to sum, just keep one row, same as the old dedup-by-name behavior.
-  if(!(aQty||"").trim()&&!(bQty||"").trim())return{qty:aQty,unit:aUnit};
+  if(aBlank&&bBlank)return{qty:aQty,unit:aUnit};
+  // One side has no amount (e.g. "salt to taste") - fold it into the side that
+  // does, so the two collapse into one row that keeps the known amount instead
+  // of showing the same item twice (once with an amount, once without).
+  if(aBlank)return{qty:bQty,unit:bUnit};
+  if(bBlank)return{qty:aQty,unit:aUnit};
   var nu1=normalizeUnit(aUnit),nu2=normalizeUnit(bUnit);
   var an=parseQtyNum(aQty),bn=parseQtyNum(bQty);
   if(an===null||bn===null)return null;
@@ -1657,7 +1663,18 @@ function GroceryTab(p){
     window.storage.get("dm_groceryhistory_"+p.userId,true).then(function(r){if(r)setGroceryHistory(JSON.parse(r.value))}).catch(function(){});
     window.storage.get("dm_gqtyoverrides_"+p.userId,true).then(function(r){if(r)setQtyOverrides(JSON.parse(r.value))}).catch(function(){});
     window.storage.get("dm_savedlists_"+p.userId,true).then(function(r){if(r)setSavedLists(JSON.parse(r.value))}).catch(function(){});
-    window.storage.get("dm_generated_"+p.userId,true).then(function(r){if(r){var data=JSON.parse(r.value);setGeneratedItems(data.items||[]);setGeneratedWeekLabel(data.weekLabel||"")}}).catch(function(){});
+    window.storage.get("dm_generated_"+p.userId,true).then(function(r){if(r){
+      var data=JSON.parse(r.value);
+      var items=data.items||[],label=data.weekLabel||"";
+      // Re-consolidate on load so a list saved before the current cleaning rules
+      // collapses its duplicates and drops orphans; persist only if it changed.
+      var c=consolidateGrocery(items);
+      setGeneratedItems(c);
+      setGeneratedWeekLabel(label);
+      if(JSON.stringify(c)!==JSON.stringify(items)){
+        window.storage.set("dm_generated_"+p.userId,JSON.stringify({items:c,weekLabel:label}),true).catch(function(){});
+      }
+    }}).catch(function(){});
   },[p.userId]);
 
   // Generate grocery list from current week's meals
@@ -1692,8 +1709,16 @@ function GroceryTab(p){
   function cleanGroceryItemName(rawName){
     var name=(rawName||"").trim();
     if(!name)return name;
-    // Strip a standalone "(optional)" tag anywhere in the name
-    name=name.replace(/\s*\(\s*optional\s*\)\s*/gi," ").trim();
+    // Drop a leading list bullet ("• pinch red pepper flakes") left over from
+    // the source recipe's formatting.
+    name=name.replace(/^[•●▪▸*]\s*/,"").trim();
+    // Strip ALL parentheticals - recipe asides like "(for crema)", "(plus more
+    // to taste)", "(optional)", or an alternative "(or fresh mozzarella)" aren't
+    // shopping info. Removing them also lets otherwise-identical items ("salt
+    // (for crema)" vs "salt") consolidate into one row, and turns a
+    // pure-parenthetical alternative into an empty string the caller drops
+    // instead of listing as its own mystery item.
+    name=name.replace(/\s*\([^)]*\)\s*/g," ").replace(/\s+/g," ").trim();
     // Trailing "for serving/garnish/..." doesn't need a comma to strip
     name=name.replace(/\s+for\s+(serving|garnish(?:ing)?|topping|frying|greasing|dusting|drizzling|brushing|dipping)\s*$/i,"");
     // "to taste" / "as needed" are seasoning instructions, not shopping items -
@@ -1773,6 +1798,39 @@ function GroceryTab(p){
     var n=(name||"").replace(/\s+/g," ").trim().toLowerCase();
     return /\bwater$/.test(n) && /\b(pasta|cooking|reserved|starchy|noodle)\b/.test(n);
   }
+  // Re-runs the generation-time consolidation over an already-saved list, so a
+  // list generated before these cleaning rules existed still collapses its
+  // duplicates ("salt", "salt (for crema)", "salt to taste" -> one row) and
+  // drops emptied/orphan items, without the user needing to regenerate. Keeps
+  // the first surviving item's id so its checked/store state carries over.
+  // Idempotent: re-consolidating an already-clean list returns it unchanged.
+  function consolidateGrocery(items){
+    var out=[],seen={};
+    items.forEach(function(it){
+      var names=splitGroceryItemNames(cleanGroceryItemName(it.name||"")).map(normalizeGroceryPepperName);
+      names.forEach(function(nm,i){
+        var display=(nm||"").trim();
+        if(!display||isCookingWaterByproduct(display))return;
+        var key=grocerySynonymKey(display.toLowerCase());
+        // A split (salt + pepper) keeps the qty on the first piece only.
+        var q=i===0?(it.qty||""):"",u=i===0?(it.unit||""):"";
+        var variants=seen[key],merged=false;
+        if(variants){
+          for(var vi=0;vi<variants.length;vi++){
+            var r=tryMergeQty(variants[vi].qty,variants[vi].unit,q,u);
+            if(r){variants[vi].qty=r.qty;variants[vi].unit=r.unit;merged=true;break;}
+          }
+        }
+        if(!merged){
+          var ni={id:it.id+(i>0?("_"+i):""),name:display,qty:q,unit:u};
+          out.push(ni);
+          if(!seen[key])seen[key]=[];
+          seen[key].push(ni);
+        }
+      });
+    });
+    return out;
+  }
 
   function generateFromWeeks(weekStartDates, mode){
     // mode: "replace" (default) starts fresh, "append" adds to existing list
@@ -1809,6 +1867,7 @@ function GroceryTab(p){
               // "Salt and pepper" is shorthand for two items, not one line
               var itemNames=splitGroceryItemNames(cleanedName).map(normalizeGroceryPepperName);
               itemNames.forEach(function(itemName){
+                if(!itemName.trim())return; // pure-parenthetical alternative, cleaned to nothing
                 var name=grocerySynonymKey(itemName.trim().toLowerCase());
                 if(GROCERY_EXCLUDE.some(function(ex){return name===ex||name.replace(/\s+/g," ")===ex})||isCookingWaterByproduct(name)) return;
                 // Try to merge into an existing variant of this ingredient name
