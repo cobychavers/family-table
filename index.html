@@ -1756,14 +1756,6 @@ function GroceryTab(p){
   function grocerySynonymKey(nameLower){
     return GROCERY_SYNONYMS[nameLower]||nameLower;
   }
-  // Pantry staples almost everyone already has - the "salt and pepper to taste"
-  // class of ingredient that clutters a real shopping list. We don't drop them
-  // (you might genuinely be out), we route them to a low-emphasis, collapsed
-  // pantry section so the main list stays about what you actually need to buy.
-  var PANTRY_SEASONING=/^(salt|kosher salt|sea salt|table salt|fine salt|coarse salt|flaky salt|pepper|black pepper|white pepper|ground pepper|cracked pepper|salt and pepper|garlic powder|onion powder|paprika|smoked paprika|ground cumin|cumin|chili powder|chilli powder|cayenne|cayenne pepper|red pepper flakes|crushed red pepper|ground cinnamon|cinnamon|ground nutmeg|nutmeg|ground ginger|dried oregano|oregano|dried basil|dried thyme|thyme|dried parsley|dried rosemary|bay leaf|bay leaves|italian seasoning|cooking spray|nonstick spray|nonstick cooking spray|cooking oil spray)$/i;
-  function isPantrySeasoning(name){
-    return PANTRY_SEASONING.test((name||"").trim());
-  }
   // Display-time cleaning, so an item reads clean no matter how it entered the
   // list - generated from meals, pasted, imported, or saved before these rules
   // existed. It's lighter than the generation pipeline (it can't split
@@ -1773,7 +1765,14 @@ function GroceryTab(p){
   function displayGroceryName(rawName){
     return normalizeGroceryPepperName(cleanGroceryItemName(rawName||""))||rawName||"";
   }
-  var [showPantry,setShowPantry]=useState(false);
+  // Cooking-water byproducts ("reserved pasta water", "starchy cooking water")
+  // are made while cooking, not bought - they should never reach the list. This
+  // is separate from the plain-water excludes: it matches the qualified
+  // "...water" phrasings a recipe uses for a saved cooking liquid.
+  function isCookingWaterByproduct(name){
+    var n=(name||"").replace(/\s+/g," ").trim().toLowerCase();
+    return /\bwater$/.test(n) && /\b(pasta|cooking|reserved|starchy|noodle)\b/.test(n);
+  }
 
   function generateFromWeeks(weekStartDates, mode){
     // mode: "replace" (default) starts fresh, "append" adds to existing list
@@ -1811,7 +1810,7 @@ function GroceryTab(p){
               var itemNames=splitGroceryItemNames(cleanedName).map(normalizeGroceryPepperName);
               itemNames.forEach(function(itemName){
                 var name=grocerySynonymKey(itemName.trim().toLowerCase());
-                if(GROCERY_EXCLUDE.some(function(ex){return name===ex||name.replace(/\s+/g," ")===ex})) return;
+                if(GROCERY_EXCLUDE.some(function(ex){return name===ex||name.replace(/\s+/g," ")===ex})||isCookingWaterByproduct(name)) return;
                 // Try to merge into an existing variant of this ingredient name
                 var variants=seenNames[name];
                 var merged=false;
@@ -2324,7 +2323,12 @@ function GroceryTab(p){
   manual.forEach(function(x){
     all.push({id:x.id,name:x.name,qty:x.qty||"",unit:x.unit||"",source:"manual"});
   });
-  
+
+  // Cooking-water byproducts should never appear, even if an older generated
+  // list already has one saved - drop them on display so existing lists clean
+  // up without needing a regenerate.
+  all=all.filter(function(e){return!isCookingWaterByproduct(e.name)});
+
   // Filter out hidden items
   var hiddenCount=all.filter(function(e){return hiddenItems[e.id]}).length;
   all=all.filter(function(e){return!hiddenItems[e.id]});
@@ -2419,28 +2423,12 @@ function GroceryTab(p){
   }
 
   function grouped(arr){
-    // Pantry staples (salt, pepper, "to taste" seasonings) are pulled out of the
-    // main category flow into one collapsed, low-emphasis section - you likely
-    // already have them, so they shouldn't compete with what you actually need
-    // to buy. Everything else groups by aisle category as before.
-    var pantry=[],normal=[];
-    arr.forEach(function(e){(isPantrySeasoning(displayGroceryName(e.name))?pantry:normal).push(e)});
+    // Every item groups into its normal aisle category (spices, produce, etc.).
+    // Seasonings live in their category like anything else - the user decides
+    // what they already have and deletes it before shopping.
     var gs={},ord=[];
-    normal.forEach(function(e){var c=getGCatLocal(e.name);if(!gs[c]){gs[c]=[];ord.push(c)}gs[c].push(e)});
-    var cards=ord.map(function(c){return renderCatCard(c,gs[c])});
-    if(pantry.length){
-      cards.push(React.createElement("div",{key:"__pantry__",style:{background:"var(--blush)",borderRadius:16,border:"1px solid "+C.bdr,marginBottom:14,overflow:"hidden"}},
-        React.createElement("button",{onClick:function(){setShowPantry(!showPantry)},style:{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"12px 16px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}},
-          React.createElement("div",{style:{minWidth:0}},
-            React.createElement("div",{style:{fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:C.ink,lineHeight:1.1}},"Seasonings & Staples"),
-            React.createElement("div",{style:{fontSize:11,color:C.light,marginTop:2}},"You likely have these · "+pantry.length+" item"+(pantry.length===1?"":"s"))
-          ),
-          React.createElement("span",{style:{fontSize:11,color:C.light,flexShrink:0,marginLeft:10}},showPantry?"▲":"▼")
-        ),
-        showPantry?React.createElement("div",{style:{padding:"0 16px 6px",borderTop:"1px solid "+C.bdr}},pantry.map(function(e){return item(e,getGCatLocal(e.name))})):null
-      ));
-    }
-    return cards;
+    arr.forEach(function(e){var c=getGCatLocal(e.name);if(!gs[c]){gs[c]=[];ord.push(c)}gs[c].push(e)});
+    return ord.map(function(c){return renderCatCard(c,gs[c])});
   }
 
   var pill=function(active,col){return{padding:"4px 10px",borderRadius:14,border:active&&col?"1px solid "+col:"none",fontSize:11,fontWeight:600,cursor:"pointer",background:active?(col?col+"15":"var(--dark)"):"var(--blush-med)",color:active?(col||"#fff"):"var(--dark)"}};
