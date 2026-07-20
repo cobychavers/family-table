@@ -1712,6 +1712,9 @@ function GroceryTab(p){
     // Drop a leading list bullet ("• pinch red pepper flakes") left over from
     // the source recipe's formatting.
     name=name.replace(/^[•●▪▸*]\s*/,"").trim();
+    // Drop a leading small-amount word ("pinch of", "a dash of") - it's captured
+    // separately by groceryQualifier as the item's amount, not part of the name.
+    name=name.replace(/^(?:a\s+)?(?:pinch|dash|handful|sprinkle)(?:es|s)?\s+(?:of\s+)?/i,"").trim();
     // Strip ALL parentheticals - recipe asides like "(for crema)", "(plus more
     // to taste)", "(optional)", or an alternative "(or fresh mozzarella)" aren't
     // shopping info. Removing them also lets otherwise-identical items ("salt
@@ -1734,6 +1737,8 @@ function GroceryTab(p){
       var tail=name.slice(commaIdx+1).trim();
       if(head&&isGroceryPrepClause(tail))name=head;
     }
+    // Tidy dangling separators left by the strips above ("cilantro," -> "cilantro").
+    name=name.replace(/^[\s,;:]+/,"").replace(/[\s,;:]+$/,"");
     return name.trim();
   }
   // "Salt and pepper" (with or without "to taste") is shorthand for two
@@ -1798,31 +1803,56 @@ function GroceryTab(p){
     var n=(name||"").replace(/\s+/g," ").trim().toLowerCase();
     return /\bwater$/.test(n) && /\b(pasta|cooking|reserved|starchy|noodle)\b/.test(n);
   }
+  // When a recipe gives no number, it usually still gives guidance - "to taste"
+  // for a seasoning, "for garnish"/"optional" for a finishing touch, or a small-
+  // amount word like "pinch". We read that from the RAW ingredient text (before
+  // the name is cleaned) and keep it as the row's amount, so a shopper always
+  // sees SOMETHING useful in the amount column instead of a blank.
+  function groceryQualifier(rawName){
+    var s=(rawName||"").toLowerCase();
+    if(/\b(to\s+taste|as\s+needed)\b/.test(s))return "to taste";
+    if(/\boptional\b/.test(s)||/\bfor\s+(serving|garnish\w*|topping|drizzling|dusting|brushing|dipping|decoration|decorating)\b/.test(s))return "optional";
+    var m=s.match(/^(?:a\s+)?(pinch|dash|handful|sprinkle)\b/);
+    if(m)return m[1];
+    return "";
+  }
+  // "pinch"/"dash" are real (if fuzzy) amounts, shown like a quantity; "to taste"
+  // and "optional" are guidance, shown as an italic "(...)" note instead.
+  function isAmountWord(note){ return /^(pinch|dash|handful|sprinkle)$/i.test(note||""); }
+  // Resolves an item's note against its numeric amount: a concrete quantity
+  // always wins (no note needed); otherwise keep the most useful qualifier.
+  function resolveNote(qty,existingNote,incomingNote){
+    if((qty||"").trim())return "";
+    return existingNote||incomingNote||"";
+  }
+
   // Re-runs the generation-time consolidation over an already-saved list, so a
   // list generated before these cleaning rules existed still collapses its
-  // duplicates ("salt", "salt (for crema)", "salt to taste" -> one row) and
-  // drops emptied/orphan items, without the user needing to regenerate. Keeps
-  // the first surviving item's id so its checked/store state carries over.
+  // duplicates ("salt", "salt (for crema)", "salt to taste" -> one row), drops
+  // emptied/orphan items, and backfills amount qualifiers. Keeps the first
+  // surviving item's id so its checked/store state carries over.
   // Idempotent: re-consolidating an already-clean list returns it unchanged.
   function consolidateGrocery(items){
     var out=[],seen={};
     items.forEach(function(it){
-      var names=splitGroceryItemNames(cleanGroceryItemName(it.name||"")).map(normalizeGroceryPepperName);
+      var rawName=it.name||"";
+      var note=it.note||groceryQualifier(rawName);
+      var names=splitGroceryItemNames(cleanGroceryItemName(rawName)).map(normalizeGroceryPepperName);
       names.forEach(function(nm,i){
         var display=(nm||"").trim();
         if(!display||isCookingWaterByproduct(display))return;
         var key=grocerySynonymKey(display.toLowerCase());
-        // A split (salt + pepper) keeps the qty on the first piece only.
-        var q=i===0?(it.qty||""):"",u=i===0?(it.unit||""):"";
+        // A split (salt + pepper) keeps the qty/note on the first piece only.
+        var q=i===0?(it.qty||""):"",u=i===0?(it.unit||""):"",n=i===0?note:"";
         var variants=seen[key],merged=false;
         if(variants){
           for(var vi=0;vi<variants.length;vi++){
             var r=tryMergeQty(variants[vi].qty,variants[vi].unit,q,u);
-            if(r){variants[vi].qty=r.qty;variants[vi].unit=r.unit;merged=true;break;}
+            if(r){variants[vi].qty=r.qty;variants[vi].unit=r.unit;variants[vi].note=resolveNote(r.qty,variants[vi].note,n);merged=true;break;}
           }
         }
         if(!merged){
-          var ni={id:it.id+(i>0?("_"+i):""),name:display,qty:q,unit:u};
+          var ni={id:it.id+(i>0?("_"+i):""),name:display,qty:q,unit:u,note:resolveNote(q,n,"")};
           out.push(ni);
           if(!seen[key])seen[key]=[];
           seen[key].push(ni);
@@ -1863,30 +1893,34 @@ function GroceryTab(p){
           if(m&&m.ingredients){
             m.ingredients.forEach(function(g){
               var ing=typeof g==="string"?parseIng(g):g;
+              var note=groceryQualifier(ing.name||"");
               var cleanedName=cleanGroceryItemName(ing.name||"");
               // "Salt and pepper" is shorthand for two items, not one line
               var itemNames=splitGroceryItemNames(cleanedName).map(normalizeGroceryPepperName);
-              itemNames.forEach(function(itemName){
+              itemNames.forEach(function(itemName,ni){
                 if(!itemName.trim())return; // pure-parenthetical alternative, cleaned to nothing
                 var name=grocerySynonymKey(itemName.trim().toLowerCase());
                 if(GROCERY_EXCLUDE.some(function(ex){return name===ex||name.replace(/\s+/g," ")===ex})||isCookingWaterByproduct(name)) return;
+                // qty/note only apply to the first split piece
+                var iqty=ni===0?(ing.qty||""):"",iunit=ni===0?(ing.unit||""):"",inote=ni===0?note:"";
                 // Try to merge into an existing variant of this ingredient name
                 var variants=seenNames[name];
                 var merged=false;
                 if(variants){
                   for(var vi=0;vi<variants.length;vi++){
                     var v=variants[vi];
-                    var mergeResult=tryMergeQty(v.qty,v.unit,ing.qty||"",ing.unit||"");
+                    var mergeResult=tryMergeQty(v.qty,v.unit,iqty,iunit);
                     if(mergeResult){
                       v.qty=mergeResult.qty;
                       v.unit=mergeResult.unit;
+                      v.note=resolveNote(mergeResult.qty,v.note,inote);
                       merged=true;
                       break;
                     }
                   }
                 }
                 if(!merged){
-                  var newItem={id:"gen-"+idx,name:itemName||ing.name||"",qty:ing.qty||"",unit:ing.unit||""};
+                  var newItem={id:"gen-"+idx,name:itemName||ing.name||"",qty:iqty,unit:iunit,note:resolveNote(iqty,inote,"")};
                   items.push(newItem);
                   if(!seenNames[name])seenNames[name]=[];
                   seenNames[name].push(newItem);
@@ -2142,13 +2176,15 @@ function GroceryTab(p){
     // split items instead of raw clutter.
     var expanded=[];
     items.forEach(function(item){
+      var note=groceryQualifier(item.name||"");
       var names=splitGroceryItemNames(cleanGroceryItemName(item.name||"")).map(normalizeGroceryPepperName);
       names.forEach(function(nm,i){
         var n=(nm||"").trim();
         if(!n)return;
-        // A split (salt + pepper) keeps the qty on the first item only; the
+        // A split (salt + pepper) keeps the qty/note on the first item only; the
         // second was never separately quantified.
-        expanded.push({name:n,qty:i===0?(item.qty||""):"",unit:i===0?(item.unit||""):""});
+        var q=i===0?(item.qty||""):"";
+        expanded.push({name:n,qty:q,unit:i===0?(item.unit||""):"",note:resolveNote(q,i===0?note:"","")});
       });
     });
     expanded.forEach(function(item){
@@ -2156,6 +2192,7 @@ function GroceryTab(p){
         name:item.name,
         qty:item.qty||"",
         unit:item.unit||"",
+        note:item.note||"",
         id:Date.now()+Math.random(),
         source:"manual"
       };
@@ -2377,10 +2414,10 @@ function GroceryTab(p){
   // Build items list from generated items + manual items
   var all=[];
   generatedItems.forEach(function(x){
-    all.push({id:x.id,name:x.name,qty:x.qty||"",unit:x.unit||"",source:"generated"});
+    all.push({id:x.id,name:x.name,qty:x.qty||"",unit:x.unit||"",note:x.note||"",source:"generated"});
   });
   manual.forEach(function(x){
-    all.push({id:x.id,name:x.name,qty:x.qty||"",unit:x.unit||"",source:"manual"});
+    all.push({id:x.id,name:x.name,qty:x.qty||"",unit:x.unit||"",note:x.note||"",source:"manual"});
   });
 
   // Cooking-water byproducts should never appear, even if an older generated
@@ -2416,6 +2453,12 @@ function GroceryTab(p){
     var unit=override?override.unit:(it.unit||"");
     var itemName=override&&override.name?override.name:displayGroceryName(it.name);
     var qtyLabel=[qty,unit].filter(Boolean).join(" ");
+    // Amount column: a real quantity (or a "pinch"/"dash" amount word) shows as
+    // a chip; a "to taste" / "optional" qualifier shows as an italic "(...)"
+    // note. Either way the column is never blank when the recipe gave guidance.
+    var note=(override&&override.note!==undefined)?override.note:(it.note||"");
+    var chipText=qtyLabel||(note&&isAmountWord(note)?note:"");
+    var qualifier=(!qtyLabel&&note&&!isAmountWord(note))?note:"";
     var isSwipedHere = swipedItem===it.id;
     var translateX = isSwipedHere ? -76 : (itemSwipeStart && itemSwipeStart.id===it.id ? itemSwipeOffset : 0);
     function doDelete(){ if(it.source==="manual"){remM(it.id)}else{hideItem(it.id)} }
@@ -2441,7 +2484,9 @@ function GroceryTab(p){
         React.createElement("button",{onClick:function(){tog(it.id)},style:{width:24,height:24,borderRadius:"50%",border:ic?"none":"1.5px solid "+C.blushDeep,background:ic?C.dark:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"background 0.15s"}},ic?React.createElement(Icon,{name:"check",size:14,color:"#fff",strokeWidth:2.5}):null),
         React.createElement("button",{onClick:function(){setPickStore(pickStore===it.id?null:it.id)},style:{width:26,height:26,borderRadius:6,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}},renderStoreIcon(st,16)),
         React.createElement("div",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{flex:1,minWidth:0,cursor:"pointer",display:"flex",alignItems:"center",gap:9}},
-          qtyLabel?React.createElement("span",{style:{fontSize:12,fontWeight:700,color:C.dark,background:"var(--blush-med)",borderRadius:6,padding:"2px 8px",flexShrink:0,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",opacity:ic?.5:1}},qtyLabel):null,
+          chipText?React.createElement("span",{style:{fontSize:12,fontWeight:700,color:C.dark,background:"var(--blush-med)",borderRadius:6,padding:"2px 8px",flexShrink:0,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",opacity:ic?.5:1}},chipText)
+          :qualifier?React.createElement("span",{style:{fontSize:12.5,fontStyle:"italic",color:C.light,fontWeight:500,flexShrink:0,whiteSpace:"nowrap",opacity:ic?.5:1}},"("+qualifier+")")
+          :null,
           React.createElement("span",{style:{fontSize:15,color:C.ink,textDecoration:ic?"line-through":"none",fontWeight:500,lineHeight:1.3}},itemName)
         )
       )
