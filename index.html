@@ -1756,6 +1756,24 @@ function GroceryTab(p){
   function grocerySynonymKey(nameLower){
     return GROCERY_SYNONYMS[nameLower]||nameLower;
   }
+  // Pantry staples almost everyone already has - the "salt and pepper to taste"
+  // class of ingredient that clutters a real shopping list. We don't drop them
+  // (you might genuinely be out), we route them to a low-emphasis, collapsed
+  // pantry section so the main list stays about what you actually need to buy.
+  var PANTRY_SEASONING=/^(salt|kosher salt|sea salt|table salt|fine salt|coarse salt|flaky salt|pepper|black pepper|white pepper|ground pepper|cracked pepper|salt and pepper|garlic powder|onion powder|paprika|smoked paprika|ground cumin|cumin|chili powder|chilli powder|cayenne|cayenne pepper|red pepper flakes|crushed red pepper|ground cinnamon|cinnamon|ground nutmeg|nutmeg|ground ginger|dried oregano|oregano|dried basil|dried thyme|thyme|dried parsley|dried rosemary|bay leaf|bay leaves|italian seasoning|cooking spray|nonstick spray|nonstick cooking spray|cooking oil spray)$/i;
+  function isPantrySeasoning(name){
+    return PANTRY_SEASONING.test((name||"").trim());
+  }
+  // Display-time cleaning, so an item reads clean no matter how it entered the
+  // list - generated from meals, pasted, imported, or saved before these rules
+  // existed. It's lighter than the generation pipeline (it can't split
+  // "salt and pepper" into two rows at render time), but it strips the
+  // "to taste" / prep-word clutter and normalizes pepper phrasing, which is
+  // what actually shows up as junk on the list.
+  function displayGroceryName(rawName){
+    return normalizeGroceryPepperName(cleanGroceryItemName(rawName||""))||rawName||"";
+  }
+  var [showPantry,setShowPantry]=useState(false);
 
   function generateFromWeeks(weekStartDates, mode){
     // mode: "replace" (default) starts fresh, "append" adds to existing list
@@ -2061,7 +2079,21 @@ function GroceryTab(p){
   function importGroceryItems(items){
     var newManual=manual.slice();
     var newOverrides=Object.assign({},qtyOverrides);
+    // Run imported items through the same cleaning the generator uses, so a
+    // pasted "black pepper, to taste" or "Salt & pepper" comes in as clean,
+    // split items instead of raw clutter.
+    var expanded=[];
     items.forEach(function(item){
+      var names=splitGroceryItemNames(cleanGroceryItemName(item.name||"")).map(normalizeGroceryPepperName);
+      names.forEach(function(nm,i){
+        var n=(nm||"").trim();
+        if(!n)return;
+        // A split (salt + pepper) keeps the qty on the first item only; the
+        // second was never separately quantified.
+        expanded.push({name:n,qty:i===0?(item.qty||""):"",unit:i===0?(item.unit||""):""});
+      });
+    });
+    expanded.forEach(function(item){
       var newItem={
         name:item.name,
         qty:item.qty||"",
@@ -2321,8 +2353,8 @@ function GroceryTab(p){
     var override=qtyOverrides[it.id];
     var qty=override?override.qty:(it.qty||"");
     var unit=override?override.unit:(it.unit||"");
-    var itemName=override&&override.name?override.name:it.name;
-    var display=(qty?qty+" ":"")+(unit?unit+" ":"")+itemName;
+    var itemName=override&&override.name?override.name:displayGroceryName(it.name);
+    var qtyLabel=[qty,unit].filter(Boolean).join(" ");
     var isSwipedHere = swipedItem===it.id;
     var translateX = isSwipedHere ? -76 : (itemSwipeStart && itemSwipeStart.id===it.id ? itemSwipeOffset : 0);
     function doDelete(){ if(it.source==="manual"){remM(it.id)}else{hideItem(it.id)} }
@@ -2345,10 +2377,11 @@ function GroceryTab(p){
         onClick:function(){if(isSwipedHere)setSwipedItem(null)},
         style:{display:"flex",alignItems:"center",gap:10,padding:"11px 2px",opacity:ic?.4:1,background:"var(--surface)",transform:"translateX("+translateX+"px)",transition:itemSwipeStart?"none":"transform 0.2s",position:"relative",zIndex:1}
       },
-        React.createElement("button",{onClick:function(){tog(it.id)},style:{width:24,height:24,borderRadius:6,border:ic?"none":"1.5px solid "+C.blushDeep,background:ic?C.dark:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},ic?React.createElement(Icon,{name:"check",size:14,color:"#fff",strokeWidth:2.5}):null),
+        React.createElement("button",{onClick:function(){tog(it.id)},style:{width:24,height:24,borderRadius:"50%",border:ic?"none":"1.5px solid "+C.blushDeep,background:ic?C.dark:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"background 0.15s"}},ic?React.createElement(Icon,{name:"check",size:14,color:"#fff",strokeWidth:2.5}):null),
         React.createElement("button",{onClick:function(){setPickStore(pickStore===it.id?null:it.id)},style:{width:26,height:26,borderRadius:6,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}},renderStoreIcon(st,16)),
-        React.createElement("div",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{flex:1,minWidth:0,cursor:"pointer"}},
-          React.createElement("span",{style:{fontSize:15,color:C.ink,textDecoration:ic?"line-through":"none",fontWeight:500,display:"block"}},display)
+        React.createElement("div",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{flex:1,minWidth:0,cursor:"pointer",display:"flex",alignItems:"center",gap:9}},
+          qtyLabel?React.createElement("span",{style:{fontSize:12,fontWeight:700,color:C.dark,background:"var(--blush-med)",borderRadius:6,padding:"2px 8px",flexShrink:0,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",opacity:ic?.5:1}},qtyLabel):null,
+          React.createElement("span",{style:{fontSize:15,color:C.ink,textDecoration:ic?"line-through":"none",fontWeight:500,lineHeight:1.3}},itemName)
         )
       )
     );
@@ -2356,36 +2389,60 @@ function GroceryTab(p){
 
   var [catStorePicker,setCatStorePicker]=useState(null); // which category picker is open
   
-  function grouped(arr){
-    var gs={},ord=[];
-    arr.forEach(function(e){var c=getGCatLocal(e.name);if(!gs[c]){gs[c]=[];ord.push(c)}gs[c].push(e)});
-    return ord.map(function(c){
-      var catStore=p.categoryStores&&p.categoryStores[c]?p.stores.find(function(s){return s.id===p.categoryStores[c]}):null;
-      var cLabel=c.replace(/^\S+\s*/,"");
-      return React.createElement("div",{key:c,style:{background:"var(--surface)",borderRadius:14,boxShadow:C.shadowSm,padding:"4px 14px",marginBottom:14}},
-        React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0 8px",borderBottom:"1px solid "+C.bdr,marginBottom:2}},
-          React.createElement("span",{style:{fontSize:13,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:1}},cLabel),
-          React.createElement("div",{style:{position:"relative"}},
-            React.createElement("button",{onClick:function(e){e.stopPropagation();setCatStorePicker(catStorePicker===c?null:c)},style:{display:"flex",alignItems:"center",gap:5,padding:"4px 8px",borderRadius:6,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",fontSize:11}},
-              catStore?React.createElement(React.Fragment,null,renderStoreIcon(catStore,14),React.createElement("span",{style:{color:C.ink,fontWeight:600}},catStore.name)):React.createElement("span",{style:{color:C.light}},"Set store"),
-              React.createElement("span",{style:{fontSize:8,opacity:.5,color:C.light}},"▼")
-            ),
-            catStorePicker===c?React.createElement("div",{style:{position:"absolute",top:"100%",right:0,zIndex:100,background:"var(--surface)",borderRadius:10,boxShadow:C.shadowLg,padding:8,marginTop:4,minWidth:140}},
-              React.createElement("div",{style:{fontSize:10,fontWeight:700,color:C.light,marginBottom:6,padding:"0 4px"}},cLabel.toUpperCase()+" STORE"),
-              p.stores.map(function(s){
-                var isActive=p.categoryStores&&p.categoryStores[c]===s.id;
-                return React.createElement("button",{key:s.id,onClick:function(){p.setCategoryStore(c,s.id);setCatStorePicker(null)},style:{display:"flex",alignItems:"center",gap:6,width:"100%",padding:"6px 8px",borderRadius:6,border:isActive?"1.5px solid "+C.dark:"1px solid "+C.bdr,background:isActive?C.blush:"var(--surface)",cursor:"pointer",marginBottom:4}},
-                  renderStoreIcon(s,14),
-                  React.createElement("span",{style:{fontWeight:600,fontSize:12,color:C.ink}},s.name)
-                );
-              }),
-              p.categoryStores&&p.categoryStores[c]?React.createElement("button",{onClick:function(){p.setCategoryStore(c,null);setCatStorePicker(null)},style:{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid "+C.bdr,background:C.blush,cursor:"pointer",fontSize:11,color:C.light,marginTop:4}},"Use default store"):null
-            ):null
-          )
+  function renderCatCard(c,entries){
+    var catStore=p.categoryStores&&p.categoryStores[c]?p.stores.find(function(s){return s.id===p.categoryStores[c]}):null;
+    var cLabel=c.replace(/^\S+\s*/,"");
+    return React.createElement("div",{key:c,style:{background:"var(--surface)",borderRadius:16,boxShadow:C.shadowSm,border:"1px solid "+C.bdr,padding:"2px 16px 6px",marginBottom:14}},
+      React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 0 9px",borderBottom:"1px solid "+C.bdr,marginBottom:2}},
+        React.createElement("div",{style:{display:"flex",alignItems:"center",gap:9,minWidth:0}},
+          React.createElement("span",{style:{display:"inline-block",width:5,height:5,minWidth:5,borderRadius:3,background:"var(--gold)"}}),
+          React.createElement("span",{style:{fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:18,fontWeight:700,color:C.ink,letterSpacing:.3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},cLabel)
         ),
-        gs[c].map(function(e){return item(e,c)})
-      );
-    });
+        React.createElement("div",{style:{position:"relative",flexShrink:0}},
+          React.createElement("button",{onClick:function(e){e.stopPropagation();setCatStorePicker(catStorePicker===c?null:c)},style:{display:"flex",alignItems:"center",gap:5,padding:"4px 8px",borderRadius:6,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",fontSize:11}},
+            catStore?React.createElement(React.Fragment,null,renderStoreIcon(catStore,14),React.createElement("span",{style:{color:C.ink,fontWeight:600}},catStore.name)):React.createElement("span",{style:{color:C.light}},"Set store"),
+            React.createElement("span",{style:{fontSize:8,opacity:.5,color:C.light}},"▼")
+          ),
+          catStorePicker===c?React.createElement("div",{style:{position:"absolute",top:"100%",right:0,zIndex:100,background:"var(--surface)",borderRadius:10,boxShadow:C.shadowLg,padding:8,marginTop:4,minWidth:140}},
+            React.createElement("div",{style:{fontSize:10,fontWeight:700,color:C.light,marginBottom:6,padding:"0 4px"}},cLabel.toUpperCase()+" STORE"),
+            p.stores.map(function(s){
+              var isActive=p.categoryStores&&p.categoryStores[c]===s.id;
+              return React.createElement("button",{key:s.id,onClick:function(){p.setCategoryStore(c,s.id);setCatStorePicker(null)},style:{display:"flex",alignItems:"center",gap:6,width:"100%",padding:"6px 8px",borderRadius:6,border:isActive?"1.5px solid "+C.dark:"1px solid "+C.bdr,background:isActive?C.blush:"var(--surface)",cursor:"pointer",marginBottom:4}},
+                renderStoreIcon(s,14),
+                React.createElement("span",{style:{fontWeight:600,fontSize:12,color:C.ink}},s.name)
+              );
+            }),
+            p.categoryStores&&p.categoryStores[c]?React.createElement("button",{onClick:function(){p.setCategoryStore(c,null);setCatStorePicker(null)},style:{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid "+C.bdr,background:C.blush,cursor:"pointer",fontSize:11,color:C.light,marginTop:4}},"Use default store"):null
+          ):null
+        )
+      ),
+      entries.map(function(e){return item(e,c)})
+    );
+  }
+
+  function grouped(arr){
+    // Pantry staples (salt, pepper, "to taste" seasonings) are pulled out of the
+    // main category flow into one collapsed, low-emphasis section - you likely
+    // already have them, so they shouldn't compete with what you actually need
+    // to buy. Everything else groups by aisle category as before.
+    var pantry=[],normal=[];
+    arr.forEach(function(e){(isPantrySeasoning(displayGroceryName(e.name))?pantry:normal).push(e)});
+    var gs={},ord=[];
+    normal.forEach(function(e){var c=getGCatLocal(e.name);if(!gs[c]){gs[c]=[];ord.push(c)}gs[c].push(e)});
+    var cards=ord.map(function(c){return renderCatCard(c,gs[c])});
+    if(pantry.length){
+      cards.push(React.createElement("div",{key:"__pantry__",style:{background:"var(--blush)",borderRadius:16,border:"1px solid "+C.bdr,marginBottom:14,overflow:"hidden"}},
+        React.createElement("button",{onClick:function(){setShowPantry(!showPantry)},style:{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"12px 16px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}},
+          React.createElement("div",{style:{minWidth:0}},
+            React.createElement("div",{style:{fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:C.ink,lineHeight:1.1}},"Seasonings & Staples"),
+            React.createElement("div",{style:{fontSize:11,color:C.light,marginTop:2}},"You likely have these · "+pantry.length+" item"+(pantry.length===1?"":"s"))
+          ),
+          React.createElement("span",{style:{fontSize:11,color:C.light,flexShrink:0,marginLeft:10}},showPantry?"▲":"▼")
+        ),
+        showPantry?React.createElement("div",{style:{padding:"0 16px 6px",borderTop:"1px solid "+C.bdr}},pantry.map(function(e){return item(e,getGCatLocal(e.name))})):null
+      ));
+    }
+    return cards;
   }
 
   var pill=function(active,col){return{padding:"4px 10px",borderRadius:14,border:active&&col?"1px solid "+col:"none",fontSize:11,fontWeight:600,cursor:"pointer",background:active?(col?col+"15":"var(--dark)"):"var(--blush-med)",color:active?(col||"#fff"):"var(--dark)"}};
@@ -2589,15 +2646,15 @@ function GroceryTab(p){
       ):null
     ),
 
-    all.length>0?React.createElement("div",{style:{marginBottom:14}},
-      React.createElement("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:4}},
-        React.createElement("span",{style:{fontSize:11,fontWeight:700,color:"var(--dark)"}},"Shopping Progress"),
-        React.createElement("span",{style:{fontSize:11,color:"var(--light)"}},tc+"/"+all.length)
+    all.length>0?React.createElement("div",{style:{marginBottom:16,padding:"12px 15px",background:"var(--surface)",borderRadius:14,boxShadow:C.shadowSm,border:"1px solid "+C.bdr}},
+      React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:9}},
+        React.createElement("span",{style:{fontSize:12,fontWeight:700,color:C.ink,letterSpacing:.3}},"Shopping Progress"),
+        React.createElement("span",{style:{fontSize:12,color:C.light,fontVariantNumeric:"tabular-nums"}},tc+" of "+all.length)
       ),
-      React.createElement("div",{style:{height:8,background:"var(--blush-med)",borderRadius:4,overflow:"hidden"}},
-        React.createElement("div",{style:{height:"100%",background:tc===all.length?"#2e7d32":"linear-gradient(90deg,var(--blush-dark),var(--blush-accent))",borderRadius:4,width:(all.length?tc/all.length*100:0)+"%",transition:"width 0.3s"}})
+      React.createElement("div",{style:{height:6,background:"var(--blush-med)",borderRadius:3,overflow:"hidden"}},
+        React.createElement("div",{style:{height:"100%",background:tc===all.length?"#2e7d32":"linear-gradient(90deg,var(--gold),var(--dark))",borderRadius:3,width:(all.length?tc/all.length*100:0)+"%",transition:"width 0.35s cubic-bezier(0.16,1,0.3,1)"}})
       ),
-      tc===all.length&&all.length>0?React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:8,fontSize:14,fontWeight:700,color:"#2e7d32"}},React.createElement(Icon,{name:"check",size:15,strokeWidth:2.5}),"All done!"):null
+      tc===all.length&&all.length>0?React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:10,fontSize:14,fontWeight:700,color:"#2e7d32"}},React.createElement(Icon,{name:"check",size:15,strokeWidth:2.5}),"All done!"):null
     ):null,
 
     all.length===0?React.createElement("div",{style:{textAlign:"center",padding:"32px 20px"}},
