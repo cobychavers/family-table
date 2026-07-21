@@ -13,6 +13,13 @@ commit messages or a chat log.
 - **`usernames/{username}`** — public username → email/uid lookup, needed to
   resolve a typed username to an email before sign-in.
 - **`favoriteCounts/{owner_recipeId}`** — per-recipe favorite counters.
+- **`households/{householdId}`** — a family group: `{name, members[], createdBy,
+  inviteCode}`. `members` is a uid array and is the authority for who may read
+  whose data. Nothing is stored per-household: every calendar, recipe, and list
+  keeps its own owner, and membership only widens *read* access.
+- **`householdInvites/{code}`** — `{householdId}`, keyed by the invite code
+  itself so joining is a direct `get` of a code you were given. Allows `get`,
+  denies `list`, the same shape as `usernames`.
 - **Cloud Storage** — recipe and profile photos, keyed by owner uid
   (`recipePhotos/<uid>/…`, `profilePics/<uid>/…`).
 
@@ -59,6 +66,49 @@ the rules change.
   **Not yet built:** the payment collection that would *set* `tier:<uid>` (App
   Store IAP or Stripe + receipt validation). Until that exists every user sits
   at the 1× / $1.00 allowance.
+
+## Households (family linking)
+
+Family linking deliberately does **not** move or merge data. Every calendar,
+recipe, and list keeps its own owner; a household only changes who may *read*.
+
+**Writes are untouched.** They still require `ownerUid == request.auth.uid`, so
+a family member can see a calendar but can never modify it. The client mirrors
+this — every write path goes through `getOwnMealsForDay`, never the display
+accessor, so another member's week can't be read into a save — but the rule is
+the actual boundary.
+
+**Reads currently need no new rule, and that is not a good thing.** Reads on the
+`data` collection are open to any authenticated user, because Explore has to
+load arbitrary users' recipe documents and "is this recipe public?" lives inside
+the JSON string value where rules can't see it. Household calendar viewing
+therefore works with no rule change at all — but only because *any* signed-in
+user could already read *any* user's meal plan by constructing the key. The
+household feature doesn't widen this; it just makes the gap more visible by
+building an intentional feature on top of the same permission.
+
+The real fix is a `publicRecipes` collection with public-ness as a real field,
+which lets the `data` read rule tighten to owner + household. Until then, treat
+"private" data in `data` as private-by-obscurity, not enforced.
+
+When that tightening happens, the household half of the rule must read:
+
+```
+sameHousehold(otherUid) =
+  myHouseholdId() != null && myHouseholdId() == householdIdOf(otherUid)
+```
+
+The `!= null` half is load-bearing. Without it two users in no household both
+resolve to `null`, `null == null` is true, and every account becomes readable by
+every other — the exact hole the tightening was meant to close.
+
+**Joining** is a self-service `update` that appends only your own uid: the rule
+lets a non-member add `request.auth.uid` to `members` while forbidding removal
+of anyone already there. Household ids aren't enumerable, so the only way to
+learn one is a valid invite code. Codes are 8 characters from a 31-symbol
+alphabet (~8.5e11 combinations; `O`/`0` and `I`/`1` removed so they can be read
+aloud) and are rotatable from the Family screen, which points a new invite
+document at the household and deletes the old one.
 
 ## Open — known and accepted
 
