@@ -1008,6 +1008,9 @@ function Icon(p){
   if(name==="check")return React.createElement("svg",cp,
     React.createElement("polyline",{points:"20 6 9 17 4 12"})
   );
+  if(name==="chevron-left")return React.createElement("svg",cp,
+    React.createElement("polyline",{points:"15 18 9 12 15 6"})
+  );
   if(name==="moon")return React.createElement("svg",cp,
     React.createElement("path",{d:"M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"})
   );
@@ -3629,6 +3632,10 @@ function App(){
   },[view]);
   var [exploreSearch,setExploreSearch]=useState("");
   var [exploreFilter,setExploreFilter]=useState("");
+  // Explore opens on a category grid rather than an undifferentiated feed -
+  // people arrive wanting an idea in a shape ("something with chicken"), not a
+  // recipe they could already name. Picking a category drops into the feed.
+  var [exploreBrowse,setExploreBrowse]=useState(true);
   var [exploreUser,setExploreUser]=useState(null); // Filter to show only one user's recipes
   var [loadingFriendRecipes,setLoadingFriendRecipes]=useState(false);
   var [showMyQR,setShowMyQR]=useState(false);
@@ -7313,10 +7320,28 @@ function App(){
           // Load public recipes when tab is viewed
           if(!publicRecipesLoaded)loadPublicRecipes();
           
-          // Derived from RECIPE_TYPES (rather than a hand-maintained duplicate
-          // list) so new categories only need to be added in one place.
-          var RTYPES=[{v:"",l:"All"}].concat(RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){return{v:t.id,l:t.label}}));
-          
+          // Everything visible to me in Explore, before category/search narrows
+          // it. Drives the browse grid's per-category counts, so a category is
+          // only offered when there's actually something behind it.
+          var visible=publicRecipes.filter(function(r){
+            return !(user && (r.originalOwner||r.ownerUsername).toLowerCase()===userId.toLowerCase());
+          });
+          var catCounts={};
+          visible.forEach(function(r){
+            var t=r.recipeType||"other";
+            catCounts[t]=(catCounts[t]||0)+1;
+          });
+          // "all" and "favorites" are UI pseudo-types, not real categories.
+          var browseCats=RECIPE_TYPES.filter(function(t){
+            return t.id!=="all"&&t.id!=="favorites"&&(catCounts[t.id]||0)>0;
+          });
+          // Searching or landing on a specific user's recipes both mean the
+          // person already knows what they're after - skip the grid.
+          var browsing=exploreBrowse&&!exploreSearch.trim()&&!exploreUser;
+          var activeCat=RECIPE_TYPES.find(function(t){return t.id===exploreFilter});
+          function openCategory(id){setExploreFilter(id);setExploreBrowse(false)}
+          function backToCategories(){setExploreFilter("");setExploreSearch("");setExploreBrowse(true)}
+
           var filtered=publicRecipes.filter(function(r){
             // Don't show my own recipes in Explore (check originalOwner)
             if(user && (r.originalOwner||r.ownerUsername).toLowerCase()===userId.toLowerCase()) return false;
@@ -7345,14 +7370,49 @@ function App(){
               <input value={exploreSearch} onChange={function(e){setExploreSearch(e.target.value)}} placeholder="Search recipes..." style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box",background:C.card,color:C.ink}}/>
             </div>
             
-            {/* Category filter dropdown */}
-            <div style={{marginBottom:12}}>
-              <select value={exploreFilter} onChange={function(e){setExploreFilter(e.target.value)}} style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,background:"var(--surface)",color:C.dark,cursor:"pointer"}}>
-                {RTYPES.map(function(rt){
-                  return <option key={rt.v} value={rt.v}>{rt.l}</option>
-                })}
-              </select>
-            </div>
+            {/* Browse by category. Typographic on purpose - serif label and a
+                gold dot, the same language as the grocery category cards. No
+                emoji: those were removed from the app's chrome in the icon
+                pass and shouldn't come back through a new surface. */}
+            {browsing?<div>
+              {browseCats.length===0?
+                <div style={{textAlign:"center",padding:"48px 20px"}}>
+                  <div style={{marginBottom:14,opacity:.35}}><Icon name="globe" size={36} color={C.dark} strokeWidth={1.25}/></div>
+                  <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:4}}>{publicRecipesLoaded?"Nothing shared yet":"Loading recipes..."}</div>
+                  {publicRecipesLoaded?<div style={{fontSize:12,color:C.light}}>Recipes people share publicly will show up here</div>:null}
+                </div>
+              :<div>
+                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:C.light,marginBottom:10}}>Browse by category</div>
+                <button className="ft-card-tap" onClick={function(){openCategory("")}}
+                  style={{display:"flex",alignItems:"center",width:"100%",gap:9,padding:"15px 16px",marginBottom:10,borderRadius:16,border:"1px solid "+C.bdr,background:"var(--surface)",boxShadow:C.shadowSm,cursor:"pointer",textAlign:"left"}}>
+                  <span style={{display:"inline-block",width:6,height:6,minWidth:6,borderRadius:3,background:C.gold}}/>
+                  <span style={{flex:1,fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:18,fontWeight:700,color:C.ink,letterSpacing:.3}}>All Recipes</span>
+                  <span style={{fontSize:12,color:C.light}}>{visible.length}</span>
+                </button>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  {browseCats.map(function(t){
+                    return <button key={t.id} className="ft-card-tap" onClick={function(){openCategory(t.id)}}
+                      style={{padding:"15px 14px",borderRadius:16,border:"1px solid "+C.bdr,background:"var(--surface)",boxShadow:C.shadowSm,cursor:"pointer",textAlign:"left"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+                        <span style={{display:"inline-block",width:6,height:6,minWidth:6,borderRadius:3,background:C.gold}}/>
+                        <span style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:C.ink,letterSpacing:.3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.label}</span>
+                      </div>
+                      <div style={{fontSize:11,color:C.light,paddingLeft:14}}>{catCounts[t.id]} recipe{catCounts[t.id]!==1?"s":""}</div>
+                    </button>;
+                  })}
+                </div>
+              </div>}
+            </div>:<div>
+
+            {/* Which slice of Explore is on screen, and the way back out. */}
+            {!exploreUser?<div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+              <button onClick={backToCategories} style={{display:"flex",alignItems:"center",gap:5,padding:"7px 13px",borderRadius:18,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0}}>
+                <Icon name="chevron-left" size={13} color={C.dark} strokeWidth={2}/> Categories
+              </button>
+              <span style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:19,fontWeight:700,color:C.ink,letterSpacing:.3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {activeCat&&activeCat.id!=="all"?activeCat.label:"All Recipes"}
+              </span>
+            </div>:null}
 
             {/* Sort control */}
             <div style={{display:"flex",gap:8,marginBottom:16}}>
@@ -7362,7 +7422,7 @@ function App(){
 
             {/* Results count */}
             <div style={{fontSize:12,color:C.light,marginBottom:12}}>{filtered.length} recipe{filtered.length!==1?"s":""} found</div>
-            
+
             {/* Recipe cards */}
             {filtered.length===0?<div style={{textAlign:"center",padding:"48px 20px"}}>
               <div style={{marginBottom:14,opacity:.35}}><Icon name="globe" size={36} color={C.dark} strokeWidth={1.25}/></div>
@@ -7432,6 +7492,7 @@ function App(){
                 </div>
               </div>
             })}
+            </div>}
           </div>
         })():
         exploreSubTab==="family"&&household?(function(){
