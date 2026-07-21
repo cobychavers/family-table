@@ -339,27 +339,11 @@
     //
     // This also fixes the single-user version of the same race: phone and
     // tablet open on the same list.
+    // There is no one-shot get() here on purpose: watch() delivers the current
+    // value immediately (cache first, then server), so every caller wants the
+    // listener. Keeping a separate reader would just duplicate the shape
+    // handling below and invite the two copies to drift.
     window.flags = {
-      // Reads tolerate the old JSON-string shape so lists saved before this
-      // change still load. The first toggle rewrites that document in the new
-      // shape; until then both are readable.
-      get: async (key) => {
-        if (!db || !key) return {};
-        try {
-          const doc = await db.collection("data").doc(key).get();
-          if (!doc.exists) return {};
-          const d = doc.data() || {};
-          if (d.flags && typeof d.flags === "object") return d.flags;
-          if (typeof d.value === "string") {
-            try { return JSON.parse(d.value) || {}; } catch (e) { return {}; }
-          }
-          return {};
-        } catch (e) {
-          console.error("flags get error:", key, e);
-          return {};
-        }
-      },
-
       // `ownerUid` names the list's owner, which is NOT the writer when a
       // family member is ticking items off your list. Defaulting to the writer
       // would transfer ownership and lock the owner out; omitting it entirely
@@ -418,6 +402,48 @@
             console.error("flags replace error:", key, e2);
             return null;
           }
+        }
+      },
+
+      // Live updates - the point of the whole exercise: your wife ticks off
+      // milk in aisle three and it goes grey on your phone.
+      //
+      // Only the checked/hidden documents are watched, and only they should be.
+      // They're pure booleans, so an incoming update can never land on top of
+      // something being edited. The manual-items and generated-list documents
+      // hold text the user may be part-way through changing, and a snapshot
+      // arriving mid-edit has no good answer - those stay load-time reads.
+      //
+      // hasPendingWrites is the echo guard. Firestore fires a local snapshot
+      // immediately for your own write (latency compensation) before the
+      // server confirms it. Feeding that straight back into setState would
+      // fight the optimistic local update this component already did, so local
+      // echoes are skipped and only settled state is applied.
+      //
+      // Returns an unsubscribe. Callers MUST call it - a listener left running
+      // after the list owner changes keeps writing another list's state into
+      // this one.
+      watch: (key, cb) => {
+        if (!db || !key) return function(){};
+        try {
+          return db.collection("data").doc(key).onSnapshot(
+            { includeMetadataChanges: false },
+            (doc) => {
+              if (doc.metadata.hasPendingWrites) return; // our own write, already applied locally
+              if (!doc.exists) { cb({}); return; }
+              const d = doc.data() || {};
+              if (d.flags && typeof d.flags === "object") { cb(d.flags); return; }
+              if (typeof d.value === "string") {
+                try { cb(JSON.parse(d.value) || {}); } catch (e) { cb({}); }
+                return;
+              }
+              cb({});
+            },
+            (err) => { console.error("flags watch error:", key, err); }
+          );
+        } catch (e) {
+          console.error("flags watch setup error:", key, e);
+          return function(){};
         }
       }
     };
@@ -2040,8 +2066,19 @@ function GroceryTab(p){
     window.flags.set("dm_ghidden_"+p.userId,id,on,p.ownerUid).catch(function(){});
   };
 
+  // Checked state is watched rather than read once, so a family member ticking
+  // something off shows up here without a refresh. onSnapshot delivers the
+  // current value immediately (from cache, then the server), so this replaces
+  // the one-shot read rather than adding to it. The cleanup is load-bearing:
+  // without it, switching lists would leave the previous owner's listener
+  // running and writing their state into the new list.
   useEffect(function(){
-    window.flags.get("dm_gcheck_"+p.userId).then(function(m){if(m)setChecked(m)}).catch(function(){});
+    if(!p.userId||p.userId==="guest")return;
+    var unsub=window.flags.watch("dm_gcheck_"+p.userId,function(m){setChecked(m||{})});
+    return function(){if(unsub)unsub()};
+  },[p.userId]);
+
+  useEffect(function(){
     window.storage.get("dm_gmanual_"+p.userId,true).then(function(r){if(r)setManual(JSON.parse(r.value))}).catch(function(){});
     window.storage.get("dm_groceryhistory_"+p.userId,true).then(function(r){if(r)setGroceryHistory(JSON.parse(r.value))}).catch(function(){});
     window.storage.get("dm_gqtyoverrides_"+p.userId,true).then(function(r){if(r)setQtyOverrides(JSON.parse(r.value))}).catch(function(){});
@@ -3689,14 +3726,13 @@ function App(){
     });
     return m?m.uid:null;
   })();
-  // Hidden state follows the list being shown, not the signed-in user.
+  // Hidden state follows the list being shown, not the signed-in user, and is
+  // watched so a family member removing an item takes effect here live. Same
+  // reasoning as the checked-state listener in GroceryTab.
   useEffect(function(){
     if(!groceryListOwner||groceryListOwner==="guest"){setGroceryHidden({});return}
-    var cancelled=false;
-    window.flags.get("dm_ghidden_"+groceryListOwner).then(function(m){
-      if(!cancelled)setGroceryHidden(m||{});
-    }).catch(function(){});
-    return function(){cancelled=true};
+    var unsub=window.flags.watch("dm_ghidden_"+groceryListOwner,function(m){setGroceryHidden(m||{})});
+    return function(){if(unsub)unsub()};
   },[groceryListOwner]);
   // Leaving the family - or that member leaving - must not strand us on a list
   // we can no longer read.

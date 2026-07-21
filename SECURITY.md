@@ -104,6 +104,13 @@ Note the ordering in the rule: `resource.data.ownerUid == request.auth.uid` is
 tested first, so the household lookup (which costs Firestore `get()` calls)
 never runs on the common path of a user writing their own data.
 
+The checked and hidden documents are also **live-subscribed** (`flags.watch`)
+so two people shopping the same list see each other's ticks. Only those two are
+watched, and deliberately so: they hold booleans, where an incoming update can
+never land on top of something being edited. The manual-items and generated-list
+documents hold text a user may be part-way through changing, so they stay
+load-time reads.
+
 **Reads currently need no new rule, and that is not a good thing.** Reads on the
 `data` collection are open to any authenticated user, because Explore has to
 load arbitrary users' recipe documents and "is this recipe public?" lives inside
