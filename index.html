@@ -3402,6 +3402,8 @@ function App(){
   var [sharedRecipes,setSharedRecipes]=useState([]);
   var [publicRecipes,setPublicRecipes]=useState([]);
   var [publicRecipesLoaded,setPublicRecipesLoaded]=useState(false);
+  var [familyRecipes,setFamilyRecipes]=useState([]);
+  var [familyRecipesLoaded,setFamilyRecipesLoaded]=useState(false);
   var [favCounts,setFavCounts]=useState({}); // "owner_recipeId" -> count, batch-fetched for Explore
   var [exploreSort,setExploreSort]=useState("newest"); // "newest" | "favorited"
   var [pullStart,setPullStart]=useState(null);
@@ -3633,6 +3635,15 @@ function App(){
     });
     return function(){cancelled=true};
   },[viewingMember]);
+
+  // Membership changed (joined, left, someone else joined) - drop the cached
+  // family cookbook so the tab refetches against the new member list.
+  useEffect(function(){
+    setFamilyRecipesLoaded(false);
+    setFamilyRecipes([]);
+    // Leaving the family removes the tab, so don't strand the user on it.
+    if(!household&&exploreSubTab==="family")setExploreSubTab("recipes");
+  },[household?household.id:null,householdMembers.length]);
 
   // Load user data
   useEffect(function(){
@@ -5028,6 +5039,49 @@ function App(){
     }
     setCategoryStores(updated);
     sv("dm_storeprefs",{items:storePrefs,defaultStore:defStore,categoryStores:updated});
+  }
+
+  // The household's own cookbook. Two things make this different from Explore:
+  // it reads a handful of known usernames instead of scanning every user on the
+  // platform, and it deliberately includes recipes that aren't public - seeing
+  // what your family actually cooks is the entire point of the tab. Recipes
+  // they saved *from someone else* are skipped, so this doesn't just mirror
+  // Explore back at you.
+  function loadFamilyRecipes(){
+    if(!user||!household)return;
+    if(familyRecipesLoaded)return;
+    setFamilyRecipesLoaded(true);
+    var others=householdMembers.filter(function(m){
+      return (m.username||"").toLowerCase()!==(userId||"").toLowerCase();
+    });
+    if(others.length===0){setFamilyRecipes([]);return}
+    Promise.all(others.map(function(m){
+      var uname=(m.username||"").toLowerCase();
+      return window.storage.get("dm_recipe_index_"+uname,true).catch(function(){return null})
+        .then(function(idx){
+          if(!idx||!idx.value)return[];
+          var ids=JSON.parse(idx.value);
+          return Promise.all(ids.map(function(id){
+            return window.storage.get("dm_recipe_"+uname+"_"+id,true).catch(function(){return null})
+              .then(function(r){
+                if(!r||!r.value)return null;
+                var rec=migrateRecipe(JSON.parse(r.value),uname).recipe;
+                // Theirs only - not a copy they saved from another user.
+                if(!rec.originalOwner)return null;
+                if(rec.originalOwner.toLowerCase()!==uname)return null;
+                if((rec.savedBy||uname).toLowerCase()!==uname)return null;
+                rec.ownerUsername=m.username;
+                rec.ownerProfilePic=m.profilePic||null;
+                return rec;
+              });
+          }));
+        })
+        .then(function(list){return list.filter(function(x){return x})});
+    })).then(function(results){
+      var all=[];
+      results.forEach(function(rs){all=all.concat(rs)});
+      setFamilyRecipes(all);
+    });
   }
 
   // Load all public recipes from all users
@@ -7011,6 +7065,7 @@ function App(){
       {view==="explore"&&<div style={{animation:"ft-fade-in .25s ease-out"}}>
         <div style={{display:"flex",gap:22,marginBottom:18,borderBottom:"1px solid "+C.bdr}}>
           <button onClick={function(){setExploreSubTab("recipes")}} style={{background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:exploreSubTab==="recipes"?C.ink:C.light,borderBottom:exploreSubTab==="recipes"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>Recipes</button>
+          {household?<button onClick={function(){setExploreSubTab("family")}} style={{background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:exploreSubTab==="family"?C.ink:C.light,borderBottom:exploreSubTab==="family"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>Family</button>:null}
           <button onClick={function(){setExploreSubTab("people")}} style={{position:"relative",background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:exploreSubTab==="people"?C.ink:C.light,borderBottom:exploreSubTab==="people"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>People
             {followRequests.length>0?<span style={{position:"absolute",top:-2,right:-14,width:16,height:16,borderRadius:8,background:"#e74c3c",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{followRequests.length>9?"9+":followRequests.length}</span>:null}
           </button>
@@ -7139,6 +7194,69 @@ function App(){
               </div>
             })}
           </div>
+        })():
+        exploreSubTab==="family"&&household?(function(){
+          if(!familyRecipesLoaded)loadFamilyRecipes();
+          var others=householdMembers.filter(function(m){
+            return (m.username||"").toLowerCase()!==(userId||"").toLowerCase();
+          });
+          var filtered=familyRecipes.filter(function(r){
+            return !exploreSearch||r.name.toLowerCase().includes(exploreSearch.toLowerCase());
+          });
+
+          return <div>
+            <div style={{fontSize:13,color:C.light,marginBottom:16}}>
+              {household.name||"Your family"} &mdash; everything your family cooks, including recipes they haven't shared publicly
+            </div>
+
+            {others.length===0?
+              <div style={{textAlign:"center",padding:"48px 20px"}}>
+                <div style={{marginBottom:14,opacity:.35}}><Icon name="users" size={36} color={C.dark} strokeWidth={1.25}/></div>
+                <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:4}}>No one else here yet</div>
+                <div style={{fontSize:12,color:C.light,marginBottom:16}}>Share your invite code to add someone</div>
+                <button onClick={function(){setShowFamily(true);setFamilyError("")}} style={{padding:"11px 22px",borderRadius:10,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>Open Family</button>
+              </div>
+            :<div>
+              <div style={{marginBottom:12}}>
+                <input value={exploreSearch} onChange={function(e){setExploreSearch(e.target.value)}} placeholder="Search family recipes..." style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box",background:C.card,color:C.ink}}/>
+              </div>
+              <div style={{fontSize:12,color:C.light,marginBottom:12}}>{filtered.length} recipe{filtered.length!==1?"s":""}</div>
+
+              {filtered.length===0?<div style={{textAlign:"center",padding:"48px 20px"}}>
+                <div style={{marginBottom:14,opacity:.35}}><Icon name="book" size={36} color={C.dark} strokeWidth={1.25}/></div>
+                <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:4}}>{familyRecipes.length===0&&familyRecipesLoaded?"Nothing saved yet":familyRecipesLoaded?"No recipes found":"Loading recipes..."}</div>
+                {familyRecipes.length===0&&familyRecipesLoaded?<div style={{fontSize:12,color:C.light}}>Recipes your family saves will show up here</div>:null}
+              </div>:
+              filtered.map(function(r){
+                var typeInfo = r.recipeType && r.recipeType!=="other" ? (RECIPE_TYPES.find(function(t){return t.id===r.recipeType})) : null;
+                var cookTime = shortTime(r.time);
+                // Worth flagging: this one is visible to you only because you're
+                // family, not because it's on Explore.
+                var isPrivate = r.isPublic===false;
+
+                return <div key={r.ownerUsername+"_"+r.id} className="ft-card-tap" onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}} style={{background:"var(--surface)",borderRadius:20,marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
+                  <div style={{position:"relative",width:"100%",aspectRatio:r.photo?"4 / 3":undefined,height:r.photo?undefined:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
+                    {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.3}}><Icon name="plate" size={28} color={C.dark} strokeWidth={1.25}/></div>}
+                    {isPrivate?<div style={{position:"absolute",top:12,right:12,display:"flex",alignItems:"center",gap:5,background:"var(--overlay-chip)",border:"1px solid var(--overlay-chip-border)",boxShadow:"var(--overlay-chip-shadow)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderRadius:16,padding:"5px 12px",fontSize:11,fontWeight:600,color:"var(--overlay-chip-text)"}}><Icon name="lock" size={10} strokeWidth={2}/> Private</div>:null}
+                  </div>
+                  <div style={{padding:"14px 16px 18px"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                      <div style={{width:30,height:30,borderRadius:15,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
+                        {isImageSrc(r.ownerProfilePic)?<img src={r.ownerProfilePic} style={{width:30,height:30,objectFit:"cover"}}/>:r.ownerProfilePic?<span style={{fontSize:14}}>{r.ownerProfilePic}</span>:<Icon name="user" size={14} strokeWidth={1.75}/>}
+                      </div>
+                      <div style={{fontSize:14,color:C.light,flex:1}}>@{r.ownerUsername}</div>
+                    </div>
+                    <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink,marginBottom:10,lineHeight:1.2}}>{r.name}</div>
+                    {(cookTime||typeInfo)?<div style={{display:"flex",alignItems:"center",gap:10,fontSize:13,color:C.light}}>
+                      {cookTime?<span style={{display:"inline-flex",alignItems:"center",gap:4}}><Icon name="clock" size={11} strokeWidth={1.75}/>{cookTime}</span>:null}
+                      {cookTime&&typeInfo?<span style={{opacity:.4}}>|</span>:null}
+                      {typeInfo?<span><CatTag type={typeInfo}/></span>:null}
+                    </div>:null}
+                  </div>
+                </div>
+              })}
+            </div>}
+          </div>;
         })():
         <div>
         {!user?<div style={{textAlign:"center",padding:40}}>
