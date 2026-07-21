@@ -1189,6 +1189,67 @@ function unitFamilyFactor(u){
   }
   return null;
 }
+
+// --- Unit conversion (grocery item editor) ---------------------------------
+// Converts only WITHIN a physical dimension - mass<->mass and volume<->volume -
+// bridging US and metric (so a metric recipe becomes shoppable in US units).
+// Weight<->volume ("how many cups is 200g of flour?") is deliberately NOT
+// supported: it depends on the ingredient's density, and a plausible-looking
+// wrong number on a shopping list is worse than no number at all. Kept separate
+// from UNIT_FAMILIES above so user-driven conversion can bridge US/metric
+// without changing how the grocery list auto-consolidates amounts.
+var UNIT_DIMENSIONS={
+  volume:{tsp:4.92892,tbsp:14.7868,cup:236.588,ml:1,l:1000},
+  mass:{oz:28.3495,lb:453.592,g:1,kg:1000}
+};
+function unitDimension(u){
+  var n=normalizeUnit(u);
+  for(var d in UNIT_DIMENSIONS){if(UNIT_DIMENSIONS[d].hasOwnProperty(n))return d}
+  return null;
+}
+function unitLabel(u){return u==="l"?"L":u}
+// Formats a converted amount for its target unit. Cooking fractions ("1 1/8")
+// read well for US units, but they're wrong for metric: rounding 0.4536 kg to
+// "1/2 kg" is ~10% off, and nobody measures 5/8 of a millilitre. So metric
+// units get decimals/whole numbers instead.
+function formatConverted(num,unit){
+  var u=normalizeUnit(unit);
+  if(u==="g"||u==="ml")return num<1?String(Math.round(num*100)/100):String(Math.round(num));
+  if(u==="kg"||u==="l")return String(Math.round(num*100)/100);
+  return formatQtyNum(num);
+}
+// Converted amount as a display string, or null when the pair isn't
+// convertible (different dimensions, unknown unit, or unparseable quantity).
+function convertQty(qty,fromUnit,toUnit){
+  var n=parseQtyNum(qty);
+  if(n===null)return null;
+  var from=normalizeUnit(fromUnit),to=normalizeUnit(toUnit);
+  var d=unitDimension(from);
+  if(!d||d!==unitDimension(to))return null;
+  var table=UNIT_DIMENSIONS[d];
+  return formatConverted(n*table[from]/table[to],to);
+}
+// The same amount expressed in the other units of its dimension, skipping
+// magnitudes that add noise rather than help (e.g. "0.0004 kg").
+function unitEquivalents(qty,unit){
+  var d=unitDimension(unit);
+  if(!d)return[];
+  var from=normalizeUnit(unit),out=[];
+  Object.keys(UNIT_DIMENSIONS[d]).forEach(function(u){
+    if(u===from)return;
+    var v=convertQty(qty,unit,u);
+    if(v===null)return;
+    var num=parseQtyNum(v);
+    if(num===null||num<=0)return;
+    // Drop equivalents nobody would use: a fraction of a litre/kilo, or a
+    // teaspoon count past about half a cup ("50 3/4 tsp" is noise, not help).
+    if((u==="kg"||u==="l")&&num<0.1)return;
+    if(u==="tsp"&&num>24)return;
+    if(num>100000)return;
+    out.push(v+" "+unitLabel(u));
+  });
+  return out;
+}
 var UNICODE_FRACTIONS={"½":0.5,"¼":0.25,"¾":0.75,"⅓":1/3,"⅔":2/3,"⅛":0.125};
 function parseQtyNum(str){
   // AI-imported recipes sometimes return qty as a JSON number (e.g. 2)
@@ -2835,11 +2896,29 @@ function GroceryTab(p){
           ),
           React.createElement("div",{style:{flex:1}},
             React.createElement("label",{style:{fontSize:12,fontWeight:600,color:C.light,display:"block",marginBottom:4}},"Unit"),
-            React.createElement("select",{value:editUnit,onChange:function(e){setEditUnit(e.target.value)},style:{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:"var(--surface)"}},
+            React.createElement("select",{value:editUnit,onChange:function(e){
+              // Switching to a compatible unit converts the amount with it
+              // ("1 lb" -> "16 oz"). Incompatible pairs (lb -> cup, or a
+              // count unit like "can") just relabel - we never invent a number.
+              var newUnit=e.target.value;
+              var converted=convertQty(editQty,editUnit,newUnit);
+              if(converted!==null)setEditQty(converted);
+              setEditUnit(newUnit);
+            },style:{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:"var(--surface)"}},
               UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"(none)")})
             )
           )
         ),
+
+        /* Live conversion equivalents - also signals that switching the unit
+           above will convert the amount rather than just relabel it. */
+        (function(){
+          var eqv=unitEquivalents(editQty,editUnit);
+          if(!eqv.length)return null;
+          return React.createElement("div",{style:{marginTop:-6,marginBottom:12,fontSize:11.5,color:C.light,lineHeight:1.5}},
+            "= "+eqv.join("  ·  ")
+          );
+        })(),
 
         /* Category */
         React.createElement("div",{style:{marginBottom:18}},
