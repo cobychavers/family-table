@@ -290,8 +290,12 @@ export default {
         payload = { success: true, recipe: await importFromPdf(body.imageData, body.mimeType, env.ANTHROPIC_API_KEY, meter) };
       } else if (type === "parse_text") {
         payload = { success: true, recipe: await parseRecipeText(body.text, env.ANTHROPIC_API_KEY, meter) };
+      } else if (type === "grocery_scan") {
+        // Extract a plain grocery list from a photo or PDF - returns { text }
+        // (a newline-separated list), which the client parses its own way.
+        payload = { success: true, text: await groceryScan(body.images, body.pdf, env.ANTHROPIC_API_KEY, meter) };
       } else {
-        return new Response(JSON.stringify({ error: "Invalid type. Use 'scan', 'url', 'pdf', 'parse_text', 'chef_chat', or 'ingredient_swap'" }), {
+        return new Response(JSON.stringify({ error: "Invalid type. Use 'scan', 'url', 'pdf', 'parse_text', 'chef_chat', 'ingredient_swap', or 'grocery_scan'" }), {
           status: 400,
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
         });
@@ -356,6 +360,40 @@ async function scanImages(images, apiKey, meter) {
   return JSON.parse(jsonMatch[0]);
 }
 
+// Extract a plain grocery list from a photo or PDF. Unlike scanImages (which
+// returns a structured recipe), this just returns the model's newline-separated
+// list of items as text - the client runs its own parser/cleaner over it.
+async function groceryScan(images, pdf, apiKey, meter) {
+  let content, noun;
+  if (images && images.length) {
+    content = images.map(img => ({
+      type: "image",
+      source: { type: "base64", media_type: img.mediaType || "image/jpeg", data: img.base64 }
+    }));
+    noun = "image";
+  } else if (pdf && pdf.data) {
+    content = [{
+      type: "document",
+      source: { type: "base64", media_type: pdf.mimeType || "application/pdf", data: pdf.data }
+    }];
+    noun = "document";
+  } else {
+    throw new Error("No image or PDF provided");
+  }
+  content.push({
+    type: "text",
+    text: "Extract the grocery list items from this " + noun + ". Return ONLY a simple list with one item per line. If there are quantities, include them. No explanations, just the list items."
+  });
+
+  const data = await callAnthropic({
+    model: "claude-sonnet-5",
+    max_tokens: 1000,
+    messages: [{ role: "user", content }]
+  }, apiKey, meter);
+
+  return data.content?.find(b => b.type === "text")?.text || "";
+}
+
 // --- JSON-LD Recipe schema extraction (schema.org) ---
 // Most recipe sites embed a <script type="application/ld+json"> block with
 // a Recipe object, put there for Google's rich-result snippets. When present
@@ -408,26 +446,32 @@ function isoDurationToReadable(iso) {
   return parts.join(" ");
 }
 
-// Mirrors the app's own parseIng() regex (index.html) so ingredient lines
-// split into {qty, unit, name} the same way whether they came from AI
-// extraction or straight off the page's structured data.
+// Mirrors the app's own parseIng() (index.html) so ingredient lines split into
+// {qty, unit, name} the same way whether they came from AI extraction or
+// straight off the page's structured data. Handles whole numbers, decimals,
+// fractions ("1/2"), mixed numbers ("1 1/2"), unicode fractions ("½", "1½"),
+// and RANGES ("1-2", "2 to 3", "1–2") - the last of which the old regex
+// mangled into qty:"1", name:"-2 balls burrata". Unit is only taken when a
+// quantity preceded it, so "red onion" doesn't treat "red" as a unit.
+const ING_NUM = "(?:\\d+\\s+\\d+\\/\\d+|\\d+\\/\\d+|\\d*\\.?\\d+[½¼¾⅓⅔⅛⅜⅝⅞]?|[½¼¾⅓⅔⅛⅜⅝⅞])";
+const ING_QTY_RE = new RegExp("^(" + ING_NUM + "(?:\\s*(?:-|–|—|to)\\s*" + ING_NUM + ")?)\\s*", "i");
+const ING_UNIT_RE = /^(fl\s*oz|oz|lbs?|pounds?|grams?|g|kilograms?|kg|cups?|tbsps?|tablespoons?|tsps?|teaspoons?|milliliters?|ml|liters?|litres?|l|pints?|pt|quarts?|qt|gallons?|gal|pkgs?|packages?|bags?|cans?|jars?|bottles?|boxe?s?|bunch(?:es)?|heads?|cloves?|slices?|pieces?|stalks?|sprigs?|ribs?|sticks?|balls?|ct|count|small|medium|large|pinch(?:es)?|dash(?:es)?|handfuls?)\b\.?\s*/i;
 function parseIngredientLine(str) {
   str = (str || "").trim();
   if (!str) return { qty: "", unit: "", name: "" };
-  // Scraped ingredient text sometimes carries a literal list-bullet
-  // ("• 2 cups sugar") - strip it before matching, otherwise the qty regex
-  // (which requires the string to START with a digit/fraction char) never
-  // matches and the whole line falls through into `name` with no qty/unit.
-  str = str.replace(/^[•●▪▸]\s*/, "");
-  const match = str.match(/^([\d.\/\s½¼¾⅓⅔⅛]+)?\s*(ct|oz|lbs|lb|g|kg|cups|cup|tbsp|tsp|teaspoons|teaspoon|tablespoons|tablespoon|ml|pkg|package|bag|cans|can|jars|jar|box|bunch|head|cloves|clove|slices|slice|pieces|piece|stalks|stalk|sprigs|sprig|ribs|rib|small|medium|large|sticks?|pounds?|L)?\b\s*[,.]?\s*(.+)$/i);
-  if (match && (match[1] || match[2])) {
-    let qty = (match[1] || "").trim();
-    let unit = (match[2] || "").trim();
-    let name = (match[3] || str).trim();
-    if (name.startsWith("of ")) name = name.substring(3);
-    return { qty, unit, name };
+  // Strip a leading list marker (bullet, or "- " dash-space) but NOT a "-2"
+  // range fragment - the marker must be followed by whitespace.
+  str = str.replace(/^\s*[-•●▪▸*·]\s+/, "").trim();
+  let qty = "", unit = "", rest = str;
+  const qm = str.match(ING_QTY_RE);
+  if (qm) {
+    qty = qm[1].replace(/\s*(?:-|–|—)\s*|\s+to\s+/i, "-").replace(/\s+/g, " ").trim();
+    rest = str.slice(qm[0].length);
+    const um = rest.match(ING_UNIT_RE);
+    if (um) { unit = um[1].replace(/\s+/g, " ").trim(); rest = rest.slice(um[0].length); }
   }
-  return { qty: "", unit: "", name: str };
+  rest = rest.replace(/^of\s+/i, "").replace(/^[,.\s]+/, "").trim();
+  return { qty, unit, name: rest || str };
 }
 
 function extractInstructions(ri) {
