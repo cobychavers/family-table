@@ -72,11 +72,37 @@ the rules change.
 Family linking deliberately does **not** move or merge data. Every calendar,
 recipe, and list keeps its own owner; a household only changes who may *read*.
 
-**Writes are untouched.** They still require `ownerUid == request.auth.uid`, so
-a family member can see a calendar but can never modify it. The client mirrors
-this — every write path goes through `getOwnMealsForDay`, never the display
-accessor, so another member's week can't be read into a save — but the rule is
-the actual boundary.
+**Calendars and recipes stay read-only to the family.** They require
+`ownerUid == request.auth.uid` to write, so a family member can see a calendar
+but never modify it. The client mirrors this — every write path goes through
+`getOwnMealsForDay`, never the display accessor, so another member's week can't
+be read into a save — but the rule is the actual boundary.
+
+**The grocery list is the one exception, and is writable by the household.**
+One person plans the meals, another does the shopping, so ticking items off has
+to work on someone else's list. The rule carves this out by key prefix
+(`isGroceryData`) plus household membership, and additionally pins ownership:
+
+```
+request.resource.data.ownerUid == resource.data.ownerUid
+```
+
+so a write to a family member's list cannot change who owns it. The client
+enforces the same thing from the other side — every write stamps the *list
+owner's* uid rather than the writer's. Both halves matter:
+
+- Stamping the writer's uid (the default in `window.storage.set`) would
+  transfer the document and lock the real owner out under the owner-only rule.
+- Omitting `ownerUid` instead would look safe but is worse: on a document that
+  doesn't exist yet it creates an **ownerless** document, and every later
+  update fails, because the rules dereference `resource.data.ownerUid`.
+
+Naming the true owner is the only option correct on both the create and update
+paths.
+
+Note the ordering in the rule: `resource.data.ownerUid == request.auth.uid` is
+tested first, so the household lookup (which costs Firestore `get()` calls)
+never runs on the common path of a user writing their own data.
 
 **Reads currently need no new rule, and that is not a good thing.** Reads on the
 `data` collection are open to any authenticated user, because Explore has to
@@ -91,16 +117,19 @@ The real fix is a `publicRecipes` collection with public-ness as a real field,
 which lets the `data` read rule tighten to owner + household. Until then, treat
 "private" data in `data` as private-by-obscurity, not enforced.
 
-When that tightening happens, the household half of the rule must read:
+When that tightening happens, it should reuse `sameHousehold()`, which the
+grocery write rule already defines:
 
 ```
 sameHousehold(otherUid) =
-  myHouseholdId() != null && myHouseholdId() == householdIdOf(otherUid)
+  householdIdOf(request.auth.uid) != null
+  && householdIdOf(request.auth.uid) == householdIdOf(otherUid)
 ```
 
 The `!= null` half is load-bearing. Without it two users in no household both
-resolve to `null`, `null == null` is true, and every account becomes readable by
-every other — the exact hole the tightening was meant to close.
+resolve to `null`, `null == null` is true, and every account becomes family with
+every other — which would silently grant strangers write access to each other's
+grocery lists today, and defeat the read tightening tomorrow.
 
 **Joining** is a self-service `update` that appends only your own uid: the rule
 lets a non-member add `request.auth.uid` to `members` while forbidding removal

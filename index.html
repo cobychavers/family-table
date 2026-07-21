@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -269,7 +269,17 @@
       // Social documents (followers/following/requests/inbox) are written by
       // *other* users by design - the rules carve those out by key prefix,
       // which is safe because the prefix match doesn't depend on the username.
-      set: async (key, value, shared) => {
+      // `ownerUid` is for the shared-list case: writing to a document that
+      // belongs to someone else in your household. Defaulting to the writer's
+      // uid there would transfer ownership of their list and lock them out
+      // under the owner-only rules, so the caller passes the intended owner.
+      //
+      // It stamps the owner rather than omitting the field, because omitting
+      // it on a document that doesn't exist yet creates an OWNERLESS document
+      // - and every later update fails, since the rules read
+      // resource.data.ownerUid. Naming the real owner is correct on both the
+      // create and the update path.
+      set: async (key, value, shared, ownerUid) => {
         if (!db) {
           console.error("Storage set failed - Firebase not connected");
           alert("Cannot save - Firebase not connected. Try refreshing the page.");
@@ -281,7 +291,8 @@
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
           };
           const currentUid = auth && auth.currentUser && auth.currentUser.uid;
-          if (currentUid) payload.ownerUid = currentUid;
+          const owner = ownerUid || currentUid;
+          if (owner) payload.ownerUid = owner;
           // merge:true so a write can never blank out ownerUid. The stored doc
           // only ever holds {value, updatedAt, ownerUid} and value is rewritten
           // in full each time, so merge changes nothing about the data - it
@@ -311,6 +322,104 @@
       // client and filtering by prefix in JS. It had no callers, so it's
       // removed rather than left as a landmine that quietly pulls every user's
       // data the moment someone wires it up.
+    };
+
+    // Checked-off and removed state for the grocery list, stored as REAL
+    // Firestore map fields instead of the JSON string every other document
+    // here uses.
+    //
+    // The reason is concurrency. Ticking an item off rewrites the whole map,
+    // and once a list is shared two people are ticking things off in the same
+    // store at the same time - so the second write silently erases the first
+    // person's checkmarks, in exactly the situation the feature exists for.
+    // Writing one field per toggle with merge:true means two people ticking
+    // different items merge cleanly, and ticking the SAME item is idempotent
+    // (both write true). Unticking deletes the field rather than storing
+    // false, so the map only ever holds what's actually set.
+    //
+    // This also fixes the single-user version of the same race: phone and
+    // tablet open on the same list.
+    window.flags = {
+      // Reads tolerate the old JSON-string shape so lists saved before this
+      // change still load. The first toggle rewrites that document in the new
+      // shape; until then both are readable.
+      get: async (key) => {
+        if (!db || !key) return {};
+        try {
+          const doc = await db.collection("data").doc(key).get();
+          if (!doc.exists) return {};
+          const d = doc.data() || {};
+          if (d.flags && typeof d.flags === "object") return d.flags;
+          if (typeof d.value === "string") {
+            try { return JSON.parse(d.value) || {}; } catch (e) { return {}; }
+          }
+          return {};
+        } catch (e) {
+          console.error("flags get error:", key, e);
+          return {};
+        }
+      },
+
+      // `ownerUid` names the list's owner, which is NOT the writer when a
+      // family member is ticking items off your list. Defaulting to the writer
+      // would transfer ownership and lock the owner out; omitting it entirely
+      // would create an ownerless document the rules can never update again.
+      // See window.storage.set for the same reasoning.
+      set: async (key, id, on, ownerUid) => {
+        if (!db || !key || !id) return null;
+        try {
+          const payload = {
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            flags: {}
+          };
+          payload.flags[id] = on ? true : firebase.firestore.FieldValue.delete();
+          const owner = ownerUid || (auth && auth.currentUser && auth.currentUser.uid);
+          if (owner) payload.ownerUid = owner;
+          await db.collection("data").doc(key).set(payload, { merge: true });
+          return true;
+        } catch (e) {
+          console.error("flags set error:", key, e);
+          return null;
+        }
+      },
+
+      // Wholesale replace, for "clear all" and for the generated-list rebuild
+      // that drops every gen-* key at once. Not merge-safe by nature - it is
+      // meant to overwrite - so it stays a deliberate, rare operation rather
+      // than something on the per-tap path.
+      //
+      // This uses update() rather than set(...,{merge:true}) on purpose. A
+      // merged write DEEP-merges a nested map: keys absent from the new map
+      // survive, so "replace" would quietly fail to clear anything. update()
+      // with a top-level field overwrites that field outright while leaving
+      // ownerUid alone. It throws when the document doesn't exist yet, hence
+      // the create fallback.
+      replace: async (key, map, ownerUid) => {
+        if (!db || !key) return null;
+        const ref = db.collection("data").doc(key);
+        const stamp = () => {
+          const owner = ownerUid || (auth && auth.currentUser && auth.currentUser.uid);
+          return owner ? { ownerUid: owner } : {};
+        };
+        try {
+          await ref.update(Object.assign({
+            flags: map || {},
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, stamp()));
+          return true;
+        } catch (e) {
+          try {
+            await ref.set(Object.assign({
+              flags: map || {},
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, stamp()), { merge: true });
+            return true;
+          } catch (e2) {
+            console.error("flags replace error:", key, e2);
+            return null;
+          }
+        }
+      }
     };
 
     // Favorite counters live in their own real Firestore collection (not the
@@ -698,7 +807,7 @@ const { useState, useEffect, useCallback, useRef } = React;
 const DAYS_FULL = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 const DAYS_SHORT = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-const EMOJIS = ["🍝","🍕","🌮","🍔","🥘","🍲","🐟","🥩","🍗","🥗","🍜","🥧","🧀","🍚","🥪","🫔","🍖","🥦","🍽️"];
+const EMOJIS = ["ðŸ","ðŸ•","ðŸŒ®","ðŸ”","ðŸ¥˜","ðŸ²","ðŸŸ","ðŸ¥©","ðŸ—","ðŸ¥—","ðŸœ","ðŸ¥§","ðŸ§€","ðŸš","ðŸ¥ª","ðŸ«”","ðŸ–","ðŸ¥¦","ðŸ½ï¸"];
 // Bee mark. Rendered as inline SVG rather than a data-URI <img> specifically
 // so its two colors can come from CSS variables and follow the theme - a
 // data-URI bakes its fill in and would stay a bright cream disc in dark mode.
@@ -759,16 +868,16 @@ const REGION_SEASONS = {
 };
 const REGION_LABELS = {south:"Southern US",northeast:"Northeast US",midwest:"Midwest US",west:"Western US"};
 const GCATS = {
-  "🍞 Bread":["bread","buns","bun","tortilla","tortillas","roll","rolls","pita","crust","biscuit","biscuits","breadcrumb","breadcrumbs","bagel","bagels","croissant","muffin","muffins","english muffin","hamburger bun","hot dog bun","hoagie","sub roll","ciabatta","focaccia","naan","flatbread","brioche","sourdough","rye bread","wheat bread","white bread","cornbread","crescent roll","dinner roll","slider bun","pretzel","pretzel bun"],
-  "🧂 Spices":["pepper","black pepper","white pepper","salt","kosher salt","sea salt","paprika","smoked paprika","cumin","oregano","thyme","basil","cinnamon","nutmeg","cayenne","chili powder","garlic powder","onion powder","bay leaf","bay leaves","italian seasoning","cajun","creole seasoning","curry powder","turmeric","coriander","dill","rosemary","rubbed sage","ground sage","dried sage","sage","allspice","cloves","ginger powder","ground ginger","cardamom","fennel seed","caraway","celery seed","mustard seed","red pepper flakes","crushed red pepper","seasoning","spice","herb","dried herb","poultry seasoning","taco seasoning","everything bagel seasoning","old bay","mrs dash","adobo","garam masala","chinese five spice","five spice","curry paste","sumac","za'atar","zaatar","ras el hanout","herbes de provence","fenugreek","saffron","anise","star anise","juniper","lavender","marjoram","tarragon","chervil","savory","lemongrass","annatto","file powder","berbere","harissa","ranch seasoning","garlic salt","onion salt","seasoned salt","montreal steak","steak seasoning","lemon pepper","chili flake","chipotle powder","ancho","guajillo","pasilla"],
-  "🥫 Condiments":["ketchup","mayo","mayonnaise","mustard","dijon","yellow mustard","soy sauce","worcestershire","hot sauce","bbq sauce","barbecue sauce","teriyaki","hoisin","fish sauce","sriracha","ranch","dressing","salad dressing","vinaigrette","relish","capers","pickles","pickle","olives","marinara","salsa","pico","guacamole","hummus","aioli","tartar sauce","cocktail sauce","horseradish","wasabi","chutney","preserves","jam","jelly","marmalade","honey","maple syrup","agave","buffalo sauce","wing sauce","steak sauce","a1","frank's","cholula","tabasco","sambal","gochujang","miso paste","oyster sauce","ponzu","tzatziki","chimichurri","pesto","alfredo sauce","enchilada sauce","verde sauce","adobo sauce"],
-  "🥜 Nuts & Seeds":["nuts","almonds","walnuts","pecans","peanuts","cashews","pistachios","macadamia","hazelnuts","pine nuts","brazil nuts","mixed nuts","peanut butter","almond butter","cashew butter","sunflower butter","sunflower seeds","pumpkin seeds","pepitas","sesame seeds","chia seeds","flax seeds","flaxseed","hemp seeds","nut butter","trail mix","candied nuts","roasted nuts","sliced almonds","chopped walnuts","pecan pieces","tahini"],
-  "🥫 Pantry":["chicken broth","beef broth","vegetable broth","chicken stock","beef stock","vegetable stock","bone broth","broth","stock","bouillon","paste","tomato paste","oil","olive oil","vegetable oil","canola oil","sesame oil","coconut oil","avocado oil","cooking spray","pam","vinegar","apple cider vinegar","balsamic","red wine vinegar","white vinegar","rice vinegar","sugar","brown sugar","powdered sugar","confectioner","flour","all purpose flour","bread flour","whole wheat flour","almond flour","coconut flour","baking soda","baking powder","yeast","cornstarch","cocoa","cocoa powder","syrup","molasses","beans","canned beans","black beans","kidney beans","pinto beans","chickpeas","garbanzo","lentils","canned","diced tomato","diced tomatoes","tomato sauce","crushed tomatoes","coconut milk","evaporated milk","condensed milk","crackers","chips","potato chips","tortilla chips","cheese puffs","cheetos","puffs","pretzels","popcorn","dried","raisins","croutons","panko","extract","vanilla extract","almond extract","corn syrup","pie crust","pie shell","graham cracker","cookie","cookies","brownie mix","cake mix","pudding","jello","gelatin","marshmallow","chocolate chips","peanut butter cups","candy","cereal bars","granola bars","protein bars","rice cakes","stuffing","bread stuffing","soup","canned soup","cream of mushroom","cream of chicken","tuna","canned tuna","sardines","anchovies","spam","corned beef hash","vienna sausage","mandarin oranges","fruit cocktail","pineapple chunks","applesauce","cranberry sauce","pumpkin puree"],
-  "🥩 Meat":["chicken","chicken breast","chicken thigh","chicken wing","chicken drumstick","chicken leg","whole chicken","ground beef","ground turkey","ground pork","ground chicken","ground lamb","ground meat","beef","steak","ribeye","sirloin","filet","filet mignon","flank","flank steak","skirt steak","strip steak","t-bone","porterhouse","brisket","roast","chuck roast","pot roast","beef roast","pork chop","pork loin","pork tenderloin","pork shoulder","pork butt","pork belly","pulled pork","bacon","turkey bacon","canadian bacon","sausage","italian sausage","breakfast sausage","andouille","chorizo","kielbasa","bratwurst","hot dog","hot dogs","frankfurter","ham","turkey breast","turkey","lamb","lamb chop","rack of lamb","leg of lamb","veal","duck","duck breast","goose","quail","cornish hen","game hen","pheasant","venison","bison","elk","rabbit","liver","oxtail","short rib","short ribs","beef ribs","pork ribs","baby back ribs","spare ribs","country ribs","meatball","meatballs","burger","burger patty","patty","patties","deli meat","lunch meat","salami","pepperoni","prosciutto","pancetta","guanciale","mortadella","bologna","pastrami","roast beef","smoked meat","jerky","beef jerky"],
-  "🐟 Seafood":["salmon","tilapia","cod","halibut","tuna","tuna steak","mahi mahi","mahimahi","swordfish","trout","bass","sea bass","catfish","snapper","red snapper","grouper","flounder","sole","perch","walleye","sardine","sardines","anchovy","anchovies","mackerel","herring","shrimp","prawns","crab","crab meat","crab legs","lobster","lobster tail","scallop","scallops","clam","clams","mussel","mussels","oyster","oysters","squid","calamari","octopus","crawfish","crayfish","langostino","fish","fish fillet","fish filet","seafood","shellfish","ahi","sushi grade","smoked salmon","lox"],
-  "🥬 Produce":["lettuce","romaine","arugula","spinach","baby spinach","kale","cabbage","red cabbage","napa cabbage","bok choy","tomato","tomatoes","cherry tomato","grape tomato","roma tomato","onion","onions","red onion","white onion","yellow onion","sweet onion","vidalia","shallot","shallots","garlic","garlic clove","bell pepper","red pepper","green pepper","yellow pepper","orange pepper","sweet pepper","jalapeno","jalapeño","serrano","habanero","poblano","anaheim","fresno","thai chili","chili pepper","hot pepper","broccoli","broccoli floret","broccolini","cauliflower","carrot","carrots","baby carrot","potato","potatoes","russet","yukon gold","red potato","fingerling","baby potato","sweet potato","yam","celery","celery stalk","cucumber","english cucumber","squash","yellow squash","butternut squash","acorn squash","spaghetti squash","delicata","zucchini","asparagus","corn","corn on cob","sweet corn","avocado","avocados","lime","limes","lemon","lemons","orange","oranges","blood orange","clementine","tangerine","mandarin","grapefruit","cilantro","parsley","fresh basil","fresh thyme","fresh rosemary","fresh dill","fresh mint","mint","chives","ginger","fresh ginger","ginger root","green onion","green onions","scallion","scallions","radish","radishes","daikon","beet","beets","turnip","parsnip","rutabaga","peas","green peas","snap peas","snow peas","sugar snap","green beans","string beans","haricot vert","wax beans","okra","eggplant","aubergine","mushroom","mushrooms","cremini","portobello","shiitake","oyster mushroom","button mushroom","white mushroom","enoki","chanterelle","porcini","berry","berries","strawberry","strawberries","blueberry","blueberries","raspberry","raspberries","blackberry","blackberries","cranberry","cranberries","apple","apples","granny smith","fuji","gala","honeycrisp","peach","peaches","nectarine","banana","bananas","plantain","grapes","grape","red grapes","green grapes","melon","watermelon","honeydew","cantaloupe","pineapple","mango","mangos","papaya","kiwi","kiwis","pear","pears","plum","plums","apricot","cherry","cherries","pomegranate","fig","figs","date","dates","passion fruit","dragon fruit","lychee","guava","starfruit","persimmon","fresh herb","herbs","mixed greens","spring mix","salad mix","salad greens","coleslaw","coleslaw mix","slaw","stir fry vegetables","vegetable medley","leek","leeks","fennel","artichoke","hearts of palm","bean sprouts","sprouts","microgreens","watercress","endive","escarole","radicchio","frisee","collard greens","collards","mustard greens","turnip greens","swiss chard","chard"],
-  "🧀 Dairy":["cheese","cheddar","sharp cheddar","mild cheddar","mozzarella","fresh mozzarella","parmesan","parmigiano","pecorino","romano","asiago","swiss","provolone","gouda","smoked gouda","brie","camembert","feta","goat cheese","chevre","cream cheese","neufchatel","ricotta","cottage cheese","mascarpone","burrata","queso fresco","cotija","manchego","gruyere","havarti","muenster","monterey jack","pepper jack","colby","colby jack","american cheese","velveeta","cheese slice","shredded cheese","cheese blend","mexican blend","italian blend","milk","whole milk","2% milk","1% milk","skim milk","nonfat milk","lactose free milk","almond milk","oat milk","oat milk","soy milk","coconut milk","cashew milk","rice milk","half and half","cream","heavy cream","heavy whipping cream","whipping cream","light cream","sour cream","creme fraiche","butter","unsalted butter","salted butter","margarine","ghee","clarified butter","egg","eggs","large eggs","egg white","egg yolk","liquid egg","yogurt","greek yogurt","plain yogurt","vanilla yogurt","flavored yogurt","skyr","kefir","buttermilk","eggnog","whipped cream","cool whip","ice cream","gelato","frozen yogurt","sherbet","sorbet"],
-  "🍝 Grains":["pasta","spaghetti","linguine","fettuccine","penne","rigatoni","ziti","rotini","farfalle","bow tie","orzo","lasagna","lasagna noodle","macaroni","elbow macaroni","shells","stuffed shells","manicotti","cavatappi","orecchiette","pappardelle","tagliatelle","angel hair","capellini","vermicelli","ditalini","pastina","acini di pepe","noodle","noodles","egg noodle","egg noodles","rice noodle","rice noodles","ramen","ramen noodle","udon","soba","lo mein","chow mein","pad thai noodle","rice","white rice","brown rice","jasmine rice","basmati rice","wild rice","arborio","sushi rice","sticky rice","fried rice","rice pilaf","spanish rice","mexican rice","yellow rice","minute rice","instant rice","rice a roni","quinoa","couscous","pearl couscous","israeli couscous","barley","pearl barley","farro","bulgur","wheat berry","freekeh","oats","oatmeal","rolled oats","steel cut oats","instant oatmeal","cereal","breakfast cereal","granola","muesli","bran","wheat bran","oat bran","polenta","grits","cornmeal","masa","hominy"]
+  "ðŸž Bread":["bread","buns","bun","tortilla","tortillas","roll","rolls","pita","crust","biscuit","biscuits","breadcrumb","breadcrumbs","bagel","bagels","croissant","muffin","muffins","english muffin","hamburger bun","hot dog bun","hoagie","sub roll","ciabatta","focaccia","naan","flatbread","brioche","sourdough","rye bread","wheat bread","white bread","cornbread","crescent roll","dinner roll","slider bun","pretzel","pretzel bun"],
+  "ðŸ§‚ Spices":["pepper","black pepper","white pepper","salt","kosher salt","sea salt","paprika","smoked paprika","cumin","oregano","thyme","basil","cinnamon","nutmeg","cayenne","chili powder","garlic powder","onion powder","bay leaf","bay leaves","italian seasoning","cajun","creole seasoning","curry powder","turmeric","coriander","dill","rosemary","rubbed sage","ground sage","dried sage","sage","allspice","cloves","ginger powder","ground ginger","cardamom","fennel seed","caraway","celery seed","mustard seed","red pepper flakes","crushed red pepper","seasoning","spice","herb","dried herb","poultry seasoning","taco seasoning","everything bagel seasoning","old bay","mrs dash","adobo","garam masala","chinese five spice","five spice","curry paste","sumac","za'atar","zaatar","ras el hanout","herbes de provence","fenugreek","saffron","anise","star anise","juniper","lavender","marjoram","tarragon","chervil","savory","lemongrass","annatto","file powder","berbere","harissa","ranch seasoning","garlic salt","onion salt","seasoned salt","montreal steak","steak seasoning","lemon pepper","chili flake","chipotle powder","ancho","guajillo","pasilla"],
+  "ðŸ¥« Condiments":["ketchup","mayo","mayonnaise","mustard","dijon","yellow mustard","soy sauce","worcestershire","hot sauce","bbq sauce","barbecue sauce","teriyaki","hoisin","fish sauce","sriracha","ranch","dressing","salad dressing","vinaigrette","relish","capers","pickles","pickle","olives","marinara","salsa","pico","guacamole","hummus","aioli","tartar sauce","cocktail sauce","horseradish","wasabi","chutney","preserves","jam","jelly","marmalade","honey","maple syrup","agave","buffalo sauce","wing sauce","steak sauce","a1","frank's","cholula","tabasco","sambal","gochujang","miso paste","oyster sauce","ponzu","tzatziki","chimichurri","pesto","alfredo sauce","enchilada sauce","verde sauce","adobo sauce"],
+  "ðŸ¥œ Nuts & Seeds":["nuts","almonds","walnuts","pecans","peanuts","cashews","pistachios","macadamia","hazelnuts","pine nuts","brazil nuts","mixed nuts","peanut butter","almond butter","cashew butter","sunflower butter","sunflower seeds","pumpkin seeds","pepitas","sesame seeds","chia seeds","flax seeds","flaxseed","hemp seeds","nut butter","trail mix","candied nuts","roasted nuts","sliced almonds","chopped walnuts","pecan pieces","tahini"],
+  "ðŸ¥« Pantry":["chicken broth","beef broth","vegetable broth","chicken stock","beef stock","vegetable stock","bone broth","broth","stock","bouillon","paste","tomato paste","oil","olive oil","vegetable oil","canola oil","sesame oil","coconut oil","avocado oil","cooking spray","pam","vinegar","apple cider vinegar","balsamic","red wine vinegar","white vinegar","rice vinegar","sugar","brown sugar","powdered sugar","confectioner","flour","all purpose flour","bread flour","whole wheat flour","almond flour","coconut flour","baking soda","baking powder","yeast","cornstarch","cocoa","cocoa powder","syrup","molasses","beans","canned beans","black beans","kidney beans","pinto beans","chickpeas","garbanzo","lentils","canned","diced tomato","diced tomatoes","tomato sauce","crushed tomatoes","coconut milk","evaporated milk","condensed milk","crackers","chips","potato chips","tortilla chips","cheese puffs","cheetos","puffs","pretzels","popcorn","dried","raisins","croutons","panko","extract","vanilla extract","almond extract","corn syrup","pie crust","pie shell","graham cracker","cookie","cookies","brownie mix","cake mix","pudding","jello","gelatin","marshmallow","chocolate chips","peanut butter cups","candy","cereal bars","granola bars","protein bars","rice cakes","stuffing","bread stuffing","soup","canned soup","cream of mushroom","cream of chicken","tuna","canned tuna","sardines","anchovies","spam","corned beef hash","vienna sausage","mandarin oranges","fruit cocktail","pineapple chunks","applesauce","cranberry sauce","pumpkin puree"],
+  "ðŸ¥© Meat":["chicken","chicken breast","chicken thigh","chicken wing","chicken drumstick","chicken leg","whole chicken","ground beef","ground turkey","ground pork","ground chicken","ground lamb","ground meat","beef","steak","ribeye","sirloin","filet","filet mignon","flank","flank steak","skirt steak","strip steak","t-bone","porterhouse","brisket","roast","chuck roast","pot roast","beef roast","pork chop","pork loin","pork tenderloin","pork shoulder","pork butt","pork belly","pulled pork","bacon","turkey bacon","canadian bacon","sausage","italian sausage","breakfast sausage","andouille","chorizo","kielbasa","bratwurst","hot dog","hot dogs","frankfurter","ham","turkey breast","turkey","lamb","lamb chop","rack of lamb","leg of lamb","veal","duck","duck breast","goose","quail","cornish hen","game hen","pheasant","venison","bison","elk","rabbit","liver","oxtail","short rib","short ribs","beef ribs","pork ribs","baby back ribs","spare ribs","country ribs","meatball","meatballs","burger","burger patty","patty","patties","deli meat","lunch meat","salami","pepperoni","prosciutto","pancetta","guanciale","mortadella","bologna","pastrami","roast beef","smoked meat","jerky","beef jerky"],
+  "ðŸŸ Seafood":["salmon","tilapia","cod","halibut","tuna","tuna steak","mahi mahi","mahimahi","swordfish","trout","bass","sea bass","catfish","snapper","red snapper","grouper","flounder","sole","perch","walleye","sardine","sardines","anchovy","anchovies","mackerel","herring","shrimp","prawns","crab","crab meat","crab legs","lobster","lobster tail","scallop","scallops","clam","clams","mussel","mussels","oyster","oysters","squid","calamari","octopus","crawfish","crayfish","langostino","fish","fish fillet","fish filet","seafood","shellfish","ahi","sushi grade","smoked salmon","lox"],
+  "ðŸ¥¬ Produce":["lettuce","romaine","arugula","spinach","baby spinach","kale","cabbage","red cabbage","napa cabbage","bok choy","tomato","tomatoes","cherry tomato","grape tomato","roma tomato","onion","onions","red onion","white onion","yellow onion","sweet onion","vidalia","shallot","shallots","garlic","garlic clove","bell pepper","red pepper","green pepper","yellow pepper","orange pepper","sweet pepper","jalapeno","jalapeÃ±o","serrano","habanero","poblano","anaheim","fresno","thai chili","chili pepper","hot pepper","broccoli","broccoli floret","broccolini","cauliflower","carrot","carrots","baby carrot","potato","potatoes","russet","yukon gold","red potato","fingerling","baby potato","sweet potato","yam","celery","celery stalk","cucumber","english cucumber","squash","yellow squash","butternut squash","acorn squash","spaghetti squash","delicata","zucchini","asparagus","corn","corn on cob","sweet corn","avocado","avocados","lime","limes","lemon","lemons","orange","oranges","blood orange","clementine","tangerine","mandarin","grapefruit","cilantro","parsley","fresh basil","fresh thyme","fresh rosemary","fresh dill","fresh mint","mint","chives","ginger","fresh ginger","ginger root","green onion","green onions","scallion","scallions","radish","radishes","daikon","beet","beets","turnip","parsnip","rutabaga","peas","green peas","snap peas","snow peas","sugar snap","green beans","string beans","haricot vert","wax beans","okra","eggplant","aubergine","mushroom","mushrooms","cremini","portobello","shiitake","oyster mushroom","button mushroom","white mushroom","enoki","chanterelle","porcini","berry","berries","strawberry","strawberries","blueberry","blueberries","raspberry","raspberries","blackberry","blackberries","cranberry","cranberries","apple","apples","granny smith","fuji","gala","honeycrisp","peach","peaches","nectarine","banana","bananas","plantain","grapes","grape","red grapes","green grapes","melon","watermelon","honeydew","cantaloupe","pineapple","mango","mangos","papaya","kiwi","kiwis","pear","pears","plum","plums","apricot","cherry","cherries","pomegranate","fig","figs","date","dates","passion fruit","dragon fruit","lychee","guava","starfruit","persimmon","fresh herb","herbs","mixed greens","spring mix","salad mix","salad greens","coleslaw","coleslaw mix","slaw","stir fry vegetables","vegetable medley","leek","leeks","fennel","artichoke","hearts of palm","bean sprouts","sprouts","microgreens","watercress","endive","escarole","radicchio","frisee","collard greens","collards","mustard greens","turnip greens","swiss chard","chard"],
+  "ðŸ§€ Dairy":["cheese","cheddar","sharp cheddar","mild cheddar","mozzarella","fresh mozzarella","parmesan","parmigiano","pecorino","romano","asiago","swiss","provolone","gouda","smoked gouda","brie","camembert","feta","goat cheese","chevre","cream cheese","neufchatel","ricotta","cottage cheese","mascarpone","burrata","queso fresco","cotija","manchego","gruyere","havarti","muenster","monterey jack","pepper jack","colby","colby jack","american cheese","velveeta","cheese slice","shredded cheese","cheese blend","mexican blend","italian blend","milk","whole milk","2% milk","1% milk","skim milk","nonfat milk","lactose free milk","almond milk","oat milk","oat milk","soy milk","coconut milk","cashew milk","rice milk","half and half","cream","heavy cream","heavy whipping cream","whipping cream","light cream","sour cream","creme fraiche","butter","unsalted butter","salted butter","margarine","ghee","clarified butter","egg","eggs","large eggs","egg white","egg yolk","liquid egg","yogurt","greek yogurt","plain yogurt","vanilla yogurt","flavored yogurt","skyr","kefir","buttermilk","eggnog","whipped cream","cool whip","ice cream","gelato","frozen yogurt","sherbet","sorbet"],
+  "ðŸ Grains":["pasta","spaghetti","linguine","fettuccine","penne","rigatoni","ziti","rotini","farfalle","bow tie","orzo","lasagna","lasagna noodle","macaroni","elbow macaroni","shells","stuffed shells","manicotti","cavatappi","orecchiette","pappardelle","tagliatelle","angel hair","capellini","vermicelli","ditalini","pastina","acini di pepe","noodle","noodles","egg noodle","egg noodles","rice noodle","rice noodles","ramen","ramen noodle","udon","soba","lo mein","chow mein","pad thai noodle","rice","white rice","brown rice","jasmine rice","basmati rice","wild rice","arborio","sushi rice","sticky rice","fried rice","rice pilaf","spanish rice","mexican rice","yellow rice","minute rice","instant rice","rice a roni","quinoa","couscous","pearl couscous","israeli couscous","barley","pearl barley","farro","bulgur","wheat berry","freekeh","oats","oatmeal","rolled oats","steel cut oats","instant oatmeal","cereal","breakfast cereal","granola","muesli","bran","wheat bran","oat bran","polenta","grits","cornmeal","masa","hominy"]
 };
 
 
@@ -1068,7 +1177,7 @@ function getGCat(item){
   matches.sort(function(a,b){return b.len-a.len});
   // Return the category with the longest matching keyword
   if(matches.length>0)return matches[0].cat;
-  return"📦 Other"
+  return"ðŸ“¦ Other"
 }
 function getMonday(d){var date=new Date(d);var day=date.getDay();date.setDate(date.getDate()-day+(day===0?-6:1));date.setHours(0,0,0,0);return date}
 function dk(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
@@ -1220,7 +1329,7 @@ function migrateRecipe(recipe, storageUser){
       if(!ing || typeof ing !== "object") return ing;
       if((ing.qty||"").trim()) return ing;
       var name = ing.name || "";
-      if(!/^[•●▪▸]/.test(name)) return ing;
+      if(!/^[â€¢â—â–ªâ–¸]/.test(name)) return ing;
       var reparsed = parseIng(name);
       if(!reparsed.qty && !reparsed.unit) return ing;
       repairedAny = true;
@@ -1238,12 +1347,12 @@ function migrateRecipe(recipe, storageUser){
 function formatIng(ing){if(typeof ing==="string")return ing;var q=ing.qty?ing.qty+" ":"";var u=ing.unit?ing.unit+" ":"";return q+u+ing.name}
 // Parses an ingredient line into {qty, unit, name}. Handles the shapes real
 // recipes actually use: whole numbers, decimals, fractions ("1/2"), mixed
-// numbers ("1 1/2"), unicode fractions ("½", "1½"), and RANGES ("1-2",
-// "2 to 3", "1–2") - the last of which the old parser mangled into
+// numbers ("1 1/2"), unicode fractions ("Â½", "1Â½"), and RANGES ("1-2",
+// "2 to 3", "1â€“2") - the last of which the old parser mangled into
 // qty:"1", name:"-2 balls burrata". Unit is only taken when a quantity
 // preceded it, so "red onion" doesn't treat "red" as a unit.
-var ING_NUM="(?:\\d+\\s+\\d+\\/\\d+|\\d+\\/\\d+|\\d*\\.?\\d+[½¼¾⅓⅔⅛⅜⅝⅞]?|[½¼¾⅓⅔⅛⅜⅝⅞])";
-var ING_QTY_RE=new RegExp("^("+ING_NUM+"(?:\\s*(?:-|–|—|to)\\s*"+ING_NUM+")?)\\s*","i");
+var ING_NUM="(?:\\d+\\s+\\d+\\/\\d+|\\d+\\/\\d+|\\d*\\.?\\d+[Â½Â¼Â¾â…“â…”â…›â…œâ…â…ž]?|[Â½Â¼Â¾â…“â…”â…›â…œâ…â…ž])";
+var ING_QTY_RE=new RegExp("^("+ING_NUM+"(?:\\s*(?:-|â€“|â€”|to)\\s*"+ING_NUM+")?)\\s*","i");
 var ING_UNIT_RE=/^(fl\s*oz|oz|lbs?|pounds?|grams?|g|kilograms?|kg|cups?|tbsps?|tablespoons?|tsps?|teaspoons?|milliliters?|ml|liters?|litres?|l|pints?|pt|quarts?|qt|gallons?|gal|pkgs?|packages?|bags?|cans?|jars?|bottles?|boxe?s?|bunch(?:es)?|heads?|cloves?|slices?|pieces?|stalks?|sprigs?|ribs?|sticks?|balls?|ct|count|small|medium|large|pinch(?:es)?|dash(?:es)?|handfuls?)\b\.?\s*/i;
 function parseIng(str){
   if(typeof str==="object")return str;
@@ -1251,12 +1360,12 @@ function parseIng(str){
   if(!str)return{qty:"",unit:"",name:""};
   // Strip a leading list marker (bullet, or "- " dash-space) but NOT a "-2"
   // range fragment - the marker must be followed by whitespace.
-  str=str.replace(/^\s*[-•●▪▸*·]\s+/,"").trim();
+  str=str.replace(/^\s*[-â€¢â—â–ªâ–¸*Â·]\s+/,"").trim();
   var qty="",unit="",rest=str;
   var qm=str.match(ING_QTY_RE);
   if(qm){
     // Normalize a range to a compact "1-2" regardless of how it was written.
-    qty=qm[1].replace(/\s*(?:-|–|—)\s*|\s+to\s+/i,"-").replace(/\s+/g," ").trim();
+    qty=qm[1].replace(/\s*(?:-|â€“|â€”)\s*|\s+to\s+/i,"-").replace(/\s+/g," ").trim();
     rest=str.slice(qm[0].length);
     var um=rest.match(ING_UNIT_RE);
     if(um){unit=um[1].replace(/\s+/g," ").trim();rest=rest.slice(um[0].length);}
@@ -1391,7 +1500,7 @@ function defaultConvertTarget(from){
   var f=normalizeUnit(from);
   return CONVERT_DEFAULT[f]||convertUnitsFor(f)[0]||f;
 }
-var UNICODE_FRACTIONS={"½":0.5,"¼":0.25,"¾":0.75,"⅓":1/3,"⅔":2/3,"⅛":0.125};
+var UNICODE_FRACTIONS={"Â½":0.5,"Â¼":0.25,"Â¾":0.75,"â…“":1/3,"â…”":2/3,"â…›":0.125};
 function parseQtyNum(str){
   // AI-imported recipes sometimes return qty as a JSON number (e.g. 2)
   // instead of a string ("2") despite the prompt asking for a string -
@@ -1490,7 +1599,7 @@ function parseInstructionSteps(text){
   if(!text)return[];
   var raw=String(text).trim();
   if(!raw)return[];
-  var STEP_MARKER=/^(?:step\s*)?\d+\s*[.):]\s*|^[•●▪▸*]\s*|^-\s+/i;
+  var STEP_MARKER=/^(?:step\s*)?\d+\s*[.):]\s*|^[â€¢â—â–ªâ–¸*]\s*|^-\s+/i;
   var lines=raw.split(/\r?\n+/).map(function(l){return l.trim();}).filter(Boolean);
   // Some sources cram every step onto one line/paragraph with no real
   // newlines ("1. Preheat oven. 2. Mix batter.") - if a numbered marker
@@ -1502,23 +1611,23 @@ function parseInstructionSteps(text){
 }
 
 var RECIPE_TYPES = [
-  {id:"all",label:"All",icon:"📋"},
-  {id:"favorites",label:"Favorites",icon:"❤️"},
-  {id:"chicken",label:"Chicken",icon:"🍗"},
-  {id:"beef",label:"Beef",icon:"🥩"},
-  {id:"pork",label:"Pork",icon:"🍖"},
-  {id:"seafood",label:"Seafood",icon:"🐟"},
-  {id:"pasta",label:"Pasta",icon:"🍝"},
-  {id:"mexican",label:"Mexican",icon:"🌮"},
-  {id:"asian",label:"Asian",icon:"🍜"},
-  {id:"soup",label:"Soup/Stew",icon:"🍲"},
-  {id:"salad",label:"Salad",icon:"🥗"},
-  {id:"vegetarian",label:"Vegetarian",icon:"🥬"},
-  {id:"breakfast",label:"Breakfast",icon:"🥞"},
-  {id:"dessert",label:"Dessert",icon:"🍰"},
-  {id:"drinks",label:"Drinks",icon:"🍹"},
-  {id:"cocktails",label:"Cocktails",icon:"🍸"},
-  {id:"other",label:"Other",icon:"🍽️"},
+  {id:"all",label:"All",icon:"ðŸ“‹"},
+  {id:"favorites",label:"Favorites",icon:"â¤ï¸"},
+  {id:"chicken",label:"Chicken",icon:"ðŸ—"},
+  {id:"beef",label:"Beef",icon:"ðŸ¥©"},
+  {id:"pork",label:"Pork",icon:"ðŸ–"},
+  {id:"seafood",label:"Seafood",icon:"ðŸŸ"},
+  {id:"pasta",label:"Pasta",icon:"ðŸ"},
+  {id:"mexican",label:"Mexican",icon:"ðŸŒ®"},
+  {id:"asian",label:"Asian",icon:"ðŸœ"},
+  {id:"soup",label:"Soup/Stew",icon:"ðŸ²"},
+  {id:"salad",label:"Salad",icon:"ðŸ¥—"},
+  {id:"vegetarian",label:"Vegetarian",icon:"ðŸ¥¬"},
+  {id:"breakfast",label:"Breakfast",icon:"ðŸ¥ž"},
+  {id:"dessert",label:"Dessert",icon:"ðŸ°"},
+  {id:"drinks",label:"Drinks",icon:"ðŸ¹"},
+  {id:"cocktails",label:"Cocktails",icon:"ðŸ¸"},
+  {id:"other",label:"Other",icon:"ðŸ½ï¸"},
 ];
 
 var RECIPE_TYPE_KEYWORDS = {
@@ -1551,7 +1660,7 @@ function detectRecipeType(recipe) {
   return "other";
 }
 
-function emptyMeal(){return{name:"",time:"",emoji:"🍽️",ingredients:[],notes:"",photo:null,recipeType:null,credit:""}}
+function emptyMeal(){return{name:"",time:"",emoji:"ðŸ½ï¸",ingredients:[],notes:"",photo:null,recipeType:null,credit:""}}
 
 // ============ LOGIN/SIGNUP COMPONENT ============
 function AuthScreen(p){
@@ -1787,7 +1896,7 @@ function AuthScreen(p){
           React.createElement("span",{style:{cursor:"pointer",color:C.dark,fontWeight:600},onClick:function(){setMode("login");setError("");setSuccess("")}},"Sign in")
         ):null,
         mode==="forgot"?React.createElement("div",null,
-          React.createElement("span",{style:{cursor:"pointer",color:C.dark,fontWeight:600},onClick:function(){setMode("login");setError("");setSuccess("")}},"← Back to sign in")
+          React.createElement("span",{style:{cursor:"pointer",color:C.dark,fontWeight:600},onClick:function(){setMode("login");setError("");setSuccess("")}},"â† Back to sign in")
         ):null
       )
     )
@@ -1878,7 +1987,7 @@ function GroceryTab(p){
   function isInPantry(name){return pantryHasKey(pantryKey(name))}
   function savePantry(list){
     setPantry(list);
-    window.storage.set("dm_pantry_"+p.userId,JSON.stringify(list),true).catch(function(){});
+    saveList("dm_pantry_"+p.userId,JSON.stringify(list)).catch(function(){});
   }
   function addToPantry(name){
     var n=displayGroceryName(name||"").trim();
@@ -1911,13 +2020,28 @@ function GroceryTab(p){
   
   // Use hiddenItems from props (lifted state)
   var hiddenItems=p.groceryHidden||{};
+  // Wholesale replace - the bulk paths (clear all, purge of gen-* keys on
+  // regenerate). Per-item removal goes through hideItem, which writes a single
+  // field so it can't clobber a family member's concurrent edit.
   var setHiddenItems=function(val){
     p.setGroceryHidden(val);
-    window.storage.set("dm_ghidden_"+p.userId,JSON.stringify(val),true).catch(function(){});
+    window.flags.replace("dm_ghidden_"+p.userId,val,p.ownerUid).catch(function(){});
+  };
+  // Every write to whichever list is on screen goes through here. When that's a
+  // family member's list, ownerUid must be left alone - see window.storage.set.
+  function saveList(key,value){
+    return window.storage.set(key,value,true,p.ownerUid);
+  }
+  // One field, one write. Safe to run at the same time as anyone else's tap.
+  var setHiddenItem=function(id,on){
+    var u=Object.assign({},hiddenItems);
+    if(on)u[id]=true;else delete u[id];
+    p.setGroceryHidden(u);
+    window.flags.set("dm_ghidden_"+p.userId,id,on,p.ownerUid).catch(function(){});
   };
 
   useEffect(function(){
-    window.storage.get("dm_gcheck_"+p.userId,true).then(function(r){if(r)setChecked(JSON.parse(r.value))}).catch(function(){});
+    window.flags.get("dm_gcheck_"+p.userId).then(function(m){if(m)setChecked(m)}).catch(function(){});
     window.storage.get("dm_gmanual_"+p.userId,true).then(function(r){if(r)setManual(JSON.parse(r.value))}).catch(function(){});
     window.storage.get("dm_groceryhistory_"+p.userId,true).then(function(r){if(r)setGroceryHistory(JSON.parse(r.value))}).catch(function(){});
     window.storage.get("dm_gqtyoverrides_"+p.userId,true).then(function(r){if(r)setQtyOverrides(JSON.parse(r.value))}).catch(function(){});
@@ -1932,7 +2056,7 @@ function GroceryTab(p){
       setGeneratedItems(c);
       setGeneratedWeekLabel(label);
       if(JSON.stringify(c)!==JSON.stringify(items)){
-        window.storage.set("dm_generated_"+p.userId,JSON.stringify({items:c,weekLabel:label}),true).catch(function(){});
+        saveList("dm_generated_"+p.userId,JSON.stringify({items:c,weekLabel:label})).catch(function(){});
       }
     }}).catch(function(){});
   },[p.userId]);
@@ -1969,9 +2093,9 @@ function GroceryTab(p){
   function cleanGroceryItemName(rawName){
     var name=(rawName||"").trim();
     if(!name)return name;
-    // Drop a leading list bullet ("• pinch red pepper flakes") left over from
+    // Drop a leading list bullet ("â€¢ pinch red pepper flakes") left over from
     // the source recipe's formatting.
-    name=name.replace(/^[•●▪▸*]\s*/,"").trim();
+    name=name.replace(/^[â€¢â—â–ªâ–¸*]\s*/,"").trim();
     // Drop a leading small-amount word ("pinch of", "a dash of") - it's captured
     // separately by groceryQualifier as the item's amount, not part of the name.
     name=name.replace(/^(?:a\s+)?(?:pinch|dash|handful|sprinkle)(?:es|s)?\s+(?:of\s+)?/i,"").trim();
@@ -2144,7 +2268,7 @@ function GroceryTab(p){
     var weekLabels=[];
     weekStartDates.forEach(function(ws){
       var dates=weekDatesOf(ws);
-      var wl=dates[0].toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+dates[6].toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+      var wl=dates[0].toLocaleDateString("en-US",{month:"short",day:"numeric"})+" â€“ "+dates[6].toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
       weekLabels.push(wl);
       dates.forEach(function(d){
         var v=p.meals[dk(d)];
@@ -2197,7 +2321,7 @@ function GroceryTab(p){
         });
       });
     });
-    var newWeeksLabel = weekLabels.length===1 ? weekLabels[0] : weekLabels.length+" weeks ("+weekLabels[0].split(" – ")[0]+" – "+weekLabels[weekLabels.length-1].split(" – ")[1]+")";
+    var newWeeksLabel = weekLabels.length===1 ? weekLabels[0] : weekLabels.length+" weeks ("+weekLabels[0].split(" â€“ ")[0]+" â€“ "+weekLabels[weekLabels.length-1].split(" â€“ ")[1]+")";
     var combinedLabel = (mode==="append" && generatedWeekLabel) ? (generatedWeekLabel + " + " + newWeeksLabel) : newWeeksLabel;
     setGeneratedItems(items);
     setGeneratedWeekLabel(combinedLabel);
@@ -2209,7 +2333,7 @@ function GroceryTab(p){
         if(!k.startsWith("gen-")){newChecked[k]=checked[k]}
       });
       setChecked(newChecked);
-      window.storage.set("dm_gcheck_"+p.userId,JSON.stringify(newChecked),true).catch(function(){});
+      window.flags.replace("dm_gcheck_"+p.userId,newChecked,p.ownerUid).catch(function(){});
       // Clear hidden for old generated items
       var newHidden={};
       Object.keys(hiddenItems).forEach(function(k){
@@ -2220,7 +2344,7 @@ function GroceryTab(p){
       p.setItemStore&&p.setItemStore("__clear_all__",null);
     }
     // Save generated items
-    window.storage.set("dm_generated_"+p.userId,JSON.stringify({items:items,weekLabel:combinedLabel}),true).catch(function(){});
+    saveList("dm_generated_"+p.userId,JSON.stringify({items:items,weekLabel:combinedLabel})).catch(function(){});
     return items.length - (mode==="append" ? (generatedItems.length) : 0);
   }
 
@@ -2231,7 +2355,7 @@ function GroceryTab(p){
       updated[itemId].name=newName;
     }
     setQtyOverrides(updated);
-    window.storage.set("dm_gqtyoverrides_"+p.userId,JSON.stringify(updated),true).catch(function(){});
+    saveList("dm_gqtyoverrides_"+p.userId,JSON.stringify(updated)).catch(function(){});
   }
 
   function openEditQty(it){
@@ -2268,7 +2392,7 @@ function GroceryTab(p){
           return m;
         });
         setManual(updated);
-        window.storage.set("dm_gmanual_"+p.userId,JSON.stringify(updated),true).catch(function(){});
+        saveList("dm_gmanual_"+p.userId,JSON.stringify(updated)).catch(function(){});
       }
     }
     setEditItem(null);
@@ -2285,18 +2409,27 @@ function GroceryTab(p){
     if(!exists){
       var updated=groceryHistory.concat([{name:typeof item==="string"?item:item.name,addedAt:Date.now()}]);
       setGroceryHistory(updated);
-      window.storage.set("dm_groceryhistory_"+p.userId,JSON.stringify(updated),true).catch(function(){});
+      saveList("dm_groceryhistory_"+p.userId,JSON.stringify(updated)).catch(function(){});
     }
   }
 
   function removeFromHistory(itemName){
     var updated=groceryHistory.filter(function(h){return(h.name||"").toLowerCase()!==itemName.toLowerCase()});
     setGroceryHistory(updated);
-    window.storage.set("dm_groceryhistory_"+p.userId,JSON.stringify(updated),true).catch(function(){});
+    saveList("dm_groceryhistory_"+p.userId,JSON.stringify(updated)).catch(function(){});
   }
 
-  function tog(id){var u=Object.assign({},checked);u[id]=!u[id];setChecked(u);window.storage.set("dm_gcheck_"+p.userId,JSON.stringify(u),true).catch(function(){})}
-  function clr(){setChecked({});window.storage.set("dm_gcheck_"+p.userId,JSON.stringify({}),true).catch(function(){})}
+  // The hot path: every checkbox tap in the store. Writes only this item's
+  // field, so two people shopping the same list can tick things off at the
+  // same time without erasing each other.
+  function tog(id){
+    var on=!checked[id];
+    var u=Object.assign({},checked);
+    if(on)u[id]=true;else delete u[id];
+    setChecked(u);
+    window.flags.set("dm_gcheck_"+p.userId,id,on,p.ownerUid).catch(function(){});
+  }
+  function clr(){setChecked({});window.flags.replace("dm_gcheck_"+p.userId,{},p.ownerUid).catch(function(){})}
   
   function saveCurrentList(name){
     if(!name.trim())return;
@@ -2316,7 +2449,7 @@ function GroceryTab(p){
     };
     var updated=savedLists.concat([newList]);
     setSavedLists(updated);
-    window.storage.set("dm_savedlists_"+p.userId,JSON.stringify(updated),true).catch(function(){});
+    saveList("dm_savedlists_"+p.userId,JSON.stringify(updated)).catch(function(){});
     setNewListName("");
     setShowSaveLists(false);
   }
@@ -2324,7 +2457,7 @@ function GroceryTab(p){
   function deleteSavedList(listId){
     var updated=savedLists.filter(function(l){return l.id!==listId});
     setSavedLists(updated);
-    window.storage.set("dm_savedlists_"+p.userId,JSON.stringify(updated),true).catch(function(){});
+    saveList("dm_savedlists_"+p.userId,JSON.stringify(updated)).catch(function(){});
   }
   
   function updateSavedList(listId){
@@ -2346,7 +2479,7 @@ function GroceryTab(p){
       return l;
     });
     setSavedLists(updated);
-    window.storage.set("dm_savedlists_"+p.userId,JSON.stringify(updated),true).catch(function(){});
+    saveList("dm_savedlists_"+p.userId,JSON.stringify(updated)).catch(function(){});
     alert("List updated!");
   }
   
@@ -2369,8 +2502,8 @@ function GroceryTab(p){
     });
     setManual(newManual);
     setQtyOverrides(newOverrides);
-    window.storage.set("dm_gmanual_"+p.userId,JSON.stringify(newManual),true).catch(function(){});
-    window.storage.set("dm_gqtyoverrides_"+p.userId,JSON.stringify(newOverrides),true).catch(function(){});
+    saveList("dm_gmanual_"+p.userId,JSON.stringify(newManual)).catch(function(){});
+    saveList("dm_gqtyoverrides_"+p.userId,JSON.stringify(newOverrides)).catch(function(){});
     setShowLoadList(false);
   }
   
@@ -2414,7 +2547,7 @@ function GroceryTab(p){
       }
       
       // Try quantity after dash/colon: "Chicken breast - 2 lbs" or "Milk: 1 gal"
-      var match3 = cleaned.match(/^(.+?)\s*[-–:x]\s*(\d+\.?\d*)\s*(oz|lb|lbs|kg|g|cups?|tbsp|tsp|gal|gallons?|liters?|l|ml|dozen|doz|pack|packs|ct|count|pcs?|pieces?)?$/i);
+      var match3 = cleaned.match(/^(.+?)\s*[-â€“:x]\s*(\d+\.?\d*)\s*(oz|lb|lbs|kg|g|cups?|tbsp|tsp|gal|gallons?|liters?|l|ml|dozen|doz|pack|packs|ct|count|pcs?|pieces?)?$/i);
       if(match3){
         items.push({name:match3[1].trim(),qty:match3[2],unit:(match3[3]||"").toLowerCase()});
         return;
@@ -2470,8 +2603,8 @@ function GroceryTab(p){
     });
     setManual(newManual);
     setQtyOverrides(newOverrides);
-    window.storage.set("dm_gmanual_"+p.userId,JSON.stringify(newManual),true).catch(function(){});
-    window.storage.set("dm_gqtyoverrides_"+p.userId,JSON.stringify(newOverrides),true).catch(function(){});
+    saveList("dm_gmanual_"+p.userId,JSON.stringify(newManual)).catch(function(){});
+    saveList("dm_gqtyoverrides_"+p.userId,JSON.stringify(newOverrides)).catch(function(){});
   }
   
   function handleImportFromText(){
@@ -2574,7 +2707,7 @@ function GroceryTab(p){
     addToHistory(ni.trim());
     var u=manual.concat([item]);
     setManual(u);
-    window.storage.set("dm_gmanual_"+p.userId,JSON.stringify(u),true).catch(function(){});
+    saveList("dm_gmanual_"+p.userId,JSON.stringify(u)).catch(function(){});
     setNi("");setNqty("");setNunit("");setNs(null);
   }
   
@@ -2583,19 +2716,18 @@ function GroceryTab(p){
     if(ns)p.setItemStore(itemName,ns);
     var u=manual.concat([item]);
     setManual(u);
-    window.storage.set("dm_gmanual_"+p.userId,JSON.stringify(u),true).catch(function(){});
+    saveList("dm_gmanual_"+p.userId,JSON.stringify(u)).catch(function(){});
   }
   
   function remM(id){
     var u=manual.filter(function(x){return x.id!==id});
     setManual(u);
-    window.storage.set("dm_gmanual_"+p.userId,JSON.stringify(u),true).catch(function(){});
+    saveList("dm_gmanual_"+p.userId,JSON.stringify(u)).catch(function(){});
   }
   
+  // Per-item removal, so it writes one field instead of the whole map.
   function hideItem(id){
-    var u=Object.assign({},hiddenItems);
-    u[id]=true;
-    setHiddenItems(u);
+    setHiddenItem(id,true);
   }
   
   function unhideAllItems(){
@@ -2606,16 +2738,16 @@ function GroceryTab(p){
     // Clear generated items
     setGeneratedItems([]);
     setGeneratedWeekLabel("");
-    window.storage.set("dm_generated_"+p.userId,JSON.stringify({items:[],weekLabel:""}),true).catch(function(){});
+    saveList("dm_generated_"+p.userId,JSON.stringify({items:[],weekLabel:""})).catch(function(){});
     // Clear manual items
     setManual([]);
-    window.storage.set("dm_gmanual_"+p.userId,JSON.stringify([]),true).catch(function(){});
+    saveList("dm_gmanual_"+p.userId,JSON.stringify([])).catch(function(){});
     // Clear checked
     setChecked({});
-    window.storage.set("dm_gcheck_"+p.userId,JSON.stringify({}),true).catch(function(){});
+    window.flags.replace("dm_gcheck_"+p.userId,{},p.ownerUid).catch(function(){});
     // Clear qty overrides
     setQtyOverrides({});
-    window.storage.set("dm_gqtyoverrides_"+p.userId,JSON.stringify({}),true).catch(function(){});
+    saveList("dm_gqtyoverrides_"+p.userId,JSON.stringify({})).catch(function(){});
     // Clear hidden
     setHiddenItems({});
   }
@@ -2624,14 +2756,14 @@ function GroceryTab(p){
     // Clear only generated items, keep manual items
     setGeneratedItems([]);
     setGeneratedWeekLabel("");
-    window.storage.set("dm_generated_"+p.userId,JSON.stringify({items:[],weekLabel:""}),true).catch(function(){});
+    saveList("dm_generated_"+p.userId,JSON.stringify({items:[],weekLabel:""})).catch(function(){});
     // Clear checked for generated items only
     var newChecked={};
     Object.keys(checked).forEach(function(k){
       if(!k.startsWith("gen-")){newChecked[k]=checked[k]}
     });
     setChecked(newChecked);
-    window.storage.set("dm_gcheck_"+p.userId,JSON.stringify(newChecked),true).catch(function(){});
+    window.flags.replace("dm_gcheck_"+p.userId,newChecked,p.ownerUid).catch(function(){});
   }
 
   // Sync meal ingredients to history (and dedupe existing entries one time)
@@ -2646,7 +2778,7 @@ function GroceryTab(p){
     });
     if(dedupedHistory.length<groceryHistory.length){
       setGroceryHistory(dedupedHistory);
-      window.storage.set("dm_groceryhistory_"+p.userId,JSON.stringify(dedupedHistory),true).catch(function(){});
+      saveList("dm_groceryhistory_"+p.userId,JSON.stringify(dedupedHistory)).catch(function(){});
       return; // Let the next effect cycle handle the sync after dedup
     }
     
@@ -2673,7 +2805,7 @@ function GroceryTab(p){
     if(newItems.length>0){
       var updated=groceryHistory.concat(newItems);
       setGroceryHistory(updated);
-      window.storage.set("dm_groceryhistory_"+p.userId,JSON.stringify(updated),true).catch(function(){});
+      saveList("dm_groceryhistory_"+p.userId,JSON.stringify(updated)).catch(function(){});
     }
   },[p.meals]);
 
@@ -2773,7 +2905,7 @@ function GroceryTab(p){
         React.createElement("div",{style:{position:"relative",flexShrink:0}},
           React.createElement("button",{onClick:function(e){e.stopPropagation();setCatStorePicker(catStorePicker===c?null:c)},style:{display:"flex",alignItems:"center",gap:5,padding:"4px 8px",borderRadius:6,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",fontSize:11}},
             catStore?React.createElement(React.Fragment,null,renderStoreIcon(catStore,14),React.createElement("span",{style:{color:C.ink,fontWeight:600}},catStore.name)):React.createElement("span",{style:{color:C.light}},"Set store"),
-            React.createElement("span",{style:{fontSize:8,opacity:.5,color:C.light}},"▼")
+            React.createElement("span",{style:{fontSize:8,opacity:.5,color:C.light}},"â–¼")
           ),
           catStorePicker===c?React.createElement("div",{style:{position:"absolute",top:"100%",right:0,zIndex:100,background:"var(--surface)",borderRadius:10,boxShadow:C.shadowLg,padding:8,marginTop:4,minWidth:140}},
             React.createElement("div",{style:{fontSize:10,fontWeight:700,color:C.light,marginBottom:6,padding:"0 4px"}},cLabel.toUpperCase()+" STORE"),
@@ -2810,8 +2942,10 @@ function GroceryTab(p){
     React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,position:"relative"}},
       React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}},React.createElement(Icon,{name:"cart",size:18,color:C.dark,strokeWidth:1.75}),"Grocery List"),
       React.createElement("div",{style:{display:"flex",gap:8,alignItems:"center"}},
-        /* From Calendar icon button */
-        React.createElement("button",{onClick:function(){setShowWeekPicker(!showWeekPicker);setShowPlusMenu(false)},title:"From Calendar",style:{display:"flex",alignItems:"center",gap:6,padding:"0 14px",height:36,borderRadius:8,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontWeight:600,fontSize:12,cursor:"pointer",boxShadow:C.shadowSm}},React.createElement(Icon,{name:"calendar",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"From Calendar")),
+        /* From Calendar generates from MY week. Offering it while a family
+           member's list is on screen would rebuild their list out of my meal
+           plan, so it's hidden rather than disabled. */
+        p.ownList?React.createElement("button",{onClick:function(){setShowWeekPicker(!showWeekPicker);setShowPlusMenu(false)},title:"From Calendar",style:{display:"flex",alignItems:"center",gap:6,padding:"0 14px",height:36,borderRadius:8,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontWeight:600,fontSize:12,cursor:"pointer",boxShadow:C.shadowSm}},React.createElement(Icon,{name:"calendar",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"From Calendar")):null,
         /* + Plus button with popup menu */
         React.createElement("div",{style:{position:"relative"}},
           React.createElement("button",{onClick:function(){setShowPlusMenu(!showPlusMenu);setShowWeekPicker(false)},style:{width:36,height:36,borderRadius:8,border:"none",background:C.dark,color:"#fff",fontWeight:700,fontSize:20,cursor:"pointer",lineHeight:1}},"+"),
@@ -2828,6 +2962,31 @@ function GroceryTab(p){
       showPlusMenu?React.createElement("div",{onClick:function(){setShowPlusMenu(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:40}}):null
     ),
     
+    /* Family list switcher. Unlike the calendar, a member's list is WRITABLE -
+       one person plans, the other shops and ticks things off. */
+    (p.members&&p.members.length>1)?React.createElement("div",{style:{display:"flex",gap:8,overflowX:"auto",paddingBottom:6,marginBottom:12}},
+      [{username:p.me,isSelf:true}].concat(p.members.filter(function(m){
+        return (m.username||"").toLowerCase()!==(p.me||"").toLowerCase();
+      })).map(function(m){
+        var active=m.isSelf?p.ownList:(p.listOwner||"").toLowerCase()===(m.username||"").toLowerCase();
+        return React.createElement("button",{key:m.username,onClick:function(){p.setListOwner(m.isSelf?null:m.username)},
+          style:{display:"flex",alignItems:"center",gap:7,padding:"6px 14px 6px 6px",borderRadius:20,flexShrink:0,
+            border:"1px solid "+(active?C.dark:C.bdr),background:active?C.dark:"var(--surface)",
+            color:active?"#fff":C.ink,fontSize:13,fontWeight:600,cursor:"pointer",transition:"all .2s"}},
+          React.createElement("span",{style:{width:24,height:24,borderRadius:12,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:active?"rgba(255,255,255,.2)":C.blush}},
+            isImageSrc(m.profilePic)?React.createElement("img",{src:m.profilePic,alt:"",style:{width:"100%",height:"100%",objectFit:"cover"}})
+              :m.profilePic?React.createElement("span",{style:{fontSize:13}},m.profilePic)
+              :React.createElement("span",{style:{fontSize:11,fontWeight:700,color:active?"#fff":C.dark}},(m.username||"?").charAt(0).toUpperCase())),
+          m.isSelf?"My List":m.username
+        );
+      })
+    ):null,
+    !p.ownList?React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderRadius:10,background:C.blush,marginBottom:12}},
+      React.createElement(Icon,{name:"users",size:14,color:C.dark,strokeWidth:1.75}),
+      React.createElement("span",{style:{fontSize:12,color:C.dark,flex:1}},"Shopping "+p.listOwner+"'s list — what you tick off saves to it"),
+      React.createElement("button",{onClick:function(){p.setListOwner(null)},style:{background:"none",border:"none",padding:0,cursor:"pointer",fontSize:12,fontWeight:700,color:C.dark,textDecoration:"underline",textUnderlineOffset:2}},"My list")
+    ):null,
+
     /* Week picker (opens from the From Calendar icon button) */
     React.createElement("div",{style:{marginBottom:showWeekPicker||generatedWeekLabel?12:0}},
       showWeekPicker?React.createElement("div",{style:{background:"var(--surface)",border:"1px solid var(--blush-med)",borderRadius:10,padding:"12px"}},
@@ -2836,7 +2995,7 @@ function GroceryTab(p){
           var ws2=new Date(p.wdates[0]);
           ws2.setDate(ws2.getDate()+offset*7);
           var we=new Date(ws2);we.setDate(we.getDate()+6);
-          var label=ws2.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+we.toLocaleDateString("en-US",{month:"short",day:"numeric"});
+          var label=ws2.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" â€“ "+we.toLocaleDateString("en-US",{month:"short",day:"numeric"});
           var wsKey=dk(ws2);
           var checked2=selectedWeeks.some(function(w){return dk(w)===wsKey});
           return React.createElement("label",{key:offset,style:{display:"flex",alignItems:"center",gap:8,padding:"7px 0",cursor:"pointer",borderBottom:offset<3?"1px solid var(--border-strong)":"none"}},
@@ -2876,7 +3035,7 @@ function GroceryTab(p){
     
     
     React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},
-      React.createElement("div",{style:{fontSize:12,color:C.light}},all.length+" items · "+tc+" checked"+(hiddenCount>0?" · "+hiddenCount+" hidden":"")),
+      React.createElement("div",{style:{fontSize:12,color:C.light}},all.length+" items Â· "+tc+" checked"+(hiddenCount>0?" Â· "+hiddenCount+" hidden":"")),
       React.createElement("div",{style:{display:"flex",gap:8}},
         tc>0?React.createElement("button",{onClick:clr,style:{display:"flex",alignItems:"center",gap:5,height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm}},"Clear ",React.createElement(Icon,{name:"check",size:12,strokeWidth:2.5})):null,
         all.length>0?React.createElement("button",{onClick:clearAllItems,style:{display:"flex",alignItems:"center",gap:5,height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid rgba(192,57,43,0.25)",background:"#fdf2f1",cursor:"pointer",fontWeight:600,color:"var(--danger)"}},React.createElement(Icon,{name:"trash",size:12,strokeWidth:2}),"Clear All"):null,
@@ -2898,7 +3057,7 @@ function GroceryTab(p){
           React.createElement("button",{onClick:function(){setShowDefStorePicker(!showDefStorePicker)},style:{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:6,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer"}},
             renderStoreIcon(defStoreObj,16),
             React.createElement("span",{style:{fontWeight:600,fontSize:12,color:C.ink}},defStoreObj.name),
-            React.createElement("span",{style:{fontSize:9,opacity:.5,color:C.light}},"▼")
+            React.createElement("span",{style:{fontSize:9,opacity:.5,color:C.light}},"â–¼")
           )
         ),
         showDefStorePicker?React.createElement("div",{style:{marginBottom:12,padding:10,background:"var(--surface)",borderRadius:8,border:"1px solid "+C.bdr}},
@@ -2957,7 +3116,7 @@ function GroceryTab(p){
       ):null,
       
       groceryHistory.length>0&&!ni.trim()?React.createElement("div",{style:{marginTop:10}},
-        React.createElement("button",{onClick:function(){setShowHistory(!showHistory)},style:{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"var(--light)",background:"none",border:"none",cursor:"pointer",fontWeight:600}},showHistory?"▼ Hide past items":React.createElement(React.Fragment,null,React.createElement(Icon,{name:"clipboard",size:12,strokeWidth:2}),"Browse past items ("+(function(){var s={};var c=0;groceryHistory.forEach(function(h){var n=(h.name||"").toLowerCase().trim();if(n&&!s[n]){s[n]=true;c++;}});return c;})()+")")),
+        React.createElement("button",{onClick:function(){setShowHistory(!showHistory)},style:{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"var(--light)",background:"none",border:"none",cursor:"pointer",fontWeight:600}},showHistory?"â–¼ Hide past items":React.createElement(React.Fragment,null,React.createElement(Icon,{name:"clipboard",size:12,strokeWidth:2}),"Browse past items ("+(function(){var s={};var c=0;groceryHistory.forEach(function(h){var n=(h.name||"").toLowerCase().trim();if(n&&!s[n]){s[n]=true;c++;}});return c;})()+")")),
         showHistory?React.createElement("div",{style:{marginTop:8,maxHeight:200,overflowY:"auto",border:"1px solid var(--border-strong)",borderRadius:8,padding:8,background:"var(--surface)"}},
           React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:4}},
             (function(){
@@ -2986,11 +3145,11 @@ function GroceryTab(p){
         React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
           React.createElement(Icon,{name:"search",size:14,color:"var(--dark)",strokeWidth:2}),
           React.createElement("span",{style:{fontWeight:600,fontSize:14,color:"var(--dark)"}},
-            (fCat||fStore)?(fCat?fCat.replace(/^\S+\s*/,""):"All Categories")+(fStore?" · "+((p.stores.find(function(s){return s.id===fStore})||{}).name||""):""):"All Items"
+            (fCat||fStore)?(fCat?fCat.replace(/^\S+\s*/,""):"All Categories")+(fStore?" Â· "+((p.stores.find(function(s){return s.id===fStore})||{}).name||""):""):"All Items"
           ),
           (fCat||fStore)?React.createElement("span",{style:{fontSize:12,color:"var(--blush-dark)"}},"("+vis.length+")"):null
         ),
-        React.createElement("span",{style:{fontSize:12,color:"var(--blush-dark)"}},showGroceryFilters?"▲":"▼")
+        React.createElement("span",{style:{fontSize:12,color:"var(--blush-dark)"}},showGroceryFilters?"â–²":"â–¼")
       ),
       
       showGroceryFilters?React.createElement("div",{style:{background:"var(--surface)",borderRadius:12,border:"1px solid rgba(139,115,85,0.2)",marginTop:8,padding:12,boxShadow:C.shadowMd}},
@@ -3029,7 +3188,7 @@ function GroceryTab(p){
 
     chk.length>0?React.createElement("div",{onClick:function(){setShowDone(!showDone)},style:{display:"flex",alignItems:"center",gap:6,padding:"10px 0 4px",cursor:"pointer"}},
       React.createElement("span",{style:{display:"flex",alignItems:"center",gap:5,fontSize:12,fontWeight:700,color:"var(--light)"}},React.createElement(Icon,{name:"check",size:12,strokeWidth:2.5}),"Purchased ("+chk.length+")"),
-      React.createElement("span",{style:{fontSize:10,opacity:.3}},showDone?"▼":"▶")
+      React.createElement("span",{style:{fontSize:10,opacity:.3}},showDone?"â–¼":"â–¶")
     ):null,
     showDone?chk.map(function(e){return item(e)}):null,
 
@@ -3119,14 +3278,14 @@ function GroceryTab(p){
         React.createElement("div",{style:{marginBottom:18}},
           React.createElement("label",{style:{fontSize:12,fontWeight:600,color:C.light,display:"block",marginBottom:4}},"Category"),
           React.createElement("select",{value:editCategory,onChange:function(e){setEditCategory(e.target.value)},style:{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:"var(--surface)"}},
-            Object.keys(GCATS).concat(["📦 Other"]).map(function(c){return React.createElement("option",{key:c,value:c},c.replace(/^\S+\s*/,""))})
+            Object.keys(GCATS).concat(["ðŸ“¦ Other"]).map(function(c){return React.createElement("option",{key:c,value:c},c.replace(/^\S+\s*/,""))})
           )
         ),
 
         /* "I always have this" - remember it in the pantry and drop it from the
            list, so future generated lists leave it out too. */
         editItem&&!isInPantry(editItem.name)?React.createElement("button",{onClick:function(){moveItemToPantry(editItem);setEditItem(null)},style:{width:"100%",padding:"11px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--blush)",color:C.dark,fontSize:13,fontWeight:600,cursor:"pointer",marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:7}},
-          React.createElement(Icon,{name:"clipboard",size:14,color:C.dark,strokeWidth:2}),"I always have this — move to Pantry"
+          React.createElement(Icon,{name:"clipboard",size:14,color:C.dark,strokeWidth:2}),"I always have this â€” move to Pantry"
         ):null,
 
         React.createElement("div",{style:{display:"flex",gap:8}},
@@ -3161,7 +3320,7 @@ function GroceryTab(p){
         /* To: result + unit */
         React.createElement("div",{style:{display:"flex",gap:8,alignItems:"center",marginBottom:14}},
           React.createElement("div",{style:{flex:1,minWidth:0,padding:"12px",borderRadius:10,background:"var(--blush)",border:"1px solid "+C.bdr,fontSize:18,fontWeight:700,color:C.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},
-            convertQty(convAmount,convFrom,convTo)||"—"
+            convertQty(convAmount,convFrom,convTo)||"â€”"
           ),
           React.createElement("select",{value:convTo,onChange:function(e){setConvTo(e.target.value)},style:{flex:"0 0 108px",padding:"12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:"var(--surface)"}},
             convertUnitsFor(convFrom).map(function(u){return React.createElement("option",{key:u,value:u},unitLabel(u))})
@@ -3172,7 +3331,7 @@ function GroceryTab(p){
         (function(){
           var eqv=unitEquivalents(convAmount,convFrom).filter(function(t){return t.split(" ").pop()!==unitLabel(convTo)});
           if(!eqv.length)return null;
-          return React.createElement("div",{style:{fontSize:12,color:C.light,lineHeight:1.6,marginBottom:14}},"Also "+eqv.join("  ·  "));
+          return React.createElement("div",{style:{fontSize:12,color:C.light,lineHeight:1.6,marginBottom:14}},"Also "+eqv.join("  Â·  "));
         })(),
 
         React.createElement("div",{style:{fontSize:11,color:C.light,opacity:.8,lineHeight:1.5,borderTop:"1px solid "+C.bdr,paddingTop:12}},
@@ -3229,7 +3388,7 @@ function GroceryTab(p){
           savedLists.map(function(list){return React.createElement("div",{key:list.id,style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px",borderRadius:10,border:"1px solid var(--blush-med)",marginBottom:8,background:"var(--surface)"}},
             React.createElement("div",{style:{flex:1}},
               React.createElement("div",{style:{fontWeight:600,fontSize:14}},list.name),
-              React.createElement("div",{style:{fontSize:11,opacity:.5}},list.items.length+" items · "+(list.updatedAt?"Updated ":"")+ new Date(list.updatedAt||list.createdAt).toLocaleDateString())
+              React.createElement("div",{style:{fontSize:11,opacity:.5}},list.items.length+" items Â· "+(list.updatedAt?"Updated ":"")+ new Date(list.updatedAt||list.createdAt).toLocaleDateString())
             ),
             React.createElement("div",{style:{display:"flex",gap:6}},
               React.createElement("button",{onClick:function(e){e.stopPropagation();updateSavedList(list.id)},style:{padding:"8px 12px",borderRadius:8,border:"none",background:"var(--dark)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}},"Update"),
@@ -3258,7 +3417,7 @@ function GroceryTab(p){
             React.createElement("div",{style:{fontSize:11,opacity:.5}},list.items.length+" items"),
             React.createElement("div",{style:{fontSize:10,opacity:.4,marginTop:2}},list.items.slice(0,3).map(function(i){return i.name}).join(", ")+(list.items.length>3?"...":""))
           ),
-          React.createElement("span",{style:{fontSize:20,opacity:.3}},"→")
+          React.createElement("span",{style:{fontSize:20,opacity:.3}},"â†’")
         )})
       )
     ):null,
@@ -3463,6 +3622,11 @@ function App(){
   var [importPasteDirections,setImportPasteDirections]=useState("");
   var [importPasteAll,setImportPasteAll]=useState(""); // Single box for all text
   var [groceryHidden,setGroceryHidden]=useState({});
+  // Whose grocery list is on screen. null = my own. Unlike the calendar, a
+  // family member's list is WRITABLE - the whole point is that one person
+  // plans and the other shops, ticking things off as they go. The derived
+  // values live further down, after userId exists.
+  var [groceryOwner,setGroceryOwner]=useState(null);
   var [showProfileMenu,setShowProfileMenu]=useState(false);
   var [showChangePassword,setShowChangePassword]=useState(false);
   var [showEditProfile,setShowEditProfile]=useState(false);
@@ -3512,9 +3676,40 @@ function App(){
   var profilePicRef=useRef(null);
 
   var userId=user||"guest";
+  var groceryListOwner=groceryOwner||userId;
+  var groceryIsMine=!groceryOwner;
+  // The uid that should own whatever we write to the list on screen - mine for
+  // my own list, theirs when I'm shopping a family member's. Every write path
+  // stamps this rather than the writer's uid, so ticking an item off someone
+  // else's list can't quietly transfer the document to me.
+  var groceryOwnerUid=(function(){
+    if(groceryIsMine)return firebase.auth().currentUser&&firebase.auth().currentUser.uid;
+    var m=householdMembers.find(function(x){
+      return (x.username||"").toLowerCase()===groceryOwner.toLowerCase();
+    });
+    return m?m.uid:null;
+  })();
+  // Hidden state follows the list being shown, not the signed-in user.
+  useEffect(function(){
+    if(!groceryListOwner||groceryListOwner==="guest"){setGroceryHidden({});return}
+    var cancelled=false;
+    window.flags.get("dm_ghidden_"+groceryListOwner).then(function(m){
+      if(!cancelled)setGroceryHidden(m||{});
+    }).catch(function(){});
+    return function(){cancelled=true};
+  },[groceryListOwner]);
+  // Leaving the family - or that member leaving - must not strand us on a list
+  // we can no longer read.
+  useEffect(function(){
+    if(!groceryOwner)return;
+    var stillThere=householdMembers.some(function(m){
+      return (m.username||"").toLowerCase()===groceryOwner.toLowerCase();
+    });
+    if(!household||!stillThere)setGroceryOwner(null);
+  },[household?household.id:null,householdMembers.length]);
   var today=new Date(),todayK=dk(today);
   var wd=weekDatesOf(ws);
-  var wl=wd[0].toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+wd[6].toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+  var wl=wd[0].toLocaleDateString("en-US",{month:"short",day:"numeric"})+" â€“ "+wd[6].toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
 
   // Dark mode. Read localStorage synchronously on first render (the inline
   // <script> in <head> already applied the attribute before paint, so this
@@ -3804,8 +3999,9 @@ function App(){
     window.storage.get("dm_customstores_"+userId,true).catch(function(){return null}).then(function(r){if(r&&r.value)setCustomStores(JSON.parse(r.value))});
     window.storage.get("dm_region_"+userId,true).catch(function(){return null}).then(function(r){if(r&&r.value)setRegion(r.value)});
     window.storage.get("dm_shared_recipes",true).catch(function(){return null}).then(function(r){if(r&&r.value)setSharedRecipes(JSON.parse(r.value))});
-    window.storage.get("dm_ghidden_"+userId,true).catch(function(){return null}).then(function(r){if(r&&r.value)setGroceryHidden(JSON.parse(r.value))});
-    
+    // (dm_ghidden_ is loaded by its own effect - it follows groceryOwner, not
+    // the signed-in user, so it can't ride along with this one.)
+
     // Load social data with fallback
     // Load inbox directly with logging
     var inboxKey = "dm_inbox_"+userIdLower;
@@ -4113,7 +4309,7 @@ function App(){
   var STORES = DEFAULT_STORES.concat(customStores);
   
   // Profile pic avatars
-  var AVATAR_OPTIONS = ["👤","😊","😎","🤓","🧑‍🍳","👨‍🍳","👩‍🍳","🍳","🥗","🍕","🌮","🍜","🍰","🧁","🍪","☕","🐝","🌻","🌸","⭐"];
+  var AVATAR_OPTIONS = ["ðŸ‘¤","ðŸ˜Š","ðŸ˜Ž","ðŸ¤“","ðŸ§‘â€ðŸ³","ðŸ‘¨â€ðŸ³","ðŸ‘©â€ðŸ³","ðŸ³","ðŸ¥—","ðŸ•","ðŸŒ®","ðŸœ","ðŸ°","ðŸ§","ðŸª","â˜•","ðŸ","ðŸŒ»","ðŸŒ¸","â­"];
   
   // Load recipes when viewing a profile
   useEffect(function(){
@@ -4605,7 +4801,7 @@ function App(){
   function acceptInboxRecipe(item){
     var newRecipe=copyRecipeFor(item.recipe, userId, item.fromUser);
     // Append share credit for display
-    newRecipe.credit = (item.recipe.credit ? item.recipe.credit + " · " : "") + "Shared by @" + item.fromUser;
+    newRecipe.credit = (item.recipe.credit ? item.recipe.credit + " Â· " : "") + "Shared by @" + item.fromUser;
     var updatedRecipes = recipes.concat([newRecipe]);
     setRecipes(updatedRecipes);
     saveRecipesIndividually(updatedRecipes);
@@ -5266,7 +5462,7 @@ function App(){
   function saveScannedRecipe(parsed, photo, photoCount) {
     var newRecipe = stampNewRecipe({
       name: parsed.name || "Untitled",
-      emoji: parsed.emoji || "🍽️",
+      emoji: parsed.emoji || "ðŸ½ï¸",
       time: parsed.time || "",
       ingredients: (parsed.ingredients || []).map(sanitizeIng),
       notes: parsed.notes || "",
@@ -5366,7 +5562,7 @@ function App(){
     
     if (isSocialMedia) {
       // Social media blocks direct access - guide user to use Scan instead
-      alert("Instagram, TikTok, and Facebook block direct recipe import.\n\n📷 Try this instead:\n1. Screenshot the recipe post\n2. Close this and tap 'Scan'\n3. Upload your screenshot(s)\n\nThe AI will extract the recipe from your photos!");
+      alert("Instagram, TikTok, and Facebook block direct recipe import.\n\nðŸ“· Try this instead:\n1. Screenshot the recipe post\n2. Close this and tap 'Scan'\n3. Upload your screenshot(s)\n\nThe AI will extract the recipe from your photos!");
       setImportLoading(false);
       return;
     }
@@ -5391,7 +5587,7 @@ function App(){
       function saveRecipe(photoData) {
         var newRecipe = stampNewRecipe({
           name: parsed.name || "Imported Recipe",
-          emoji: "🍽️",
+          emoji: "ðŸ½ï¸",
           photo: photoData,
           time: parsed.time || "",
           ingredients: (parsed.ingredients || []).map(sanitizeIng),
@@ -5496,7 +5692,7 @@ function App(){
         var newRecipe = {
           id: Date.now(),
           name: parsed.name || "Imported Recipe",
-          emoji: "🍽️",
+          emoji: "ðŸ½ï¸",
           time: parsed.time || "",
           ingredients: (parsed.ingredients || []).map(sanitizeIng),
           notes: parsed.notes || "",
@@ -5527,7 +5723,7 @@ function App(){
   function chefReplyIsFullRecipe(text){
     if(!text)return false;
     var stepMatches=text.match(/(^|\n)\s*\d+\.\s/g)||[];
-    var qtyMatches=text.match(/(^|\n)\s*[-•]?\s*\d+(\/\d+)?\s*(cup|cups|tbsp|tablespoons?|tsp|teaspoons?|oz|ounces?|lbs?|pounds?|g|kg|ml|clove|cloves|can|cans|slice|slices|pinch)\b/gi)||[];
+    var qtyMatches=text.match(/(^|\n)\s*[-â€¢]?\s*\d+(\/\d+)?\s*(cup|cups|tbsp|tablespoons?|tsp|teaspoons?|oz|ounces?|lbs?|pounds?|g|kg|ml|clove|cloves|can|cans|slice|slices|pinch)\b/gi)||[];
     return stepMatches.length>=2&&qtyMatches.length>=2;
   }
 
@@ -5541,7 +5737,7 @@ function App(){
     return firstLine.replace(/^#+\s*/,"").replace(/\*\*/g,"").replace(/:$/,"").trim()||"Chef suggestion";
   }
   function extractChefIngredientLines(text){
-    var lines=(text||"").split("\n").map(function(l){return l.replace(/^[-•*]\s*/,"").trim()}).filter(Boolean);
+    var lines=(text||"").split("\n").map(function(l){return l.replace(/^[-â€¢*]\s*/,"").trim()}).filter(Boolean);
     return lines.filter(function(l){
       if(/^\d+\.\s/.test(l))return false; // numbered instruction step, not an ingredient - parseIng would otherwise mistake "1." for a quantity
       var p=parseIng(l);
@@ -5702,7 +5898,7 @@ function App(){
       var parsed=data.recipe;
       var newRecipe=stampNewRecipe({
         name:parsed.name||"Chef idea",
-        emoji:"🍽️",
+        emoji:"ðŸ½ï¸",
         time:parsed.time||"",
         ingredients:(parsed.ingredients||[]).map(sanitizeIng),
         notes:parsed.notes||"",
@@ -5902,11 +6098,11 @@ function App(){
       {/* Offline indicator */}
       {!isOnline?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:12,fontWeight:600,color:"#8B6914",background:"#FBF0D9",border:"1px solid #EAD9A8",borderRadius:8,padding:"8px 12px",marginBottom:8,animation:"ft-fade-in .22s ease-out"}}>
         <Icon name="offline" size={13} color="#8B6914" strokeWidth={2}/>
-        You're offline — changes will save once you're back online
+        You're offline â€” changes will save once you're back online
       </div>:null}
       {/* Pull-to-refresh indicator */}
       {pullDistance>0?<div style={{textAlign:"center",fontSize:13,color:C.light,height:pullDistance,overflow:"hidden",transition:(refreshing||pullStart===null)?"height 0.3s":"none",display:"flex",alignItems:"center",justifyContent:"center"}}>
-        {refreshing?<React.Fragment><Icon name="refresh" size={12} strokeWidth={2}/>&nbsp;Refreshing...</React.Fragment>:pullDistance>50?"↑ Release to refresh":"↓ Pull to refresh"}
+        {refreshing?<React.Fragment><Icon name="refresh" size={12} strokeWidth={2}/>&nbsp;Refreshing...</React.Fragment>:pullDistance>50?"â†‘ Release to refresh":"â†“ Pull to refresh"}
       </div>:null}
       <div style={{position:"relative",marginBottom:8}}>
         <div style={{position:"absolute",right:0,top:0}}>
@@ -5997,7 +6193,7 @@ function App(){
           <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:22,fontWeight:600,color:C.dark,letterSpacing:3,textTransform:"uppercase"}}>The Family Table</div>
         </div>
       </div>
-      <div style={{fontSize:12,opacity:.5,textAlign:"center",marginBottom:12,fontStyle:"italic"}}>Plan Meals · Save Recipes · Streamline Shopping · Share What You Love</div>
+      <div style={{fontSize:12,opacity:.5,textAlign:"center",marginBottom:12,fontStyle:"italic"}}>Plan Meals Â· Save Recipes Â· Streamline Shopping Â· Share What You Love</div>
 
       {/* If not signed in, show sign-in prompt instead of app content */}
       {!user?<div style={{textAlign:"center",padding:"24px 24px 0"}}>
@@ -6041,7 +6237,8 @@ function App(){
               var isMe=(m.username||"").toLowerCase()===(user||"").toLowerCase();
               return <div key={m.uid} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid "+C.bdr}}>
                 <span style={{width:32,height:32,borderRadius:16,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:C.blush}}>
-                  {m.profilePic?<img src={m.profilePic} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                  {isImageSrc(m.profilePic)?<img src={m.profilePic} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                    :m.profilePic?<span style={{fontSize:15}}>{m.profilePic}</span>
                     :<span style={{fontSize:13,fontWeight:700,color:C.dark}}>{(m.username||"?").charAt(0).toUpperCase()}</span>}
                 </span>
                 <div style={{flex:1,fontSize:14,fontWeight:600,color:C.ink}}>{m.username}{isMe?<span style={{fontSize:11,fontWeight:500,color:C.light,marginLeft:6}}>you</span>:null}</div>
@@ -6207,7 +6404,7 @@ function App(){
             <span style={{width:70,height:70,borderRadius:35,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,fontWeight:700,color:C.dark,marginBottom:10,border:"3px solid "+C.bdr}}>{user.charAt(0).toUpperCase()}</span>
           }
           <div style={{fontSize:18,fontWeight:700,color:C.dark}}>@{user}</div>
-          <div style={{fontSize:12,color:C.light,marginTop:4}}>{followers.length} followers · {following.length} following</div>
+          <div style={{fontSize:12,color:C.light,marginTop:4}}>{followers.length} followers Â· {following.length} following</div>
         </div>
         
         {/* QR Code */}
@@ -6290,7 +6487,7 @@ function App(){
                 <div style={{fontSize:13,color:C.light,marginTop:2}}>{loadingProfileRecipes?"Loading...":viewProfileRecipes.length+" public recipe"+(viewProfileRecipes.length!==1?"s":"")}</div>
               </div>
             </div>
-            <button onClick={function(){setViewProfileUser(null);setViewProfileData(null);setViewProfileRecipes([])}} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:C.dark,padding:"4px 12px",fontWeight:600}}>← Back</button>
+            <button onClick={function(){setViewProfileUser(null);setViewProfileData(null);setViewProfileRecipes([])}} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:C.dark,padding:"4px 12px",fontWeight:600}}>â† Back</button>
           </div>
           {/* Follow/Unfollow button */}
           <div style={{marginTop:14}}>
@@ -6315,7 +6512,7 @@ function App(){
           viewProfileRecipes.length===0?<div style={{textAlign:"center",padding:"40px 20px"}}>
             <div style={{marginBottom:10,opacity:.35}}><Icon name="book" size={32} color={C.dark} strokeWidth={1.25}/></div>
             <div style={{fontSize:14,fontWeight:600,color:C.dark,marginBottom:4}}>No public recipes yet</div>
-            <div style={{fontSize:12,color:C.light}}>Check back later — @{viewProfileUser} hasn't shared any recipes.</div>
+            <div style={{fontSize:12,color:C.light}}>Check back later â€” @{viewProfileUser} hasn't shared any recipes.</div>
           </div>:
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
             {viewProfileRecipes.map(function(recipe){
@@ -6389,7 +6586,7 @@ function App(){
                     )
                   :null}
                   <span style={{fontSize:12,color:C.light}}>@{viewFriendRecipe.ownerUsername}</span>
-                  {viewFriendRecipe.time?<span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:12,color:C.light}}>· <Icon name="clock" size={11} strokeWidth={1.75}/>{viewFriendRecipe.time}</span>:null}
+                  {viewFriendRecipe.time?<span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:12,color:C.light}}>Â· <Icon name="clock" size={11} strokeWidth={1.75}/>{viewFriendRecipe.time}</span>:null}
                 </div>
               </div>
             </div>
@@ -6414,7 +6611,7 @@ function App(){
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
               <span style={{fontSize:12,fontWeight:600,color:C.light}}>Scale:</span>
               <div style={{display:"flex",gap:6}}>
-                {[0.5,1,2,3].map(function(s){return <button key={s} className="ft-card-tap" onClick={function(){setRecipeScale(s)}} style={tab(recipeScale===s)}>{s===0.5?"½×":s+"×"}</button>})}
+                {[0.5,1,2,3].map(function(s){return <button key={s} className="ft-card-tap" onClick={function(){setRecipeScale(s)}} style={tab(recipeScale===s)}>{s===0.5?"Â½Ã—":s+"Ã—"}</button>})}
               </div>
             </div>
             <div style={{background:C.blush,borderRadius:12,padding:14}}>
@@ -6431,7 +6628,7 @@ function App(){
               <div style={{width:28,height:28,borderRadius:14,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="filetext" size={14} color={C.dark} strokeWidth={1.75}/></div>
               <div style={{fontSize:16,fontWeight:700,color:C.dark,letterSpacing:1,textTransform:"uppercase"}}>Instructions</div>
               <div style={{flex:1,height:1,background:C.bdr}}/>
-              <div style={{fontSize:13,color:C.light,padding:"4px 10px",background:C.blush,borderRadius:8}}>{friendRecipeExpInst?"▲ Hide":"▼ Show"}</div>
+              <div style={{fontSize:13,color:C.light,padding:"4px 10px",background:C.blush,borderRadius:8}}>{friendRecipeExpInst?"â–² Hide":"â–¼ Show"}</div>
             </div>
             {friendRecipeExpInst?<div style={{background:C.blush,borderRadius:12,padding:14}}>
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
@@ -6449,9 +6646,9 @@ function App(){
             var addedBy = viewFriendRecipe.originalOwner;
             // Strip out chained "From @username" parts from credit (those are re-share trails, not the original source)
             var method = viewFriendRecipe.credit || "";
-            method = method.split("·").map(function(s){return s.trim()}).filter(function(s){
+            method = method.split("Â·").map(function(s){return s.trim()}).filter(function(s){
               return s && !/^From\s+@/i.test(s);
-            }).join(" · ");
+            }).join(" Â· ");
             var url = viewFriendRecipe.sourceUrl;
             return <div style={{fontSize:13,color:C.light,marginBottom:16,padding:"12px 14px",background:C.blush,borderRadius:8,lineHeight:1.5}}>
               {addedBy?<div><span style={{fontWeight:600}}>Added by:</span> <button onClick={function(e){e.stopPropagation();setViewFriendRecipe(null);setViewProfileUser(addedBy)}} style={{background:"none",border:"none",padding:0,color:C.dark,fontWeight:600,textDecoration:"underline",cursor:"pointer",fontSize:"inherit",fontFamily:"inherit"}}>@{addedBy}</button></div>:null}
@@ -6500,7 +6697,8 @@ function App(){
                 border:"1px solid "+(active?C.dark:C.bdr),background:active?C.dark:"var(--surface)",
                 color:active?"#fff":C.ink,fontSize:13,fontWeight:600,cursor:"pointer",transition:"all .2s"}}>
               <span style={{width:24,height:24,borderRadius:12,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:active?"rgba(255,255,255,.2)":C.blush}}>
-                {m.profilePic?<img src={m.profilePic} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                {isImageSrc(m.profilePic)?<img src={m.profilePic} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                  :m.profilePic?<span style={{fontSize:13}}>{m.profilePic}</span>
                   :<span style={{fontSize:11,fontWeight:700,color:active?"#fff":C.dark}}>{(m.username||"?").charAt(0).toUpperCase()}</span>}
               </span>
               {m.isSelf?"My Week":m.username}
@@ -6535,9 +6733,9 @@ function App(){
         {/* Week View - styled like recipe cards */}
         {calendarMode==="week"&&<div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-            <button onClick={function(){var d=new Date(ws);d.setDate(d.getDate()-7);setWs(d)}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.blush,cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark}}>‹ Prev</button>
+            <button onClick={function(){var d=new Date(ws);d.setDate(d.getDate()-7);setWs(d)}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.blush,cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark}}>â€¹ Prev</button>
             <div style={{fontSize:16,fontWeight:600,textAlign:"center",color:C.dark}}>{wl}</div>
-            <button onClick={function(){var d=new Date(ws);d.setDate(d.getDate()+7);setWs(d)}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.blush,cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark}}>Next ›</button>
+            <button onClick={function(){var d=new Date(ws);d.setDate(d.getDate()+7);setWs(d)}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.blush,cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark}}>Next â€º</button>
           </div>
           {wd.map(function(date,i){var k=dk(date),mlist=getMealsForDay(k),isT=k===todayK;return(
             <div key={k} style={{marginBottom:16}}>
@@ -6657,9 +6855,9 @@ function App(){
         {calendarMode==="month"&&<div>
           {/* Month navigation */}
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-            <button onClick={function(){setMd(new Date(md.getFullYear(),md.getMonth()-1,1))}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.blush,cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark}}>‹ Prev</button>
+            <button onClick={function(){setMd(new Date(md.getFullYear(),md.getMonth()-1,1))}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.blush,cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark}}>â€¹ Prev</button>
             <div style={{fontSize:18,fontWeight:600,textAlign:"center",color:C.dark}}>{MONTHS[md.getMonth()]+" "+md.getFullYear()}</div>
-            <button onClick={function(){setMd(new Date(md.getFullYear(),md.getMonth()+1,1))}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.blush,cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark}}>Next ›</button>
+            <button onClick={function(){setMd(new Date(md.getFullYear(),md.getMonth()+1,1))}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.blush,cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark}}>Next â€º</button>
           </div>
           
           {/* Calendar grid */}
@@ -6796,7 +6994,7 @@ function App(){
                 return(r.recipeType||detectRecipeType(r))===recipeFilter;
               }).length})</span>:null}
             </div>
-            <span style={{fontSize:12,color:C.light}}>{showCategories?"▲":"▼"}</span>
+            <span style={{fontSize:12,color:C.light}}>{showCategories?"â–²":"â–¼"}</span>
           </button>
           
           {showCategories?<div style={{background:"var(--surface)",borderRadius:12,border:"1px solid "+C.bdr,marginTop:8,padding:8,boxShadow:C.shadowMd}}>
@@ -6887,13 +7085,13 @@ function App(){
                 <div style={{width:28,height:28,borderRadius:14,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="list" size={14} color={C.dark} strokeWidth={2}/></div>
                 <div style={{fontSize:16,fontWeight:700,color:C.ink,letterSpacing:1,textTransform:"uppercase"}}>Ingredients</div>
                 <div style={{flex:1,height:1,background:C.bdr}}/>
-                <div style={{fontSize:13,color:C.light,padding:"4px 10px",background:C.blush,borderRadius:8}}>{viewRecipeHideIng?"▼ Show":"▲ Hide"}</div>
+                <div style={{fontSize:13,color:C.light,padding:"4px 10px",background:C.blush,borderRadius:8}}>{viewRecipeHideIng?"â–¼ Show":"â–² Hide"}</div>
               </div>
               {!viewRecipeHideIng?<div>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
                   <span style={{fontSize:12,fontWeight:600,color:C.light}}>Scale:</span>
                   <div style={{display:"flex",gap:6}}>
-                    {[0.5,1,2,3].map(function(s){return <button key={s} className="ft-card-tap" onClick={function(){setRecipeScale(s)}} style={tab(recipeScale===s)}>{s===0.5?"½×":s+"×"}</button>})}
+                    {[0.5,1,2,3].map(function(s){return <button key={s} className="ft-card-tap" onClick={function(){setRecipeScale(s)}} style={tab(recipeScale===s)}>{s===0.5?"Â½Ã—":s+"Ã—"}</button>})}
                   </div>
                 </div>
                 <div style={{background:C.blush,borderRadius:12,padding:14}}>
@@ -6916,7 +7114,7 @@ function App(){
                 <div style={{width:28,height:28,borderRadius:14,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="filetext" size={14} color={C.dark} strokeWidth={2}/></div>
                 <div style={{fontSize:16,fontWeight:700,color:C.ink,letterSpacing:1,textTransform:"uppercase"}}>Instructions</div>
                 <div style={{flex:1,height:1,background:C.bdr}}/>
-                <div style={{fontSize:13,color:C.light,padding:"4px 10px",background:C.blush,borderRadius:8}}>{viewRecipeHideInst?"▼ Show":"▲ Hide"}</div>
+                <div style={{fontSize:13,color:C.light,padding:"4px 10px",background:C.blush,borderRadius:8}}>{viewRecipeHideInst?"â–¼ Show":"â–² Hide"}</div>
               </div>
               {!viewRecipeHideInst?<div style={{background:C.blush,borderRadius:12,padding:14}}>
                 <div style={{display:"flex",flexDirection:"column",gap:14}}>
@@ -6935,9 +7133,9 @@ function App(){
               var addedByText = "@"+addedBy;
               // Strip out chained "From @user" parts from credit
               var method = viewRecipe.credit || "";
-              method = method.split("·").map(function(s){return s.trim()}).filter(function(s){
+              method = method.split("Â·").map(function(s){return s.trim()}).filter(function(s){
                 return s && !/^From\s+@/i.test(s);
-              }).join(" · ");
+              }).join(" Â· ");
               var url = viewRecipe.sourceUrl;
               return <div style={{fontSize:13,color:C.light,marginBottom:16,padding:"12px 14px",background:C.blush,borderRadius:8,lineHeight:1.5}}>
                 <div><span style={{fontWeight:600}}>Added by:</span> <button onClick={function(e){e.stopPropagation();setViewRecipe(null);setViewProfileUser(addedBy)}} style={{background:"none",border:"none",padding:0,color:C.dark,fontWeight:600,textDecoration:"underline",cursor:"pointer",fontSize:"inherit",fontFamily:"inherit"}}>{addedByText}</button></div>
@@ -7005,7 +7203,7 @@ function App(){
               </div>
             })}
             {chefLoading?<div style={{display:"flex",justifyContent:"flex-start",marginBottom:14}}>
-              <div style={{padding:"11px 14px",borderRadius:14,background:"var(--surface)",color:C.light,fontSize:14,boxShadow:C.shadowSm,fontStyle:"italic"}}>Thinking…</div>
+              <div style={{padding:"11px 14px",borderRadius:14,background:"var(--surface)",color:C.light,fontSize:14,boxShadow:C.shadowSm,fontStyle:"italic"}}>Thinkingâ€¦</div>
             </div>:null}
           </div>
         }
@@ -7059,7 +7257,7 @@ function App(){
         })()}
       </div></div>}
 
-      {view==="grocery"&&<GroceryTab meals={meals} wdates={wd} wlabel={wl} rgn={region} gSI={gSI} gSFI={gSFI} setItemStore={setSI} userId={userId} groceryHidden={groceryHidden} setGroceryHidden={setGroceryHidden} stores={STORES} addCustomStore={addCustomStore} removeCustomStore={removeCustomStore} defStore={defStore} setDefStore={handleSetDefStore} categoryStores={categoryStores} setCategoryStore={handleSetCategoryStore} goToCalendar={function(){setView("calendar")}} setWs={setWs} ws={ws}/>}
+      {view==="grocery"&&<GroceryTab meals={meals} wdates={wd} wlabel={wl} rgn={region} gSI={gSI} gSFI={gSFI} setItemStore={setSI} userId={groceryListOwner} ownList={groceryIsMine} ownerUid={groceryOwnerUid} listOwner={groceryOwner} setListOwner={setGroceryOwner} members={householdMembers} me={userId} groceryHidden={groceryHidden} setGroceryHidden={setGroceryHidden} stores={STORES} addCustomStore={addCustomStore} removeCustomStore={removeCustomStore} defStore={defStore} setDefStore={handleSetDefStore} categoryStores={categoryStores} setCategoryStore={handleSetCategoryStore} goToCalendar={function(){setView("calendar")}} setWs={setWs} ws={ws}/>}
 
       {/* EXPLORE TAB - Recipes + People */}
       {view==="explore"&&<div style={{animation:"ft-fade-in .25s ease-out"}}>
@@ -7398,11 +7596,11 @@ function App(){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
             <div onClick={function(){if(followers.length>0)setExpandedSection(expandedSection==="followers"?null:"followers")}} style={{background:expandedSection==="followers"?C.blushDeep:C.blushMed,borderRadius:12,padding:16,textAlign:"center",cursor:followers.length>0?"pointer":"default",transition:"background 0.2s"}}>
               <div style={{fontSize:28,fontWeight:800,color:C.dark}}>{followers.length}</div>
-              <div style={{fontSize:12,color:C.light}}>Followers {followers.length>0?(expandedSection==="followers"?"▲":"▼"):""}</div>
+              <div style={{fontSize:12,color:C.light}}>Followers {followers.length>0?(expandedSection==="followers"?"â–²":"â–¼"):""}</div>
             </div>
             <div onClick={function(){if(following.length>0)setExpandedSection(expandedSection==="following"?null:"following")}} style={{background:expandedSection==="following"?C.blushDeep:C.blushMed,borderRadius:12,padding:16,textAlign:"center",cursor:following.length>0?"pointer":"default",transition:"background 0.2s"}}>
               <div style={{fontSize:28,fontWeight:800,color:C.dark}}>{following.length}</div>
-              <div style={{fontSize:12,color:C.light}}>Following {following.length>0?(expandedSection==="following"?"▲":"▼"):""}</div>
+              <div style={{fontSize:12,color:C.light}}>Following {following.length>0?(expandedSection==="following"?"â–²":"â–¼"):""}</div>
             </div>
           </div>
           
@@ -7697,7 +7895,7 @@ function App(){
           {shareR.ingredients&&shareR.ingredients.length>0?<div style={{marginBottom:16}}>
             <button onClick={function(){setShareExpandIng(!shareExpandIng)}} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:C.blush,border:"none",borderRadius:shareExpandIng?"12px 12px 0 0":12,cursor:"pointer"}}>
               <span style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark}}><Icon name="list" size={14} strokeWidth={1.75}/>Ingredients ({shareR.ingredients.length})</span>
-              <span style={{fontSize:12,color:C.light}}>{shareExpandIng?"▲":"▼"}</span>
+              <span style={{fontSize:12,color:C.light}}>{shareExpandIng?"â–²":"â–¼"}</span>
             </button>
             {shareExpandIng?<div style={{background:"var(--surface)",border:"1px solid "+C.bdr,borderTop:"none",borderRadius:"0 0 12px 12px",padding:16}}>
               {shareR.ingredients.map(function(g,j){return <div key={j} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:j<shareR.ingredients.length-1?"1px solid "+C.bdr:"none"}}>
@@ -7711,7 +7909,7 @@ function App(){
           {shareR.notes?<div style={{marginBottom:16}}>
             <button onClick={function(){setShareExpandInst(!shareExpandInst)}} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:C.blush,border:"none",borderRadius:shareExpandInst?"12px 12px 0 0":12,cursor:"pointer"}}>
               <span style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark}}><Icon name="filetext" size={14} strokeWidth={1.75}/>Instructions</span>
-              <span style={{fontSize:12,color:C.light}}>{shareExpandInst?"▲":"▼"}</span>
+              <span style={{fontSize:12,color:C.light}}>{shareExpandInst?"â–²":"â–¼"}</span>
             </button>
             {shareExpandInst?<div style={{background:"var(--surface)",border:"1px solid "+C.bdr,borderTop:"none",borderRadius:"0 0 12px 12px",padding:16}}>
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -7742,7 +7940,7 @@ function App(){
           {shareMode?<div style={{padding:16}}>
             {shareMode==="back"?null:
             <button onClick={function(){setShareMode(null);setShareToStatus("")}} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:"none",fontSize:12,color:C.light,cursor:"pointer",marginBottom:12,padding:0}}>
-              ← Back
+              â† Back
             </button>}
             
             {/* Send to User */}
@@ -7820,7 +8018,7 @@ function App(){
                 <div style={{fontSize:11,color:C.light,marginTop:2}}>@username</div>
               </button>:null}
               <button onClick={function(){
-                var t="🍽️ "+shareR.name+"\n\n"+(shareR.time?"⏱ "+shareR.time+"\n\n":"")+"INGREDIENTS:\n"+shareR.ingredients.map(function(i){return"• "+formatIng(i)}).join("\n")+(shareR.notes?"\n\nINSTRUCTIONS:\n"+shareR.notes:"")+(shareR.credit?"\n\nSource: "+shareR.credit:"")+"\n\n— The Family Table 🐝";
+                var t="ðŸ½ï¸ "+shareR.name+"\n\n"+(shareR.time?"â± "+shareR.time+"\n\n":"")+"INGREDIENTS:\n"+shareR.ingredients.map(function(i){return"â€¢ "+formatIng(i)}).join("\n")+(shareR.notes?"\n\nINSTRUCTIONS:\n"+shareR.notes:"")+(shareR.credit?"\n\nSource: "+shareR.credit:"")+"\n\nâ€” The Family Table ðŸ";
                 if(navigator.share){
                   navigator.share({title:shareR.name,text:t}).catch(function(){});
                 }else{
@@ -7936,7 +8134,7 @@ function App(){
               <textarea 
                 value={importPasteAll} 
                 onChange={function(e){setImportPasteAll(e.target.value)}} 
-                placeholder="Paste your recipe here...&#10;&#10;Example:&#10;&#10;Grandma's Chocolate Chip Cookies&#10;&#10;Ingredients:&#10;2 cups flour&#10;1 cup sugar&#10;1/2 cup butter&#10;2 eggs&#10;1 cup chocolate chips&#10;&#10;Instructions:&#10;1. Preheat oven to 350°F&#10;2. Mix dry ingredients&#10;3. Add wet ingredients&#10;4. Fold in chocolate chips&#10;5. Bake for 12 minutes" 
+                placeholder="Paste your recipe here...&#10;&#10;Example:&#10;&#10;Grandma's Chocolate Chip Cookies&#10;&#10;Ingredients:&#10;2 cups flour&#10;1 cup sugar&#10;1/2 cup butter&#10;2 eggs&#10;1 cup chocolate chips&#10;&#10;Instructions:&#10;1. Preheat oven to 350Â°F&#10;2. Mix dry ingredients&#10;3. Add wet ingredients&#10;4. Fold in chocolate chips&#10;5. Bake for 12 minutes" 
                 style={{width:"100%",padding:"14px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",minHeight:250,resize:"vertical",fontFamily:"inherit",lineHeight:1.6,background:C.card,color:C.ink}}
               />
             </div>
@@ -7961,7 +8159,7 @@ function App(){
                     id: Date.now(),
                     name: parsed.name || "Imported Recipe",
                     time: parsed.time || "",
-                    emoji: "🍽️",
+                    emoji: "ðŸ½ï¸",
                     ingredients: (parsed.ingredients || []).map(sanitizeIng),
                     notes: parsed.notes || "",
                     recipeType: parsed.recipeType || "other",
@@ -8037,7 +8235,7 @@ function App(){
                 onClick={function(){setImportTab("text")}}
                 style={{flex:1,padding:"14px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.dark,fontSize:14,fontWeight:600,cursor:"pointer"}}
               >
-                ← Back
+                â† Back
               </button>
               <button 
                 onClick={function(){
@@ -8048,7 +8246,7 @@ function App(){
                   var newRecipe={
                     id:Date.now(),
                     name:importPasteName.trim(),
-                    emoji:"🍽️",
+                    emoji:"ðŸ½ï¸",
                     ingredients:ingList,
                     notes:importPasteDirections.trim(),
                     recipeType:"other",
@@ -8103,7 +8301,7 @@ function App(){
                 </button>
               </div>
               <div style={{fontSize:13,color:C.light,marginTop:10,lineHeight:1.5}}>
-                <strong>Works with:</strong> AllRecipes, Food Network, Bon Appétit, recipe blogs, etc.
+                <strong>Works with:</strong> AllRecipes, Food Network, Bon AppÃ©tit, recipe blogs, etc.
               </div>
               <div style={{fontSize:13,color:C.light,marginTop:6,lineHeight:1.5,background:C.blush,padding:"10px 12px",borderRadius:8}}>
                 <strong>Instagram/TikTok?</strong> Screenshot the recipe and use <strong>Scan</strong> instead!
