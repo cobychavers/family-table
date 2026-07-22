@@ -5794,6 +5794,385 @@ function App(){
         <button onClick={function(){setShowEditProfile(false)}} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:14,cursor:"pointer"}}>Done</button>
       </div></div>}
 
+      {view==="calendar"&&<div style={{animation:"ft-fade-in .25s ease-out"}}>
+        {/* Family member switcher - only meaningful once there's someone else
+            in the household. "My Week" is always first and is the only
+            editable calendar; the rest are read-only views of what that
+            person planned. */}
+        {household&&householdMembers.length>1?<div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:6,marginBottom:12}}>
+          {[{username:user,isSelf:true}].concat(householdMembers.filter(function(m){
+            return (m.username||"").toLowerCase()!==(user||"").toLowerCase();
+          })).map(function(m){
+            var active=m.isSelf?viewingOwnCalendar:(viewingMember||"").toLowerCase()===(m.username||"").toLowerCase();
+            return <button key={m.username} onClick={function(){setViewingMember(m.isSelf?null:m.username)}}
+              style={{display:"flex",alignItems:"center",gap:7,padding:"6px 14px 6px 6px",borderRadius:20,flexShrink:0,
+                border:"1px solid "+(active?C.dark:C.bdr),background:active?C.dark:"var(--surface)",
+                color:active?"#fff":C.ink,fontSize:13,fontWeight:600,cursor:"pointer",transition:"all .2s"}}>
+              <span style={{width:24,height:24,borderRadius:12,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:active?"rgba(255,255,255,.2)":C.blush}}>
+                {isImageSrc(m.profilePic)?<img src={m.profilePic} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                  :m.profilePic?<span style={{fontSize:13}}>{m.profilePic}</span>
+                  :<span style={{fontSize:11,fontWeight:700,color:active?"#fff":C.dark}}>{(m.username||"?").charAt(0).toUpperCase()}</span>}
+              </span>
+              {m.isSelf?"My Week":m.username}
+            </button>;
+          })}
+        </div>:null}
+        {viewingMember?<div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderRadius:10,background:C.blush,marginBottom:12}}>
+          <Icon name="users" size={14} color={C.dark} strokeWidth={1.75}/>
+          <span style={{fontSize:12,color:C.dark,flex:1}}>Viewing {viewingMember}'s plan &mdash; read only</span>
+          <button onClick={function(){setViewingMember(null)}} style={{background:"none",border:"none",padding:0,cursor:"pointer",fontSize:12,fontWeight:700,color:C.dark,textDecoration:"underline",textUnderlineOffset:2}}>Back to mine</button>
+        </div>:null}
+
+        {/* Week/Month Toggle */}
+        {(function(){
+          var now = new Date();
+          var todayMon = getMonday(now);
+          var isCurrentWeek = dk(ws)===dk(todayMon);
+          var isCurrentMonth = md.getMonth()===now.getMonth() && md.getFullYear()===now.getFullYear();
+          var showJump = (calendarMode==="week" && !isCurrentWeek) || (calendarMode==="month" && !isCurrentMonth);
+          return <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
+            <div style={{display:"inline-flex",background:C.blush,borderRadius:10,padding:4,gap:0}}>
+              <button onClick={function(){setCalendarMode("week")}} style={{padding:"8px 20px",borderRadius:8,border:"none",background:calendarMode==="week"?C.dark:"transparent",color:calendarMode==="week"?"#fff":C.dark,fontWeight:600,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>Week</button>
+              <button onClick={function(){setCalendarMode("month")}} style={{padding:"8px 20px",borderRadius:8,border:"none",background:calendarMode==="month"?C.dark:"transparent",color:calendarMode==="month"?"#fff":C.dark,fontWeight:600,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>Month</button>
+              {showJump?<button onClick={function(){
+                if(calendarMode==="week"){setWs(getMonday(new Date()))}
+                else{setMd(new Date(now.getFullYear(),now.getMonth(),1))}
+              }} style={{padding:"8px 16px",borderRadius:8,border:"none",background:"transparent",color:C.dark,fontWeight:600,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>{calendarMode==="week"?"This Week":"This Month"}</button>:null}
+            </div>
+          </div>;
+        })()}
+        
+        {/* Week View - styled like recipe cards */}
+        {calendarMode==="week"&&<div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <button onClick={function(){var d=new Date(ws);d.setDate(d.getDate()-7);setWs(d)}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.blush,cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark}}>‹ Prev</button>
+            <div style={{fontSize:16,fontWeight:600,textAlign:"center",color:C.dark}}>{wl}</div>
+            <button onClick={function(){var d=new Date(ws);d.setDate(d.getDate()+7);setWs(d)}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.blush,cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark}}>Next ›</button>
+          </div>
+          {wd.map(function(date,i){var k=dk(date),mlist=getMealsForDay(k),isT=k===todayK;return(
+            <div key={k} style={{marginBottom:16}}>
+              {/* Day header */}
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
+                <div style={{minWidth:50,textAlign:"center"}}>
+                  <div style={{fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:1,color:isT?C.dark:C.light}}>{DAYS_SHORT[i]}</div>
+                  <div style={{fontSize:26,fontWeight:700,color:isT?C.dark:C.light}}>{date.getDate()}</div>
+                </div>
+                <div style={{flex:1,height:1,background:C.bdr}}/>
+                {isT?<span style={{fontSize:10,fontWeight:700,color:"#fff",background:C.dark,padding:"4px 10px",borderRadius:10,textTransform:"uppercase",letterSpacing:1}}>Today</span>:null}
+              </div>
+              
+              {/* Meals styled like recipe cards */}
+              {mlist.length===0?
+                <div style={{marginLeft:62,background:"var(--surface)",borderRadius:16,padding:"14px 16px",boxShadow:C.shadowMd}}>
+                  <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:viewingOwnCalendar?10:0}}>
+                    <Icon name="calendar" size={14} color={C.light} strokeWidth={1.5}/>
+                    <span style={{fontSize:13,color:C.light,fontWeight:500}}>Nothing planned yet</span>
+                  </div>
+                  {viewingOwnCalendar?<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    <button onClick={function(){setRpick(k)}} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:18,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}}><Icon name="book" size={12} strokeWidth={2}/> From Recipes</button>
+                    <button onClick={function(){openEdit(k)}} style={{padding:"8px 16px",borderRadius:18,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",color:C.ink,fontSize:12,fontWeight:500}}>+ New Meal</button>
+                    <button onClick={function(){setShowPlaceholder(k)}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,borderRadius:15,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",color:C.dark,flexShrink:0}}><Icon name="tag" size={13} strokeWidth={2}/></button>
+                  </div>:null}
+                </div>
+              :
+                <div style={{marginLeft:62}}>
+                  {mlist.map(function(m,mi){
+                    var mealType=m.recipeType||detectRecipeType(m);
+                    var typeInfo=RECIPE_TYPES.find(function(t){return t.id===mealType})||RECIPE_TYPES[RECIPE_TYPES.length-1];
+                    // Swipe-to-delete and tap-to-edit are suppressed entirely on
+                    // a family member's calendar - it's someone else's plan.
+                    var isSwipedHere = viewingOwnCalendar && swipedMeal && swipedMeal.dateKey===k && swipedMeal.mealIndex===mi;
+                    var translateX = isSwipedHere ? -80 : (viewingOwnCalendar && swipeStart && swipeStart.dateKey===k && swipeStart.mealIndex===mi ? swipeOffset : 0);
+                    return(
+                      <div key={mi} style={{position:"relative",marginBottom:10,borderRadius:16,overflow:"hidden"}}>
+                        {/* Red delete button revealed behind */}
+                        {viewingOwnCalendar?<div style={{position:"absolute",right:0,top:0,bottom:0,width:80,background:"var(--danger)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} onClick={function(e){e.stopPropagation();if(confirm("Remove "+m.name+" from this day?")){deleteMealAt(k,mi)}}}>
+                          <Icon name="trash" size={18} color="#fff" strokeWidth={2}/>
+                        </div>:null}
+                        {/* The card itself */}
+                        <div
+                          onTouchStart={function(e){
+                            if(!viewingOwnCalendar) return;
+                            var t=e.touches[0];
+                            setSwipeStart({x:t.clientX,y:t.clientY,dateKey:k,mealIndex:mi});
+                          }}
+                          onTouchMove={function(e){
+                            if(!viewingOwnCalendar) return;
+                            if(!swipeStart || swipeStart.dateKey!==k || swipeStart.mealIndex!==mi) return;
+                            var t=e.touches[0];
+                            var dx=t.clientX-swipeStart.x;
+                            var dy=t.clientY-swipeStart.y;
+                            // Only track horizontal swipes (ignore vertical scrolling)
+                            if(Math.abs(dx)>Math.abs(dy) && dx<0){
+                              setSwipeOffset(Math.max(dx,-80));
+                            }
+                          }}
+                          onTouchEnd={function(e){
+                            if(!viewingOwnCalendar) return;
+                            if(!swipeStart || swipeStart.dateKey!==k || swipeStart.mealIndex!==mi) return;
+                            if(swipeOffset < -40){
+                              setSwipedMeal({dateKey:k,mealIndex:mi});
+                            } else {
+                              setSwipedMeal(null);
+                            }
+                            setSwipeStart(null);
+                            setSwipeOffset(0);
+                          }}
+                          style={{background:"var(--surface)",borderRadius:16,overflow:"hidden",boxShadow:C.shadowMd,cursor:viewingOwnCalendar?"pointer":"default",transform:"translateX("+translateX+"px)",transition:swipeStart?"none":"transform 0.2s",position:"relative",zIndex:1}}
+                          onClick={function(){
+                            if(!viewingOwnCalendar) return;
+                            if(isSwipedHere){
+                              setSwipedMeal(null);
+                            } else if(!m.isPlaceholder){
+                              openEdit(k,mi);
+                            }
+                          }}>
+                          {m.isPlaceholder?
+                            <div style={{display:"flex",alignItems:"center",gap:10,padding:"14px 16px"}}>
+                              <Icon name="tag" size={16} color={C.gold} strokeWidth={1.75}/>
+                              <div style={{fontWeight:600,fontSize:15,color:C.ink}}>{m.name}</div>
+                            </div>
+                          :<React.Fragment>
+                          {m.photo?
+                            <div style={{position:"relative"}}>
+                              <img src={m.photo} style={{width:"100%",height:120,objectFit:"cover",display:"block"}} alt=""/>
+                              <div style={{position:"absolute",top:10,right:10,background:"var(--overlay-chip)",border:"1px solid var(--overlay-chip-border)",boxShadow:"var(--overlay-chip-shadow)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderRadius:16,padding:"4px 12px",fontSize:11,fontWeight:600,color:"var(--overlay-chip-text)"}}><CatTag type={typeInfo}/></div>
+                            </div>
+                          :
+                            <div style={{position:"relative",height:50,background:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
+                              <div style={{position:"absolute",top:10,right:10,background:"var(--overlay-chip)",border:"1px solid var(--overlay-chip-border)",boxShadow:"var(--overlay-chip-shadow)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderRadius:16,padding:"4px 12px",fontSize:11,fontWeight:600,color:"var(--overlay-chip-text)"}}><CatTag type={typeInfo}/></div>
+                            </div>
+                          }
+                          <div style={{padding:"12px 16px"}}>
+                            <div style={{fontWeight:600,fontSize:16,color:C.dark}}>{m.name}</div>
+                            {m.time?<div style={{display:"flex",alignItems:"center",gap:4,fontSize:12,color:C.light,marginTop:2}}><Icon name="clock" size={11} strokeWidth={1.75}/>{m.time}</div>:null}
+                          </div>
+                          </React.Fragment>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div style={{display:"flex",gap:8,marginTop:6,alignItems:"center"}}>
+                    <button onClick={function(){setRpick(k)}} style={{fontSize:11,padding:"8px 14px",borderRadius:16,border:"none",background:C.blush,cursor:"pointer",color:C.dark,fontWeight:600}}>+ From Recipes</button>
+                    <button onClick={function(){openEdit(k)}} style={{fontSize:11,padding:"8px 14px",borderRadius:16,border:"none",background:C.blush,cursor:"pointer",color:C.dark,fontWeight:600}}>+ New Meal</button>
+                    <button onClick={function(){setShowPlaceholder(k)}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:14,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",color:C.dark,flexShrink:0}}><Icon name="tag" size={12} strokeWidth={2}/></button>
+                  </div>
+                </div>
+              }
+            </div>
+          )})}
+        </div>}
+
+        {/* Month View - with mini calendar and selected date meals */}
+        {calendarMode==="month"&&<div>
+          {/* Month navigation */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+            <button onClick={function(){setMd(new Date(md.getFullYear(),md.getMonth()-1,1))}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.blush,cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark}}>‹ Prev</button>
+            <div style={{fontSize:18,fontWeight:600,textAlign:"center",color:C.dark}}>{MONTHS[md.getMonth()]+" "+md.getFullYear()}</div>
+            <button onClick={function(){setMd(new Date(md.getFullYear(),md.getMonth()+1,1))}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.blush,cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark}}>Next ›</button>
+          </div>
+          
+          {/* Calendar grid */}
+          <div style={{background:"var(--surface)",borderRadius:16,overflow:"hidden",boxShadow:C.shadowMd,marginBottom:20}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:"1px solid "+C.bdr}}>
+              {DAYS_SHORT.map(function(d){return <div key={d} style={{textAlign:"center",fontWeight:600,fontSize:11,color:C.light,padding:"12px 4px",textTransform:"uppercase",letterSpacing:1}}>{d}</div>})}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)"}}>
+              {cc.map(function(date,i){
+                if(!date)return <div key={"e"+i} style={{minHeight:70,background:"var(--surface)",borderRight:i%7!==6?"1px solid "+C.bdr:"none",borderBottom:"1px solid "+C.bdr}}/>;
+                var k=dk(date),mlist=getMealsForDay(k),isT=k===todayK,isSelected=selectedCalDate===k;
+                return(
+                  <div key={k} onClick={function(){setSelectedCalDate(k)}} style={{minHeight:70,padding:6,cursor:"pointer",background:isSelected?C.blushMed:isT?C.blush:"var(--surface)",borderRight:i%7!==6?"1px solid "+C.bdr:"none",borderBottom:"1px solid "+C.bdr,position:"relative"}}>
+                    <div style={{fontSize:14,fontWeight:isT||isSelected?700:500,color:isT||isSelected?C.dark:C.light,marginBottom:4}}>{date.getDate()}</div>
+                    {mlist.length>0?<div style={{width:8,height:8,borderRadius:4,background:C.dark,margin:"0 auto"}}/>:null}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          
+          {/* Selected date meals */}
+          {selectedCalDate&&<div>
+            <div style={{fontSize:16,fontWeight:700,color:C.dark,marginBottom:12}}>
+              {new Date(selectedCalDate+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
+              {selectedCalDate===todayK?<span style={{marginLeft:10,fontSize:11,fontWeight:700,color:"#fff",background:C.dark,padding:"3px 10px",borderRadius:10,verticalAlign:"middle"}}>TODAY</span>:null}
+            </div>
+            
+            {getMealsForDay(selectedCalDate).length===0?
+              <div style={{background:"var(--surface)",borderRadius:16,padding:"16px 18px",boxShadow:C.shadowMd}}>
+                <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:viewingOwnCalendar?12:0}}>
+                  <Icon name="calendar" size={15} color={C.light} strokeWidth={1.5}/>
+                  <span style={{fontSize:13,color:C.light,fontWeight:500}}>Nothing planned yet</span>
+                </div>
+                {viewingOwnCalendar?<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <button onClick={function(){setRpick(selectedCalDate)}} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 18px",borderRadius:18,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}}><Icon name="book" size={12} strokeWidth={2}/> From Recipes</button>
+                  <button onClick={function(){openEdit(selectedCalDate)}} style={{padding:"9px 18px",borderRadius:18,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",color:C.ink,fontSize:12,fontWeight:500}}>+ New Meal</button>
+                  <button onClick={function(){setShowPlaceholder(selectedCalDate)}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:16,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",color:C.dark,flexShrink:0}}><Icon name="tag" size={13} strokeWidth={2}/></button>
+                </div>:null}
+              </div>
+            :
+              <div>
+                {getMealsForDay(selectedCalDate).map(function(m,mi){
+                  var mealType=m.recipeType||detectRecipeType(m);
+                  var typeInfo=RECIPE_TYPES.find(function(t){return t.id===mealType})||RECIPE_TYPES[RECIPE_TYPES.length-1];
+                  if(m.isPlaceholder)return(
+                    <div key={mi} style={{display:"flex",alignItems:"center",gap:10,background:"var(--surface)",borderRadius:16,marginBottom:12,padding:"14px 18px",boxShadow:C.shadowMd,cursor:viewingOwnCalendar?"pointer":"default"}} onClick={function(){if(viewingOwnCalendar)openEdit(selectedCalDate,mi)}}>
+                      <Icon name="tag" size={17} color={C.gold} strokeWidth={1.75}/>
+                      <div style={{fontWeight:600,fontSize:16,color:C.ink}}>{m.name}</div>
+                    </div>
+                  );
+                  return(
+                    <div key={mi} style={{background:"var(--surface)",borderRadius:16,marginBottom:12,overflow:"hidden",boxShadow:C.shadowMd,cursor:viewingOwnCalendar?"pointer":"default"}} onClick={function(){if(viewingOwnCalendar)openEdit(selectedCalDate,mi)}}>
+                      {m.photo?
+                        <div style={{position:"relative"}}>
+                          <img src={m.photo} style={{width:"100%",height:140,objectFit:"cover",display:"block"}} alt=""/>
+                          <div style={{position:"absolute",top:12,right:12,background:"var(--overlay-chip)",border:"1px solid var(--overlay-chip-border)",boxShadow:"var(--overlay-chip-shadow)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:600,color:"var(--overlay-chip-text)"}}><CatTag type={typeInfo}/></div>
+                        </div>
+                      :
+                        <div style={{position:"relative",height:60,background:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
+                          <div style={{position:"absolute",top:12,right:12,background:"var(--overlay-chip)",border:"1px solid var(--overlay-chip-border)",boxShadow:"var(--overlay-chip-shadow)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:600,color:"var(--overlay-chip-text)"}}><CatTag type={typeInfo}/></div>
+                        </div>
+                      }
+                      <div style={{padding:"14px 18px"}}>
+                        <div style={{fontWeight:600,fontSize:17,color:C.dark}}>{m.name}</div>
+                        {m.time?<div style={{display:"flex",alignItems:"center",gap:4,fontSize:12,color:C.light,marginTop:3}}><Icon name="clock" size={11} strokeWidth={1.75}/>{m.time}</div>:null}
+                      </div>
+                    </div>
+                  );
+                })}
+                {viewingOwnCalendar?<div style={{display:"flex",gap:10,marginTop:8,alignItems:"center"}}>
+                  <button onClick={function(){setRpick(selectedCalDate)}} style={{flex:1,padding:"12px 16px",borderRadius:16,border:"none",background:C.blush,cursor:"pointer",color:C.dark,fontSize:13,fontWeight:600}}>+ From Recipes</button>
+                  <button onClick={function(){openEdit(selectedCalDate)}} style={{flex:1,padding:"12px 16px",borderRadius:16,border:"none",background:C.blush,cursor:"pointer",color:C.dark,fontSize:13,fontWeight:600}}>+ New Meal</button>
+                  <button onClick={function(){setShowPlaceholder(selectedCalDate)}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:36,height:36,borderRadius:18,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",color:C.dark,flexShrink:0}}><Icon name="tag" size={14} strokeWidth={2}/></button>
+                </div>:null}
+              </div>
+            }
+          </div>}
+        </div>}
+      </div>}
+
+      {view==="recipes"&&<div style={{animation:"ft-fade-in .25s ease-out"}}>
+        {/* Inbox - Recipes shared to you */}
+        {userInbox.length>0?<div style={{marginBottom:16,background:"var(--surface)",borderRadius:16,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,padding:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+            <Icon name="mail" size={16} color={C.gold} strokeWidth={1.75}/>
+            <div style={{fontWeight:700,fontSize:14,color:C.ink}}>Shared with You</div>
+            <span style={{fontSize:11,fontWeight:700,color:C.gold,background:C.blush,borderRadius:9,padding:"1px 8px"}}>{userInbox.length}</span>
+          </div>
+          {userInbox.slice(0,3).map(function(item){return(
+            <div key={item.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid "+C.bdr}}>
+              {item.fromProfilePic?
+                (isImageSrc(item.fromProfilePic)?
+                  <img src={item.fromProfilePic} style={{width:38,height:38,borderRadius:19,objectFit:"cover"}} alt=""/>
+                :
+                  <span style={{width:38,height:38,borderRadius:19,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{item.fromProfilePic}</span>
+                )
+              :
+                <span style={{width:38,height:38,borderRadius:19,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:C.dark}}>{(item.fromUser||"?").charAt(0).toUpperCase()}</span>
+              }
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:600,fontSize:14,color:C.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{item.recipe.name}</div>
+                <div style={{fontSize:11,color:C.light}}>from @{item.fromUser}</div>
+              </div>
+              <button onClick={function(){acceptInboxRecipe(item)}} style={{width:32,height:32,borderRadius:16,border:"none",background:C.dark,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="check" size={15} strokeWidth={2.25}/></button>
+              <button onClick={function(){dismissInboxRecipe(item.id)}} style={{width:32,height:32,borderRadius:16,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="x" size={13} color={C.light} strokeWidth={2}/></button>
+            </div>
+          )})}
+          {userInbox.length>3?<div style={{textAlign:"center",fontSize:12,color:C.light,paddingTop:10}}>+{userInbox.length-3} more</div>:null}
+        </div>:null}
+
+        {/* Mine / Family. Only shown once there's a family to switch to -
+            a lone tab pointing at nothing is just noise. */}
+        {household?<div style={{display:"flex",gap:22,marginBottom:16,borderBottom:"1px solid "+C.bdr}}>
+          <button onClick={function(){setRecipesSubTab("mine")}} style={{background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:recipesSubTab==="mine"?C.ink:C.light,borderBottom:recipesSubTab==="mine"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>My Recipes</button>
+          <button onClick={function(){setRecipesSubTab("family")}} style={{background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:recipesSubTab==="family"?C.ink:C.light,borderBottom:recipesSubTab==="family"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>Family</button>
+        </div>:null}
+
+        {household&&recipesSubTab==="family"?renderFamilyCookbook():<React.Fragment>
+
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,position:"relative"}}>
+          <div style={{fontWeight:700,fontSize:16,letterSpacing:.3,color:C.ink}}>My Recipes ({recipes.length})</div>
+          <div style={{position:"relative"}}>
+            <button onClick={function(){setShowRecipePlusMenu(!showRecipePlusMenu)}} style={{padding:"7px 14px",borderRadius:8,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>+ Add</button>
+            {showRecipePlusMenu?<div style={{position:"absolute",top:40,right:0,background:"var(--surface)",borderRadius:10,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,minWidth:180,zIndex:50,overflow:"hidden"}}>
+              <button onClick={function(){setRf(emptyMeal());setShowRF(true);setShowRecipePlusMenu(false)}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}}><Icon name="pencil" size={14} strokeWidth={1.75}/>Add Manually</button>
+              <button onClick={function(){setShowScanModal(true);setScanPhotos([]);setShowRecipePlusMenu(false)}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}}><Icon name="camera" size={14} strokeWidth={1.75}/>Photo</button>
+              <button onClick={function(){setShowImport(true);setShowRecipePlusMenu(false)}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",boxSizing:"border-box"}}><Icon name="inbox" size={14} strokeWidth={1.75}/>Import</button>
+            </div>:null}
+          </div>
+          {showRecipePlusMenu?<div onClick={function(){setShowRecipePlusMenu(false)}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:40}}/>:null}
+        </div>
+        {/* Categories - Collapsible */}
+        <div style={{marginBottom:12}}>
+          <button onClick={function(){setShowCategories(!showCategories)}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"10px 14px",borderRadius:12,border:"1px solid "+C.bdr,background:C.blush,cursor:"pointer"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <Icon name="folder" size={14} color={C.dark} strokeWidth={1.75}/>
+              <span style={{fontWeight:600,fontSize:14,color:C.ink}}>
+                {recipeFilter==="all"?"All Recipes":<CatTag type={RECIPE_TYPES.find(function(t){return t.id===recipeFilter})}/>}
+              </span>
+              {recipeFilter!=="all"?<span style={{fontSize:12,color:C.light}}>({recipes.filter(function(r){
+                if(recipeFilter==="favorites")return favorites.includes(r.id);
+                return(r.recipeType||detectRecipeType(r))===recipeFilter;
+              }).length})</span>:null}
+            </div>
+            <span style={{fontSize:12,color:C.light}}>{showCategories?"▲":"▼"}</span>
+          </button>
+          
+          {showCategories?<div style={{background:"var(--surface)",borderRadius:12,border:"1px solid "+C.bdr,marginTop:8,padding:8,boxShadow:C.shadowMd}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+              {RECIPE_TYPES.filter(function(t){
+                if(t.id==="all"||t.id==="favorites")return true;
+                return recipes.some(function(r){return(r.recipeType||detectRecipeType(r))===t.id});
+              }).map(function(t){
+                var active=recipeFilter===t.id;
+                var count=t.id==="all"?recipes.length:t.id==="favorites"?recipes.filter(function(r){return favorites.includes(r.id)}).length:recipes.filter(function(r){return(r.recipeType||detectRecipeType(r))===t.id}).length;
+                return <button key={t.id} onClick={function(){setRecipeFilter(t.id);setShowCategories(false)}} style={{padding:"10px 12px",borderRadius:10,border:active?"2px solid "+C.dark:"1px solid "+C.bdr,fontSize:13,fontWeight:active?700:500,cursor:"pointer",background:active?C.dark:"var(--surface)",color:active?"#fff":C.dark,textAlign:"left",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <span><CatTag type={t}/></span>
+                  <span style={{fontSize:12,opacity:.7}}>({count})</span>
+                </button>
+              })}
+            </div>
+          </div>:null}
+        </div>
+        
+        {recipes.length===0?<div style={{textAlign:"center",padding:"48px 20px"}}>
+          <div style={{marginBottom:14,opacity:.35}}><Icon name="book" size={36} color={C.dark} strokeWidth={1.25}/></div>
+          <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:4}}>No recipes yet</div>
+          <div style={{fontSize:13,color:C.light}}>Add your first recipe above to get started</div>
+        </div>:null}
+        {recipes.filter(function(r){
+          if(recipeFilter==="all")return true;
+          if(recipeFilter==="favorites")return favorites.includes(r.id);
+          return(r.recipeType||detectRecipeType(r))===recipeFilter;
+        }).map(function(r){var rtype=r.recipeType||detectRecipeType(r);var typeInfo=RECIPE_TYPES.find(function(t){return t.id===rtype})||RECIPE_TYPES[RECIPE_TYPES.length-1];var isFav=favorites.includes(r.id);var isPrivate=r.isPublic===false;return(
+          <div key={r.id} className="ft-card-tap" style={{background:"var(--surface)",borderRadius:20,border:"none",marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}}>
+            {/* Hero image */}
+            <div style={{position:"relative",width:"100%",aspectRatio:r.photo?"4 / 3":undefined,height:r.photo?undefined:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
+              {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.3}}><Icon name="plate" size={28} color={C.dark} strokeWidth={1.25}/></div>}
+              {/* Privacy badge - top left only if private */}
+              {isPrivate?<div style={{position:"absolute",top:14,left:14,display:"flex",alignItems:"center",gap:5,background:"rgba(0,0,0,0.75)",borderRadius:20,padding:"6px 12px",fontSize:10,fontWeight:600,color:"#fff"}}><Icon name="lock" size={10} color="#fff" strokeWidth={2}/>Private</div>:null}
+            </div>
+            
+            {/* Content area */}
+            <div style={{padding:"14px 20px 18px"}}>
+              {/* Title */}
+              {(function(){
+                var ct = shortTime(r.time);
+                return [
+                  <h3 key="t" style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:22,color:C.ink,lineHeight:1.25,margin:0,marginBottom:10}}>{r.name}</h3>,
+                  (ct || typeInfo)?<div key="m" style={{display:"flex",alignItems:"center",gap:10,fontSize:13,color:C.light}}>
+                    {ct?<span style={{display:"inline-flex",alignItems:"center",gap:4}}><Icon name="clock" size={11} strokeWidth={1.75}/>{ct}</span>:null}
+                    {ct && typeInfo?<span style={{opacity:.4}}>|</span>:null}
+                    {typeInfo?<span><CatTag type={typeInfo}/></span>:null}
+                  </div>:null
+                ];
+              })()}
+            </div>
+          </div>
+        )})}
+        </React.Fragment>}
+      </div>}
+
       {/* VIEW RECIPE MODAL */}
       {viewRecipe&&<div style={ovl} onClick={function(){setViewRecipe(null)}}>
         <div style={{background:"var(--surface)",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={function(e){e.stopPropagation()}}>
