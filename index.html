@@ -448,73 +448,6 @@
       }
     };
 
-    // Favorite counters live in their own real Firestore collection (not the
-    // flat "data" blob store) so counts are atomic (FieldValue.increment,
-    // safe under concurrent favorites from many users) and queryable/
-    // batch-fetchable by document id - neither is possible when everything
-    // is JSON-stringified into one opaque field.
-    window.favCounts = {
-      key: (originalOwner, recipeId) => (originalOwner || "").toLowerCase() + "_" + recipeId,
-      increment: async (recipe) => {
-        if (!db || !recipe || !recipe.originalOwner || !recipe.recipeId) return null;
-        const key = window.favCounts.key(recipe.originalOwner, recipe.recipeId);
-        try {
-          // set(...,{merge:true}) with FieldValue.increment handles both the
-          // first-ever favorite (field starts at 0) and every one after in
-          // a single atomic write - no separate create-vs-increment branch.
-          await db.collection("favoriteCounts").doc(key).set({
-            count: firebase.firestore.FieldValue.increment(1),
-            recipeId: recipe.recipeId,
-            originalOwner: (recipe.originalOwner || "").toLowerCase(),
-            name: recipe.name || "",
-            photo: recipe.photo || "",
-            emoji: recipe.emoji || "",
-            time: recipe.time || "",
-            recipeType: recipe.recipeType || "other",
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          }, { merge: true });
-          return true;
-        } catch (e) {
-          console.error("favCounts increment error:", key, e);
-          return null;
-        }
-      },
-      decrement: async (recipe) => {
-        if (!db || !recipe || !recipe.originalOwner || !recipe.recipeId) return null;
-        const key = window.favCounts.key(recipe.originalOwner, recipe.recipeId);
-        try {
-          await db.collection("favoriteCounts").doc(key).set({
-            count: firebase.firestore.FieldValue.increment(-1),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          }, { merge: true });
-          return true;
-        } catch (e) {
-          console.error("favCounts decrement error:", key, e);
-          return null;
-        }
-      },
-      // pairs: [{originalOwner, recipeId}, ...] -> {key: count}. Chunked into
-      // groups of 30 (Firestore's max for an "in" query) so this stays a
-      // handful of queries no matter how many recipes are on screen.
-      fetchMany: async (pairs) => {
-        if (!db || !pairs || pairs.length === 0) return {};
-        const uniqueKeys = Array.from(new Set(pairs.map((p) => window.favCounts.key(p.originalOwner, p.recipeId))));
-        const result = {};
-        const chunks = [];
-        for (let i = 0; i < uniqueKeys.length; i += 30) chunks.push(uniqueKeys.slice(i, i + 30));
-        try {
-          await Promise.all(chunks.map(async (chunk) => {
-            const snap = await db.collection("favoriteCounts")
-              .where(firebase.firestore.FieldPath.documentId(), "in", chunk)
-              .get();
-            snap.forEach((doc) => { result[doc.id] = doc.data().count || 0; });
-          }));
-        } catch (e) {
-          console.error("favCounts fetchMany error:", e);
-        }
-        return result;
-      }
-    };
 
     // Public username -> email lookup, one small doc per username.
     //
@@ -3627,7 +3560,6 @@ function App(){
   var [friendSearch,setFriendSearch]=useState("");
   var [friendSearchResults,setFriendSearchResults]=useState([]);
   var [friendSearching,setFriendSearching]=useState(false);
-  var [allUsers,setAllUsers]=useState({});
   var [suggestedFriends,setSuggestedFriends]=useState([]);
   var [friendRecipes,setFriendRecipes]=useState([]);
   var [sharedRecipes,setSharedRecipes]=useState([]);
@@ -3639,8 +3571,6 @@ function App(){
   // family member's recipes are still recipes - that's where you'd look.
   var [recipesSubTab,setRecipesSubTab]=useState("mine"); // "mine" | "family"
   var [familySearch,setFamilySearch]=useState("");
-  var [favCounts,setFavCounts]=useState({}); // "owner_recipeId" -> count, batch-fetched for Explore
-  var [exploreSort,setExploreSort]=useState("newest"); // "newest" | "favorited"
   var [pullStart,setPullStart]=useState(null);
   var [pullDistance,setPullDistance]=useState(0);
   var [refreshing,setRefreshing]=useState(false);
@@ -3933,7 +3863,7 @@ function App(){
     if(userId==="guest"){
       setMeals({}); setRecipes([]); setFavorites([]);
       setFollowing([]); setFollowers([]); setFollowRequests([]);
-      setMyPendingRequests([]); setUserInbox([]); setAllUsers({});
+      setMyPendingRequests([]); setUserInbox([]);
       setUserEmail(""); setUserProfilePic(null); setIsPrivateProfile(false);
       setHousehold(null); setHouseholdMembers([]); setViewingMember(null); setMemberMeals({});
       return;
@@ -4110,76 +4040,35 @@ function App(){
       }).catch(function(){});
     });
     
-    // Load all users for search and suggestions
-    window.users.all().then(function(users){
-      // null means the read failed, not that nobody exists. Overwriting
-      // allUsers with an empty map here is what made a transient blip look
-      // like the signed-in user had lost their profile picture and every
-      // follower - both are read back out of this map. Keep whatever we last
-      // knew and say so, rather than silently blanking the screen.
-      if(!users){
-        console.error("Could not load user profiles - keeping last known data");
-        setUsersLoadFailed(true);
-        return;
-      }
-      setUsersLoadFailed(false);
-      setAllUsers(users);
-      // Set user email, profile pic, and privacy setting
-      if(user&&users[userId]){
-        if(users[userId].email) setUserEmail(users[userId].email);
-        if(users[userId].profilePic) setUserProfilePic(users[userId].profilePic);
-        if(users[userId].isPrivate) setIsPrivateProfile(users[userId].isPrivate);
-        // Self-heal avatars saved before photos moved to Storage: re-save
-        // this one as a URL. Only touches the signed-in user's own entry, so
-        // the upload always lands under their own uid.
-        if(window.photoStore.isDataUrl(users[userId].profilePic)){
-          saveProfilePic(users[userId].profilePic);
+    // Load the signed-in user's own profile: email, avatar, privacy. This used
+    // to pull EVERY user via users.all() to also build an allUsers map for
+    // friend search and Explore; both are gone, so a single point read on my
+    // own uid is all that's left. get() returns null on a missing doc or a
+    // read failure; on null we keep whatever avatar/email we already have
+    // (never blank it) and surface the failure rather than hiding it.
+    var myUid=firebase.auth().currentUser&&firebase.auth().currentUser.uid;
+    if(user&&myUid){
+      window.users.get(myUid).then(function(profile){
+        if(!profile){
+          console.error("Could not load own profile - keeping last known data");
+          setUsersLoadFailed(true);
+          return;
         }
-      }
-    }).catch(function(e){
-      console.log("Could not load users:",e);
-    });
+        setUsersLoadFailed(false);
+        if(profile.email) setUserEmail(profile.email);
+        if(profile.profilePic) setUserProfilePic(profile.profilePic);
+        if(profile.isPrivate) setIsPrivateProfile(profile.isPrivate);
+        // Self-heal avatars saved before photos moved to Storage: re-save this
+        // one as a URL. Only touches the signed-in user's own entry, so the
+        // upload always lands under their own uid.
+        if(window.photoStore.isDataUrl(profile.profilePic)){
+          saveProfilePic(profile.profilePic);
+        }
+      }).catch(function(e){
+        console.log("Could not load profile:",e);
+      });
+    }
   },[userId,authChecked,user]);
-  
-  // Refresh profile pics in following/followers lists when allUsers changes
-  useEffect(function(){
-    if(Object.keys(allUsers).length===0) return;
-    
-    // Update following list with current profile pics
-    if(following.length > 0){
-      var updatedFollowing = following.map(function(f){
-        var username = typeof f === "string" ? f : f.username;
-        var userData = allUsers[username] || allUsers[username.toLowerCase()];
-        if(userData && userData.profilePic){
-          return Object.assign({}, typeof f === "string" ? {username:f} : f, {profilePic: userData.profilePic});
-        }
-        return typeof f === "string" ? {username:f, profilePic:null} : f;
-      });
-      // Only update if something changed
-      var changed = updatedFollowing.some(function(uf, i){
-        var of = following[i];
-        return (typeof of === "string" ? null : of.profilePic) !== uf.profilePic;
-      });
-      if(changed) setFollowing(updatedFollowing);
-    }
-    
-    // Update followers list with current profile pics
-    if(followers.length > 0){
-      var updatedFollowers = followers.map(function(f){
-        var username = typeof f === "string" ? f : f.username;
-        var userData = allUsers[username] || allUsers[username.toLowerCase()];
-        if(userData && userData.profilePic){
-          return Object.assign({}, typeof f === "string" ? {username:f} : f, {profilePic: userData.profilePic});
-        }
-        return typeof f === "string" ? {username:f, profilePic:null} : f;
-      });
-      var changedF = updatedFollowers.some(function(uf, i){
-        var of = followers[i];
-        return (typeof of === "string" ? null : of.profilePic) !== uf.profilePic;
-      });
-      if(changedF) setFollowers(updatedFollowers);
-    }
-  },[allUsers]);
   
   // Clean up orphaned favorites (favorites pointing to deleted recipes)
   useEffect(function(){
@@ -4663,20 +4552,6 @@ function App(){
   }
   
   function svF(f){setFavorites(f);sv("dm_favorites",f)}
-  // Fire-and-forget the atomic Firestore counter write, plus an immediate
-  // optimistic local update so the badge on screen reflects the change
-  // right away instead of waiting on a network round-trip.
-  function bumpFavCount(recipe,delta){
-    if(!recipe||!recipe.originalOwner||!recipe.recipeId)return;
-    var key=(recipe.originalOwner||"").toLowerCase()+"_"+recipe.recipeId;
-    setFavCounts(function(prev){
-      var next=Object.assign({},prev);
-      next[key]=Math.max(0,(next[key]||0)+delta);
-      return next;
-    });
-    if(delta>0){window.favCounts.increment(recipe).catch(function(){})}
-    else{window.favCounts.decrement(recipe).catch(function(){})}
-  }
   function svSP(items,d,catStores){
     setStorePrefs(items);
     setDefStore(d);

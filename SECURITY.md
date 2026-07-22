@@ -12,9 +12,10 @@ commit messages or a chat log.
 - **`users/{uid}`** — one profile document per user, keyed by Firebase uid.
 - **`usernames/{username}`** — public username → email/uid lookup, needed to
   resolve a typed username to an email before sign-in.
-- **`favoriteCounts/{owner_recipeId}`** — per-recipe favorite counters. **Dead**
-  since Explore was removed: nothing reads or writes these. The collection and
-  its rules block are inert and can be deleted when convenient.
+- **`favoriteCounts/{owner_recipeId}`** — per-recipe favorite counters. **Dead
+  and removed from the client** (the `window.favCounts` helper and `bumpFavCount`
+  are gone). Nothing reads or writes these. Drop the `match /favoriteCounts`
+  rules block and delete any leftover counter documents when convenient.
 - **`households/{householdId}`** — a family group: `{name, members[], createdBy,
   inviteCode}`. `members` is a uid array and is the authority for who may read
   whose data. Nothing is stored per-household: every calendar, recipe, and list
@@ -204,17 +205,13 @@ deletion would break another user's saved copy. Storage therefore only grows.
 
 ## Scale ceilings still present (not security, but related)
 
-- **`window.users.all()` still reads every user.** One caller remains — the
-  user-data load effect, which pulls all profiles to resolve the signed-in
-  user's own avatar and to hold `allUsers` in memory. This is the last
-  O(all-users) read in the app now that Explore and friend search are gone; it
-  should become a single `users.get(uid)` for the own-profile case. Not a
-  correctness issue, just a read-count one.
+- **No more O(all-users) reads.** `window.users.all()` is gone; the own-profile
+  load is a single `users.get(uid)`. `allUsers` was removed with it.
 - **Family cookbook reads scale with household size, not user base.** It reads
   the recipe index and documents of each household member — a handful of point
   reads, cheap by construction.
-- **`favoriteCounts` collection is dead.** Nothing reads or writes it since
-  Explore was removed; its rules block and any existing counter documents are
-  inert and can be deleted when convenient.
+- **`favoriteCounts` collection is dead.** The client helper was removed; its
+  rules block and any existing counter documents are inert and can be deleted
+  when convenient.
 - **Legacy `dm_users` document** still exists, now unread, kept as a rollback
   path. Safe to delete once the per-user split has proven itself.
