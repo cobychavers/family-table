@@ -602,8 +602,14 @@
       // paginated/prefix query before it can serve a large user base - but it
       // reads a queryable collection now rather than parsing one opaque blob,
       // which is the part that has to change first.
+      //
+      // Returns null - not {} - when the read fails. Those are different
+      // facts: {} means "nobody is registered", null means "we don't know".
+      // Collapsing them is what made a transient network blip look identical
+      // to a user having no profile picture and no followers, since both are
+      // read out of this map. Callers must treat null as "keep what you have".
       all: async () => {
-        if (!db) return {};
+        if (!db) return null;
         try {
           const snap = await db.collection("users").get();
           const out = {};
@@ -614,7 +620,7 @@
           return out;
         } catch (e) {
           console.error("users all error:", e);
-          return {};
+          return null;
         }
       }
     };
@@ -3608,6 +3614,10 @@ function App(){
   var [publicRecipesLoaded,setPublicRecipesLoaded]=useState(false);
   var [familyRecipes,setFamilyRecipes]=useState([]);
   var [familyRecipesLoaded,setFamilyRecipesLoaded]=useState(false);
+  // The Recipes tab holds both your own collection and your family's, since a
+  // family member's recipes are still recipes - that's where you'd look.
+  var [recipesSubTab,setRecipesSubTab]=useState("mine"); // "mine" | "family"
+  var [familySearch,setFamilySearch]=useState("");
   var [favCounts,setFavCounts]=useState({}); // "owner_recipeId" -> count, batch-fetched for Explore
   var [exploreSort,setExploreSort]=useState("newest"); // "newest" | "favorited"
   var [pullStart,setPullStart]=useState(null);
@@ -3671,6 +3681,9 @@ function App(){
   var [importPasteDirections,setImportPasteDirections]=useState("");
   var [importPasteAll,setImportPasteAll]=useState(""); // Single box for all text
   var [groceryHidden,setGroceryHidden]=useState({});
+  // Set when the user-profile read fails, so the UI can say so rather than
+  // rendering an empty avatar and follower list as if that were the truth.
+  var [usersLoadFailed,setUsersLoadFailed]=useState(false);
   // Whose grocery list is on screen. null = my own. Unlike the calendar, a
   // family member's list is WRITABLE - the whole point is that one person
   // plans and the other shops, ticking things off as they go. The derived
@@ -4083,6 +4096,17 @@ function App(){
     
     // Load all users for search and suggestions
     window.users.all().then(function(users){
+      // null means the read failed, not that nobody exists. Overwriting
+      // allUsers with an empty map here is what made a transient blip look
+      // like the signed-in user had lost their profile picture and every
+      // follower - both are read back out of this map. Keep whatever we last
+      // knew and say so, rather than silently blanking the screen.
+      if(!users){
+        console.error("Could not load user profiles - keeping last known data");
+        setUsersLoadFailed(true);
+        return;
+      }
+      setUsersLoadFailed(false);
       setAllUsers(users);
       // Set user email, profile pic, and privacy setting
       if(user&&users[userId]){
@@ -4487,7 +4511,10 @@ function App(){
     // Check if user exists first
     window.users.all().then(function(users){
       if(!users){
-        setFollowStatus("error:No users found");
+        // The lookup failed - that's not the same as the account not existing,
+        // and telling someone their friend doesn't exist because the network
+        // hiccuped sends them chasing the wrong problem.
+        setFollowStatus("error:Couldn't check that username right now - try again");
         return;
       }
 
@@ -4789,20 +4816,15 @@ function App(){
     var targetLower=target.toLowerCase();
     if(targetLower===userId.toLowerCase()){setShareToStatus("error:You can't share to yourself");return}
     
-    // Check if user exists
-    window.users.all().then(function(users){
-      if(!users){setShareToStatus("error:User not found");return}
+    // Resolve the username with a direct get on the usernames collection - one
+    // read of a key we already have. This used to download every user profile
+    // and scan them in JS, which is the same O(all users) pattern that made
+    // Explore expensive, for a lookup the usernames index exists to answer.
+    window.usernames.lookup(target).then(function(entry){
+      if(!entry){setShareToStatus("error:User @"+target+" not found");return}
+      // The index stores the display-cased name; storage keys are lowercase.
+      var foundUsername=entry.username||target;
 
-      // Find user case-insensitively
-      var foundUsername=null;
-      Object.keys(users).forEach(function(u){
-        if(u.toLowerCase()===targetLower){
-          foundUsername=u;
-        }
-      });
-      
-      if(!foundUsername){setShareToStatus("error:User @"+target+" not found");return}
-      
       // Get target user's inbox (use lowercase for storage key)
       return window.storage.get("dm_inbox_"+foundUsername.toLowerCase(),true).catch(function(){return null}).then(function(inboxR){
         var inbox=[];
@@ -5328,99 +5350,72 @@ function App(){
     });
   }
 
-  // Load all public recipes from all users
-  function loadPublicRecipes(){
-    if(!user)return; // No public recipes without sign-in
-    if(publicRecipesLoaded)return;
-    setPublicRecipesLoaded(true);
-    console.log("Loading public recipes...");
-    
-    window.users.all().then(function(users){
-      if(!users || Object.keys(users).length===0){
-        console.log("No users found for public recipes");
-        return;
-      }
-      var allPublicRecipes=[];
-      var usernames=Object.keys(users).filter(function(u){
-        // Only include public accounts
-        return !users[u].isPrivate;
-      });
-      console.log("Public users to load recipes from:", usernames);
-      
-      var loadPromises=usernames.map(function(uname){
-        var unameL=uname.toLowerCase();
-        return window.storage.get("dm_recipe_index_"+unameL,true)
-          .catch(function(){return null})
-          .then(function(indexR){
-            if(!indexR||!indexR.value)return[];
-            var recipeIds=JSON.parse(indexR.value);
-            console.log("User", uname, "has", recipeIds.length, "recipes");
-            if(recipeIds.length===0)return[];
-            
-            return Promise.all(recipeIds.map(function(id){
-              return window.storage.get("dm_recipe_"+unameL+"_"+id,true)
-                .catch(function(){return null})
-                .then(function(r){
-                  if(r&&r.value){
-                    var recipe=JSON.parse(r.value);
-                    // Must be marked public
-                    if(recipe.isPublic===false) return null;
-                    // Migrate if needed
-                    var mig = migrateRecipe(recipe, unameL);
-                    recipe = mig.recipe;
-                    // STRICT: require explicit originalOwner (ambiguous recipes are hidden from Explore)
-                    if(!recipe.originalOwner) return null;
-                    var creator = recipe.originalOwner.toLowerCase();
-                    var owner = (recipe.savedBy || unameL).toLowerCase();
-                    if(creator !== unameL) return null;      // not their recipe
-                    if(owner !== creator) return null;        // this is a copy, not the original
-                    recipe.ownerUsername = uname;
-                    recipe.ownerProfilePic = users[uname]?users[uname].profilePic:null;
-                    return recipe;
-                  }
-                  return null;
-                });
-            }));
-          })
-          .then(function(recipes){
-            return recipes.filter(function(r){return r!==null});
-          });
-      });
-      
-      Promise.all(loadPromises).then(function(results){
-        results.forEach(function(userRecipes){
-          allPublicRecipes=allPublicRecipes.concat(userRecipes);
-        });
-        // No safety net needed - the loader is now bulletproof
-        // Dedup by recipeId (immutable global identifier).
-        // If two recipes share a recipeId, keep the one whose savedBy === originalOwner (the actual original)
-        var byRecipeId = {};
-        allPublicRecipes.forEach(function(r){
-          var key = r.recipeId || ("__legacy__" + (r.name || "").toLowerCase());
-          var existing = byRecipeId[key];
-          if(!existing){ byRecipeId[key] = r; return; }
-          // Prefer the copy where savedBy matches originalOwner (the true original)
-          var rIsOriginal = (r.savedBy && r.originalOwner && r.savedBy.toLowerCase()===r.originalOwner.toLowerCase());
-          var eIsOriginal = (existing.savedBy && existing.originalOwner && existing.savedBy.toLowerCase()===existing.originalOwner.toLowerCase());
-          if(rIsOriginal && !eIsOriginal) byRecipeId[key] = r;
-        });
-        allPublicRecipes = Object.values(byRecipeId);
-        // Sort by newest first
-        allPublicRecipes.sort(function(a,b){
-          return (b.createdAt||0)-(a.createdAt||0);
-        });
-        console.log("Loaded", allPublicRecipes.length, "unique public recipes");
-        setPublicRecipes(allPublicRecipes);
-        // Batch-fetch favorite counts for everything just loaded - chunked
-        // "in" queries, so this is a handful of reads regardless of how many
-        // public recipes exist, not one read per recipe.
-        window.favCounts.fetchMany(allPublicRecipes.map(function(r){return{originalOwner:r.originalOwner,recipeId:r.recipeId}}))
-          .then(function(counts){setFavCounts(function(prev){return Object.assign({},prev,counts)})});
-      });
-    }).catch(function(e){
-      console.error("Error loading public recipes:", e);
+  // The household cookbook, rendered inside the Recipes tab. Kept as a function
+  // rather than inline JSX so the Recipes tab stays readable - it already
+  // carries the inbox, the category filter, and the user's own collection.
+  function renderFamilyCookbook(){
+    if(!familyRecipesLoaded)loadFamilyRecipes();
+    var others=householdMembers.filter(function(m){
+      return (m.username||"").toLowerCase()!==(userId||"").toLowerCase();
     });
+    var filtered=familyRecipes.filter(function(r){
+      return !familySearch||r.name.toLowerCase().includes(familySearch.toLowerCase());
+    });
+
+    if(!household)return <div style={{textAlign:"center",padding:"48px 20px"}}>
+      <div style={{marginBottom:14,opacity:.35}}><Icon name="users" size={36} color={C.dark} strokeWidth={1.25}/></div>
+      <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:4}}>No family yet</div>
+      <div style={{fontSize:12,color:C.light,marginBottom:16}}>Link up with the people you cook for to see each other's recipes</div>
+      <button onClick={function(){setShowFamily(true);setFamilyError("")}} style={{padding:"11px 22px",borderRadius:10,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>Set Up Family</button>
+    </div>;
+
+    if(others.length===0)return <div style={{textAlign:"center",padding:"48px 20px"}}>
+      <div style={{marginBottom:14,opacity:.35}}><Icon name="users" size={36} color={C.dark} strokeWidth={1.25}/></div>
+      <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:4}}>No one else here yet</div>
+      <div style={{fontSize:12,color:C.light,marginBottom:16}}>Share your invite code to add someone</div>
+      <button onClick={function(){setShowFamily(true);setFamilyError("")}} style={{padding:"11px 22px",borderRadius:10,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>Open Family</button>
+    </div>;
+
+    return <div>
+      <div style={{fontSize:13,color:C.light,marginBottom:12}}>
+        {household.name||"Your family"} &mdash; everything your family cooks
+      </div>
+      <div style={{marginBottom:12}}>
+        <input value={familySearch} onChange={function(e){setFamilySearch(e.target.value)}} placeholder="Search family recipes..." style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box",background:C.card,color:C.ink}}/>
+      </div>
+      <div style={{fontSize:12,color:C.light,marginBottom:12}}>{filtered.length} recipe{filtered.length!==1?"s":""}</div>
+
+      {filtered.length===0?<div style={{textAlign:"center",padding:"48px 20px"}}>
+        <div style={{marginBottom:14,opacity:.35}}><Icon name="book" size={36} color={C.dark} strokeWidth={1.25}/></div>
+        <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:4}}>{familyRecipes.length===0&&familyRecipesLoaded?"Nothing saved yet":familyRecipesLoaded?"No recipes found":"Loading recipes..."}</div>
+        {familyRecipes.length===0&&familyRecipesLoaded?<div style={{fontSize:12,color:C.light}}>Recipes your family saves will show up here</div>:null}
+      </div>:
+      filtered.map(function(r){
+        var typeInfo = r.recipeType && r.recipeType!=="other" ? (RECIPE_TYPES.find(function(t){return t.id===r.recipeType})) : null;
+        var cookTime = shortTime(r.time);
+        return <div key={r.ownerUsername+"_"+r.id} className="ft-card-tap" onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}} style={{background:"var(--surface)",borderRadius:20,marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
+          <div style={{position:"relative",width:"100%",aspectRatio:r.photo?"4 / 3":undefined,height:r.photo?undefined:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
+            {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.3}}><Icon name="plate" size={28} color={C.dark} strokeWidth={1.25}/></div>}
+          </div>
+          <div style={{padding:"14px 16px 18px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+              <div style={{width:30,height:30,borderRadius:15,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
+                {isImageSrc(r.ownerProfilePic)?<img src={r.ownerProfilePic} style={{width:30,height:30,objectFit:"cover"}}/>:r.ownerProfilePic?<span style={{fontSize:14}}>{r.ownerProfilePic}</span>:<Icon name="user" size={14} strokeWidth={1.75}/>}
+              </div>
+              <div style={{fontSize:14,color:C.light,flex:1}}>@{r.ownerUsername}</div>
+            </div>
+            <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink,marginBottom:10,lineHeight:1.2}}>{r.name}</div>
+            {(cookTime||typeInfo)?<div style={{display:"flex",alignItems:"center",gap:10,fontSize:13,color:C.light}}>
+              {cookTime?<span style={{display:"inline-flex",alignItems:"center",gap:4}}><Icon name="clock" size={11} strokeWidth={1.75}/>{cookTime}</span>:null}
+              {cookTime&&typeInfo?<span style={{opacity:.4}}>|</span>:null}
+              {typeInfo?<span><CatTag type={typeInfo}/></span>:null}
+            </div>:null}
+          </div>
+        </div>
+      })}
+    </div>;
   }
+
 
   function toggleFavorite(recipeId){
     if(favorites.includes(recipeId)){
@@ -6068,19 +6063,10 @@ function App(){
 
   // Generic refresh function - reloads data based on what the user is currently viewing
   function refreshCurrentView(){
-    if(view==="explore"&&exploreSubTab==="people"){
-      // Refresh following + friend recipes
-      setFriendRecipes([]);
-      if(following.length>0){
-        // Trigger reload by toggling state
-        var current = following.slice();
-        setFollowing([]);
-        setTimeout(function(){setFollowing(current)},50);
-      }
-    } else if(view==="explore"){
-      setPublicRecipes([]);
-      setPublicRecipesLoaded(false);
-      setTimeout(function(){loadPublicRecipes()},50);
+    if(view==="recipes"&&recipesSubTab==="family"){
+      // Refetch the household cookbook.
+      setFamilyRecipes([]);
+      setFamilyRecipesLoaded(false);
     } else if(view==="calendar"){
       // Reload meals
       if(userId && userId!=="guest"){
@@ -6147,6 +6133,14 @@ function App(){
       {!isOnline?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:12,fontWeight:600,color:"#8B6914",background:"#FBF0D9",border:"1px solid #EAD9A8",borderRadius:8,padding:"8px 12px",marginBottom:8,animation:"ft-fade-in .22s ease-out"}}>
         <Icon name="offline" size={13} color="#8B6914" strokeWidth={2}/>
         You're offline — changes will save once you're back online
+      </div>:null}
+      {/* Profiles failed to load. Says so instead of letting the user's own
+          avatar and follower list quietly render empty, which is what a bare
+          read failure used to look like. Only shown when we're otherwise
+          online, so it doesn't stack redundantly with the offline banner. */}
+      {usersLoadFailed&&isOnline?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:12,fontWeight:600,color:"#8B6914",background:"#FBF0D9",border:"1px solid #EAD9A8",borderRadius:8,padding:"8px 12px",marginBottom:8,animation:"ft-fade-in .22s ease-out"}}>
+        <Icon name="offline" size={13} color="#8B6914" strokeWidth={2}/>
+        Couldn't load profiles — pull down to retry
       </div>:null}
       {/* Pull-to-refresh indicator */}
       {pullDistance>0?<div style={{textAlign:"center",fontSize:13,color:C.light,height:pullDistance,overflow:"hidden",transition:(refreshing||pullStart===null)?"height 0.3s":"none",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -6253,7 +6247,7 @@ function App(){
       {/* Close profile menu when clicking elsewhere */}
       {showProfileMenu?<div onClick={function(){setShowProfileMenu(false)}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:998}}/>:null}
       <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",justifyContent:"center"}}>
-        {[["calendar","calendar","Calendar"],["recipes","book","Recipes"],["explore","globe","Explore"],["chef","sparkle","Chef"],["grocery","cart","Grocery"]].map(function(t){
+        {[["calendar","calendar","Calendar"],["recipes","book","Recipes"],["chef","sparkle","Chef"],["grocery","cart","Grocery"]].map(function(t){
           var hasInbox=t[0]==="recipes"&&userInbox.length>0;
           var hasRequests=t[0]==="explore"&&followRequests.length>0;
           var badgeCount=hasInbox?userInbox.length:(hasRequests?followRequests.length:0);
@@ -7016,7 +7010,16 @@ function App(){
           )})}
           {userInbox.length>3?<div style={{textAlign:"center",fontSize:12,color:C.light,paddingTop:10}}>+{userInbox.length-3} more</div>:null}
         </div>:null}
-        
+
+        {/* Mine / Family. Only shown once there's a family to switch to -
+            a lone tab pointing at nothing is just noise. */}
+        {household?<div style={{display:"flex",gap:22,marginBottom:16,borderBottom:"1px solid "+C.bdr}}>
+          <button onClick={function(){setRecipesSubTab("mine")}} style={{background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:recipesSubTab==="mine"?C.ink:C.light,borderBottom:recipesSubTab==="mine"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>My Recipes</button>
+          <button onClick={function(){setRecipesSubTab("family")}} style={{background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:recipesSubTab==="family"?C.ink:C.light,borderBottom:recipesSubTab==="family"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>Family</button>
+        </div>:null}
+
+        {household&&recipesSubTab==="family"?renderFamilyCookbook():<React.Fragment>
+
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,position:"relative"}}>
           <div style={{fontWeight:700,fontSize:16,letterSpacing:.3,color:C.ink}}>My Recipes ({recipes.length})</div>
           <div style={{position:"relative"}}>
@@ -7097,6 +7100,7 @@ function App(){
             </div>
           </div>
         )})}
+        </React.Fragment>}
       </div>}
 
       {/* VIEW RECIPE MODAL */}
@@ -7306,469 +7310,6 @@ function App(){
       </div></div>}
 
       {view==="grocery"&&<GroceryTab meals={meals} wdates={wd} wlabel={wl} rgn={region} gSI={gSI} gSFI={gSFI} setItemStore={setSI} userId={groceryListOwner} ownList={groceryIsMine} ownerUid={groceryOwnerUid} listOwner={groceryOwner} setListOwner={setGroceryOwner} members={householdMembers} me={userId} groceryHidden={groceryHidden} setGroceryHidden={setGroceryHidden} stores={STORES} addCustomStore={addCustomStore} removeCustomStore={removeCustomStore} defStore={defStore} setDefStore={handleSetDefStore} categoryStores={categoryStores} setCategoryStore={handleSetCategoryStore} goToCalendar={function(){setView("calendar")}} setWs={setWs} ws={ws}/>}
-
-      {/* EXPLORE TAB - Recipes + People */}
-      {view==="explore"&&<div style={{animation:"ft-fade-in .25s ease-out"}}>
-        <div style={{display:"flex",gap:22,marginBottom:18,borderBottom:"1px solid "+C.bdr}}>
-          <button onClick={function(){setExploreSubTab("recipes")}} style={{background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:exploreSubTab==="recipes"?C.ink:C.light,borderBottom:exploreSubTab==="recipes"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>Recipes</button>
-          {household?<button onClick={function(){setExploreSubTab("family")}} style={{background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:exploreSubTab==="family"?C.ink:C.light,borderBottom:exploreSubTab==="family"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>Family</button>:null}
-          <button onClick={function(){setExploreSubTab("people")}} style={{position:"relative",background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:exploreSubTab==="people"?C.ink:C.light,borderBottom:exploreSubTab==="people"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>People
-            {followRequests.length>0?<span style={{position:"absolute",top:-2,right:-14,width:16,height:16,borderRadius:8,background:"#e74c3c",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{followRequests.length>9?"9+":followRequests.length}</span>:null}
-          </button>
-        </div>
-        {exploreSubTab==="recipes"?(function(){
-          // Load public recipes when tab is viewed
-          if(!publicRecipesLoaded)loadPublicRecipes();
-          
-          // Everything visible to me in Explore, before category/search narrows
-          // it. Drives the browse grid's per-category counts, so a category is
-          // only offered when there's actually something behind it.
-          var visible=publicRecipes.filter(function(r){
-            return !(user && (r.originalOwner||r.ownerUsername).toLowerCase()===userId.toLowerCase());
-          });
-          var catCounts={};
-          visible.forEach(function(r){
-            var t=r.recipeType||"other";
-            catCounts[t]=(catCounts[t]||0)+1;
-          });
-          // "all" and "favorites" are UI pseudo-types, not real categories.
-          var browseCats=RECIPE_TYPES.filter(function(t){
-            return t.id!=="all"&&t.id!=="favorites"&&(catCounts[t.id]||0)>0;
-          });
-          // Searching or landing on a specific user's recipes both mean the
-          // person already knows what they're after - skip the grid.
-          var browsing=exploreBrowse&&!exploreSearch.trim()&&!exploreUser;
-          var activeCat=RECIPE_TYPES.find(function(t){return t.id===exploreFilter});
-          function openCategory(id){setExploreFilter(id);setExploreBrowse(false)}
-          function backToCategories(){setExploreFilter("");setExploreSearch("");setExploreBrowse(true)}
-
-          var filtered=publicRecipes.filter(function(r){
-            // Don't show my own recipes in Explore (check originalOwner)
-            if(user && (r.originalOwner||r.ownerUsername).toLowerCase()===userId.toLowerCase()) return false;
-            var matchesSearch=!exploreSearch||r.name.toLowerCase().includes(exploreSearch.toLowerCase());
-            var matchesFilter=!exploreFilter||r.recipeType===exploreFilter;
-            var matchesUser=!exploreUser||r.ownerUsername.toLowerCase()===exploreUser.toLowerCase();
-            return matchesSearch&&matchesFilter&&matchesUser;
-          });
-          if(exploreSort==="favorited"){
-            filtered=filtered.slice().sort(function(a,b){
-              var ac=favCounts[(a.originalOwner||"").toLowerCase()+"_"+a.recipeId]||0;
-              var bc=favCounts[(b.originalOwner||"").toLowerCase()+"_"+b.recipeId]||0;
-              return bc-ac;
-            });
-          }
-
-          return <div>
-            {/* Show user filter banner if viewing specific user */}
-            {exploreUser?<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:C.blush,borderRadius:10,marginBottom:16}}>
-              <div style={{fontSize:14,color:C.dark}}>Showing recipes by <strong>@{exploreUser}</strong></div>
-              <button onClick={function(){setExploreUser(null)}} style={{padding:"6px 12px",borderRadius:6,border:"none",background:C.dark,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>Show All</button>
-            </div>:<div style={{fontSize:13,color:C.light,marginBottom:16}}>Discover recipes shared by the community</div>}
-            
-            {/* Search */}
-            <div style={{marginBottom:12}}>
-              <input value={exploreSearch} onChange={function(e){setExploreSearch(e.target.value)}} placeholder="Search recipes..." style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box",background:C.card,color:C.ink}}/>
-            </div>
-            
-            {/* Browse by category. Typographic on purpose - serif label and a
-                gold dot, the same language as the grocery category cards. No
-                emoji: those were removed from the app's chrome in the icon
-                pass and shouldn't come back through a new surface. */}
-            {browsing?<div>
-              {browseCats.length===0?
-                <div style={{textAlign:"center",padding:"48px 20px"}}>
-                  <div style={{marginBottom:14,opacity:.35}}><Icon name="globe" size={36} color={C.dark} strokeWidth={1.25}/></div>
-                  <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:4}}>{publicRecipesLoaded?"Nothing shared yet":"Loading recipes..."}</div>
-                  {publicRecipesLoaded?<div style={{fontSize:12,color:C.light}}>Recipes people share publicly will show up here</div>:null}
-                </div>
-              :<div>
-                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:C.light,marginBottom:10}}>Browse by category</div>
-                <button className="ft-card-tap" onClick={function(){openCategory("")}}
-                  style={{display:"flex",alignItems:"center",width:"100%",gap:9,padding:"15px 16px",marginBottom:10,borderRadius:16,border:"1px solid "+C.bdr,background:"var(--surface)",boxShadow:C.shadowSm,cursor:"pointer",textAlign:"left"}}>
-                  <span style={{display:"inline-block",width:6,height:6,minWidth:6,borderRadius:3,background:C.gold}}/>
-                  <span style={{flex:1,fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:18,fontWeight:700,color:C.ink,letterSpacing:.3}}>All Recipes</span>
-                  <span style={{fontSize:12,color:C.light}}>{visible.length}</span>
-                </button>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                  {browseCats.map(function(t){
-                    return <button key={t.id} className="ft-card-tap" onClick={function(){openCategory(t.id)}}
-                      style={{padding:"15px 14px",borderRadius:16,border:"1px solid "+C.bdr,background:"var(--surface)",boxShadow:C.shadowSm,cursor:"pointer",textAlign:"left"}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
-                        <span style={{display:"inline-block",width:6,height:6,minWidth:6,borderRadius:3,background:C.gold}}/>
-                        <span style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:C.ink,letterSpacing:.3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.label}</span>
-                      </div>
-                      <div style={{fontSize:11,color:C.light,paddingLeft:14}}>{catCounts[t.id]} recipe{catCounts[t.id]!==1?"s":""}</div>
-                    </button>;
-                  })}
-                </div>
-              </div>}
-            </div>:<div>
-
-            {/* Which slice of Explore is on screen, and the way back out. */}
-            {!exploreUser?<div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-              <button onClick={backToCategories} style={{display:"flex",alignItems:"center",gap:5,padding:"7px 13px",borderRadius:18,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0}}>
-                <Icon name="chevron-left" size={13} color={C.dark} strokeWidth={2}/> Categories
-              </button>
-              <span style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:19,fontWeight:700,color:C.ink,letterSpacing:.3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                {activeCat&&activeCat.id!=="all"?activeCat.label:"All Recipes"}
-              </span>
-            </div>:null}
-
-            {/* Sort control */}
-            <div style={{display:"flex",gap:8,marginBottom:16}}>
-              <button className="ft-card-tap" onClick={function(){setExploreSort("newest")}} style={tab(exploreSort==="newest")}>Newest</button>
-              <button className="ft-card-tap" onClick={function(){setExploreSort("favorited")}} style={tab(exploreSort==="favorited")}><Icon name="heart" size={12} color={exploreSort==="favorited"?"#fff":C.light} strokeWidth={2} filled={exploreSort==="favorited"}/> Most Favorited</button>
-            </div>
-
-            {/* Results count */}
-            <div style={{fontSize:12,color:C.light,marginBottom:12}}>{filtered.length} recipe{filtered.length!==1?"s":""} found</div>
-
-            {/* Recipe cards */}
-            {filtered.length===0?<div style={{textAlign:"center",padding:"48px 20px"}}>
-              <div style={{marginBottom:14,opacity:.35}}><Icon name="globe" size={36} color={C.dark} strokeWidth={1.25}/></div>
-              <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:4}}>{publicRecipesLoaded?"No recipes found":"Loading recipes..."}</div>
-              {publicRecipesLoaded?<div style={{fontSize:12,color:C.light}}>Try adjusting your search or filters</div>:null}
-            </div>:
-            filtered.map(function(r){
-              var originalCredit = r.credit ? (typeof r.credit === "string" ? r.credit.split(",")[0].split("|")[0].split("via")[0].trim() : r.credit) : null;
-              var typeInfo = r.recipeType && r.recipeType!=="other" ? (RECIPE_TYPES.find(function(t){return t.id===r.recipeType})) : null;
-              var savedCopy = recipes.find(function(x){
-                if(!x.savedFrom) return false;
-                if((x.savedFrom||"").toLowerCase() !== (r.ownerUsername||"").toLowerCase()) return false;
-                return (x.name||"").trim().toLowerCase() === (r.name||"").trim().toLowerCase();
-              });
-              var alreadySaved = !!savedCopy;
-              var cookTime = shortTime(r.time);
-              var favCount = favCounts[(r.originalOwner||"").toLowerCase()+"_"+r.recipeId] || 0;
-
-              return <div key={r.id} className="ft-card-tap" onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}} style={{background:"var(--surface)",borderRadius:20,marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
-                {/* Hero image with heart save button overlaid */}
-                <div style={{position:"relative",width:"100%",aspectRatio:r.photo?"4 / 3":undefined,height:r.photo?undefined:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
-                  {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.3}}><Icon name="plate" size={28} color={C.dark} strokeWidth={1.25}/></div>}
-                  {user?<button onClick={function(e){
-                    e.stopPropagation();
-                    if(alreadySaved){
-                      // Unsave: remove the saved copy (and un-favorite it)
-                      if(confirm("Remove '"+r.name+"' from your saved recipes?")){
-                        var updated=recipes.filter(function(x){return x.id!==savedCopy.id});
-                        setRecipes(updated);
-                        saveRecipesIndividually(updated);
-                        svF(favorites.filter(function(id){return id!==savedCopy.id}));
-                        bumpFavCount(savedCopy,-1);
-                      }
-                    } else {
-                      var newRecipe = copyRecipeFor(r, userId, r.ownerUsername);
-                      if(originalCredit){newRecipe.credit=originalCredit}else{delete newRecipe.credit}
-                      var updated=recipes.concat([newRecipe]);
-                      setRecipes(updated);
-                      saveRecipesIndividually(updated);
-                      bumpFavCount(newRecipe,1);
-                      svF(favorites.concat([newRecipe.id]));
-                    }
-                  }} style={{position:"absolute",top:12,right:12,width:40,height:40,borderRadius:20,border:"1px solid var(--overlay-chip-border)",background:"var(--overlay-chip)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"var(--overlay-chip-shadow)"}}><Icon name="heart" size={17} color={alreadySaved?"var(--danger)":"var(--ink)"} strokeWidth={2} filled={alreadySaved}/></button>:null}
-                </div>
-                
-                {/* Content section */}
-                <div style={{padding:"14px 16px 18px"}}>
-                  {/* Owner row (clickable, doesn't trigger card click) */}
-                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-                    <div onClick={function(e){e.stopPropagation();setViewProfileUser(r.ownerUsername)}} style={{width:30,height:30,borderRadius:15,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",cursor:"pointer",flexShrink:0}}>
-                      {isImageSrc(r.ownerProfilePic)?<img src={r.ownerProfilePic} style={{width:30,height:30,objectFit:"cover"}}/>:r.ownerProfilePic?<span style={{fontSize:14}}>{r.ownerProfilePic}</span>:<Icon name="user" size={14} strokeWidth={1.75}/>}
-                    </div>
-                    <div onClick={function(e){e.stopPropagation();setViewProfileUser(r.ownerUsername)}} style={{fontSize:14,color:C.light,cursor:"pointer",flex:1}}>@{r.ownerUsername}</div>
-                  </div>
-                  
-                  {/* Title */}
-                  <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink,marginBottom:10,lineHeight:1.2}}>{r.name}</div>
-                  
-                  {/* Meta row: cook time | type | favorite count */}
-                  {(cookTime || typeInfo || favCount>0)?<div style={{display:"flex",alignItems:"center",gap:10,fontSize:13,color:C.light}}>
-                    {cookTime?<span style={{display:"inline-flex",alignItems:"center",gap:4}}><Icon name="clock" size={11} strokeWidth={1.75}/>{cookTime}</span>:null}
-                    {cookTime && typeInfo?<span style={{opacity:.4}}>|</span>:null}
-                    {typeInfo?<span><CatTag type={typeInfo}/></span>:null}
-                    {(cookTime||typeInfo) && favCount>0?<span style={{opacity:.4}}>|</span>:null}
-                    {favCount>0?<span style={{display:"inline-flex",alignItems:"center",gap:4}}><Icon name="heart" size={11} strokeWidth={1.75} color="var(--heart)" filled={true}/>{favCount}</span>:null}
-                  </div>:null}
-                </div>
-              </div>
-            })}
-            </div>}
-          </div>
-        })():
-        exploreSubTab==="family"&&household?(function(){
-          if(!familyRecipesLoaded)loadFamilyRecipes();
-          var others=householdMembers.filter(function(m){
-            return (m.username||"").toLowerCase()!==(userId||"").toLowerCase();
-          });
-          var filtered=familyRecipes.filter(function(r){
-            return !exploreSearch||r.name.toLowerCase().includes(exploreSearch.toLowerCase());
-          });
-
-          return <div>
-            <div style={{fontSize:13,color:C.light,marginBottom:16}}>
-              {household.name||"Your family"} &mdash; everything your family cooks, including recipes they haven't shared publicly
-            </div>
-
-            {others.length===0?
-              <div style={{textAlign:"center",padding:"48px 20px"}}>
-                <div style={{marginBottom:14,opacity:.35}}><Icon name="users" size={36} color={C.dark} strokeWidth={1.25}/></div>
-                <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:4}}>No one else here yet</div>
-                <div style={{fontSize:12,color:C.light,marginBottom:16}}>Share your invite code to add someone</div>
-                <button onClick={function(){setShowFamily(true);setFamilyError("")}} style={{padding:"11px 22px",borderRadius:10,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>Open Family</button>
-              </div>
-            :<div>
-              <div style={{marginBottom:12}}>
-                <input value={exploreSearch} onChange={function(e){setExploreSearch(e.target.value)}} placeholder="Search family recipes..." style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box",background:C.card,color:C.ink}}/>
-              </div>
-              <div style={{fontSize:12,color:C.light,marginBottom:12}}>{filtered.length} recipe{filtered.length!==1?"s":""}</div>
-
-              {filtered.length===0?<div style={{textAlign:"center",padding:"48px 20px"}}>
-                <div style={{marginBottom:14,opacity:.35}}><Icon name="book" size={36} color={C.dark} strokeWidth={1.25}/></div>
-                <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:4}}>{familyRecipes.length===0&&familyRecipesLoaded?"Nothing saved yet":familyRecipesLoaded?"No recipes found":"Loading recipes..."}</div>
-                {familyRecipes.length===0&&familyRecipesLoaded?<div style={{fontSize:12,color:C.light}}>Recipes your family saves will show up here</div>:null}
-              </div>:
-              filtered.map(function(r){
-                var typeInfo = r.recipeType && r.recipeType!=="other" ? (RECIPE_TYPES.find(function(t){return t.id===r.recipeType})) : null;
-                var cookTime = shortTime(r.time);
-                // Worth flagging: this one is visible to you only because you're
-                // family, not because it's on Explore.
-                var isPrivate = r.isPublic===false;
-
-                return <div key={r.ownerUsername+"_"+r.id} className="ft-card-tap" onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}} style={{background:"var(--surface)",borderRadius:20,marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
-                  <div style={{position:"relative",width:"100%",aspectRatio:r.photo?"4 / 3":undefined,height:r.photo?undefined:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
-                    {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.3}}><Icon name="plate" size={28} color={C.dark} strokeWidth={1.25}/></div>}
-                    {isPrivate?<div style={{position:"absolute",top:12,right:12,display:"flex",alignItems:"center",gap:5,background:"var(--overlay-chip)",border:"1px solid var(--overlay-chip-border)",boxShadow:"var(--overlay-chip-shadow)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderRadius:16,padding:"5px 12px",fontSize:11,fontWeight:600,color:"var(--overlay-chip-text)"}}><Icon name="lock" size={10} strokeWidth={2}/> Private</div>:null}
-                  </div>
-                  <div style={{padding:"14px 16px 18px"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-                      <div style={{width:30,height:30,borderRadius:15,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
-                        {isImageSrc(r.ownerProfilePic)?<img src={r.ownerProfilePic} style={{width:30,height:30,objectFit:"cover"}}/>:r.ownerProfilePic?<span style={{fontSize:14}}>{r.ownerProfilePic}</span>:<Icon name="user" size={14} strokeWidth={1.75}/>}
-                      </div>
-                      <div style={{fontSize:14,color:C.light,flex:1}}>@{r.ownerUsername}</div>
-                    </div>
-                    <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink,marginBottom:10,lineHeight:1.2}}>{r.name}</div>
-                    {(cookTime||typeInfo)?<div style={{display:"flex",alignItems:"center",gap:10,fontSize:13,color:C.light}}>
-                      {cookTime?<span style={{display:"inline-flex",alignItems:"center",gap:4}}><Icon name="clock" size={11} strokeWidth={1.75}/>{cookTime}</span>:null}
-                      {cookTime&&typeInfo?<span style={{opacity:.4}}>|</span>:null}
-                      {typeInfo?<span><CatTag type={typeInfo}/></span>:null}
-                    </div>:null}
-                  </div>
-                </div>
-              })}
-            </div>}
-          </div>;
-        })():
-        <div>
-        {!user?<div style={{textAlign:"center",padding:40}}>
-          <div style={{marginBottom:16,opacity:.35}}><Icon name="users" size={36} strokeWidth={1.5}/></div>
-          <div style={{fontSize:16,fontWeight:600,color:C.dark,marginBottom:8}}>Sign in to connect with others</div>
-          <div style={{fontSize:13,color:C.light,marginBottom:16}}>Follow other Family Table users to share recipes</div>
-          <button onClick={function(){setShowAuth(true)}} style={{padding:"12px 24px",borderRadius:10,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:14,cursor:"pointer"}}>Sign In</button>
-        </div>:
-        <div>
-          {/* Follow Requests */}
-          {followRequests.length>0?<div style={{marginBottom:16}}>
-            <div style={{background:"linear-gradient(135deg, #fff5f5 0%, #fff 100%)",borderRadius:12,border:"1px solid #f0c0c0",padding:16}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                <Icon name="mail" size={17} color="var(--danger)" strokeWidth={1.75}/>
-                <span style={{fontSize:14,fontWeight:700,color:"var(--danger)"}}>Follow Requests ({followRequests.length})</span>
-              </div>
-              {followRequests.map(function(req){return(
-                <div key={req.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderTop:"1px solid #f0e0e0"}}>
-                  {req.fromProfilePic?
-                    (isImageSrc(req.fromProfilePic)?
-                      <img src={req.fromProfilePic} style={{width:40,height:40,borderRadius:20,objectFit:"cover"}} alt=""/>
-                    :
-                      <span style={{width:40,height:40,borderRadius:20,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{req.fromProfilePic}</span>
-                    )
-                  :
-                    <span style={{width:40,height:40,borderRadius:20,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:C.dark}}>{req.fromUser.charAt(0).toUpperCase()}</span>
-                  }
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:600,fontSize:14,color:C.dark}}>@{req.fromUser}</div>
-                    <div style={{fontSize:11,color:C.light}}>wants to follow you</div>
-                  </div>
-                  <div style={{display:"flex",gap:6}}>
-                    <button onClick={function(){acceptFollowRequest(req)}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.dark,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>Accept</button>
-                    <button onClick={function(){declineFollowRequest(req)}} style={{padding:"8px 14px",borderRadius:8,border:"1px solid var(--border-strong)",background:"var(--surface)",color:"var(--light)",fontSize:12,fontWeight:500,cursor:"pointer"}}>Decline</button>
-                  </div>
-                </div>
-              )})}
-            </div>
-          </div>:null}
-          
-          {/* Pending Requests I've Sent */}
-          {myPendingRequests.length>0?<div style={{marginBottom:16}}>
-            <div style={{background:"var(--surface)",borderRadius:12,border:"1px solid "+C.bdr,padding:16}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                <Icon name="hourglass" size={14} color={C.light} strokeWidth={1.75}/>
-                <span style={{fontSize:13,fontWeight:600,color:C.light}}>Pending Requests ({myPendingRequests.length})</span>
-              </div>
-              {myPendingRequests.map(function(req){return(
-                <div key={req.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderTop:"1px solid "+C.bdr}}>
-                  {req.toProfilePic?
-                    (isImageSrc(req.toProfilePic)?
-                      <img src={req.toProfilePic} style={{width:32,height:32,borderRadius:16,objectFit:"cover"}} alt=""/>
-                    :
-                      <span style={{width:32,height:32,borderRadius:16,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>{req.toProfilePic}</span>
-                    )
-                  :
-                    <span style={{width:32,height:32,borderRadius:16,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:C.dark}}>{req.toUser.charAt(0).toUpperCase()}</span>
-                  }
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:500,fontSize:13,color:C.dark}}>@{req.toUser}</div>
-                  </div>
-                  <span style={{fontSize:11,color:C.light,fontStyle:"italic"}}>Requested</span>
-                </div>
-              )})}
-            </div>
-          </div>:null}
-          
-          {/* Search for Users */}
-          <div style={{background:"var(--surface)",borderRadius:12,padding:16,marginBottom:16,border:"1px solid "+C.bdr}}>
-            <div style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark,marginBottom:12}}><Icon name="search" size={14} strokeWidth={1.75}/>Find Users</div>
-            <input 
-              value={friendSearch}
-              onChange={function(e){setFriendSearch(e.target.value);searchFriends(e.target.value)}}
-              placeholder="Search by username..."
-              style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,outline:"none",boxSizing:"border-box",background:C.card,color:C.ink}}
-            />
-            
-            {/* Search Results */}
-            {friendSearch.trim()&&friendSearchResults.length>0?<div style={{marginTop:12,borderTop:"1px solid "+C.bdr,paddingTop:12}}>
-              {friendSearchResults.map(function(result){
-                var isPending=myPendingRequests.some(function(r){return r.toUser.toLowerCase()===result.username.toLowerCase()});
-                var isPrivate=allUsers[result.username]&&allUsers[result.username].isPrivate;
-                return(
-                <div key={result.username} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid "+C.bdr}}>
-                  {result.profilePic?
-                    (isImageSrc(result.profilePic)?
-                      <img src={result.profilePic} style={{width:36,height:36,borderRadius:18,objectFit:"cover"}} alt=""/>
-                    :
-                      <span style={{width:36,height:36,borderRadius:18,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{result.profilePic}</span>
-                    )
-                  :
-                    <span style={{width:36,height:36,borderRadius:18,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:C.dark}}>{result.username.charAt(0).toUpperCase()}</span>
-                  }
-                  <div style={{flex:1}} onClick={function(){setViewProfileUser(result.username);setViewProfileData(result)}}>
-                    <div style={{fontWeight:600,fontSize:14,color:C.dark,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
-                      @{result.username}
-                      {isPrivate?<span style={{display:"inline-flex"}}><Icon name="lock" size={10} strokeWidth={2}/></span>:null}
-                    </div>
-                  </div>
-                  {result.isFollowing?
-                    <span style={{padding:"6px 12px",borderRadius:8,background:C.blush,color:C.light,fontSize:12}}>Following</span>
-                  :isPending?
-                    <span style={{padding:"6px 12px",borderRadius:8,background:"var(--blush-med)",color:"var(--light)",fontSize:12}}>Requested</span>
-                  :
-                    <button onClick={function(){followUser(result.username)}} style={{padding:"6px 14px",borderRadius:8,border:"none",background:C.dark,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>{isPrivate?"Request":"Follow"}</button>
-                  }
-                </div>
-              )})}
-            </div>:null}
-            
-            {friendSearch.trim()&&friendSearchResults.length===0&&!friendSearching?<div style={{marginTop:12,textAlign:"center",padding:16,color:C.light,fontSize:13}}>No users found matching "{friendSearch}" <br/><span style={{fontSize:10,opacity:0.5}}>(Debug: {Object.keys(allUsers).length} users loaded: {Object.keys(allUsers).join(", ")})</span></div>:null}
-          </div>
-          
-          {/* Suggested Users */}
-          {suggestedFriends.length>0?<div style={{marginBottom:16}}>
-            <div style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark,marginBottom:10}}><Icon name="sparkle" size={13} color={C.gold} strokeWidth={2}/>Suggested</div>
-            <div style={{background:"linear-gradient(135deg, #fff 0%, "+C.blush+" 100%)",borderRadius:12,border:"1px solid "+C.bdr,overflow:"hidden"}}>
-              {suggestedFriends.map(function(sug,i){return(
-                <div key={sug.username} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderBottom:i<suggestedFriends.length-1?"1px solid "+C.bdr:"none",background:"rgba(255,255,255,0.7)"}}>
-                  {sug.profilePic?
-                    (isImageSrc(sug.profilePic)?
-                      <img src={sug.profilePic} style={{width:44,height:44,borderRadius:22,objectFit:"cover",border:"2px solid var(--surface)"}} alt=""/>
-                    :
-                      <span style={{width:44,height:44,borderRadius:22,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,border:"2px solid var(--surface)"}}>{sug.profilePic}</span>
-                    )
-                  :
-                    <span style={{width:44,height:44,borderRadius:22,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:700,color:C.dark,border:"2px solid var(--surface)"}}>{sug.username.charAt(0).toUpperCase()}</span>
-                  }
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:600,fontSize:14,color:C.dark}}>@{sug.username}</div>
-                  </div>
-                  <button onClick={function(){followUser(sug.username)}} style={{padding:"8px 16px",borderRadius:8,border:"none",background:C.dark,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>Follow</button>
-                </div>
-              )})}
-            </div>
-          </div>:null}
-          
-          {/* Stats */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-            <div onClick={function(){if(followers.length>0)setExpandedSection(expandedSection==="followers"?null:"followers")}} style={{background:expandedSection==="followers"?C.blushDeep:C.blushMed,borderRadius:12,padding:16,textAlign:"center",cursor:followers.length>0?"pointer":"default",transition:"background 0.2s"}}>
-              <div style={{fontSize:28,fontWeight:800,color:C.dark}}>{followers.length}</div>
-              <div style={{fontSize:12,color:C.light}}>Followers {followers.length>0?(expandedSection==="followers"?"▲":"▼"):""}</div>
-            </div>
-            <div onClick={function(){if(following.length>0)setExpandedSection(expandedSection==="following"?null:"following")}} style={{background:expandedSection==="following"?C.blushDeep:C.blushMed,borderRadius:12,padding:16,textAlign:"center",cursor:following.length>0?"pointer":"default",transition:"background 0.2s"}}>
-              <div style={{fontSize:28,fontWeight:800,color:C.dark}}>{following.length}</div>
-              <div style={{fontSize:12,color:C.light}}>Following {following.length>0?(expandedSection==="following"?"▲":"▼"):""}</div>
-            </div>
-          </div>
-          
-          {/* Followers List */}
-          {expandedSection==="followers"&&followers.length>0?<div style={{marginBottom:16}}>
-            <div style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark,marginBottom:10}}><Icon name="users" size={14} strokeWidth={1.75}/>Followers</div>
-            <div style={{background:"var(--surface)",borderRadius:12,border:"1px solid "+C.bdr,overflow:"hidden"}}>
-              {followers.map(function(f,i){return(
-                <div key={f.username} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderBottom:i<followers.length-1?"1px solid "+C.bdr:"none"}}>
-                  <div onClick={function(){setViewProfileUser(f.username);setViewProfileData({username:f.username,profilePic:f.profilePic,isFollowing:following.some(function(x){return x.username===f.username}),isPending:myPendingRequests.includes(f.username)})}} style={{display:"flex",alignItems:"center",gap:12,flex:1,cursor:"pointer"}}>
-                    {f.profilePic?
-                      (isImageSrc(f.profilePic)?
-                        <img src={f.profilePic} style={{width:40,height:40,borderRadius:20,objectFit:"cover"}} alt=""/>
-                      :
-                        <span style={{width:40,height:40,borderRadius:20,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{f.profilePic}</span>
-                      )
-                    :
-                      <span style={{width:40,height:40,borderRadius:20,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:C.dark}}>{f.username.charAt(0).toUpperCase()}</span>
-                    }
-                    <div style={{fontWeight:600,fontSize:14,color:C.dark}}>@{f.username}</div>
-                  </div>
-                  <button onClick={function(){removeFollower(f.username)}} style={{padding:"6px 12px",borderRadius:6,border:"1px solid var(--border-strong)",background:"var(--surface)",color:"var(--light)",fontSize:11,cursor:"pointer"}}>Remove</button>
-                </div>
-              )})}
-            </div>
-          </div>:null}
-          
-          {/* Following List */}
-          {expandedSection==="following"&&following.length>0?<div style={{marginBottom:16}}>
-            <div style={{display:"flex",alignItems:"center",gap:7,fontSize:14,fontWeight:700,color:C.dark,marginBottom:10}}><Icon name="sparkle" size={12} color={C.gold} strokeWidth={2}/>Following</div>
-            <div style={{background:"var(--surface)",borderRadius:12,border:"1px solid "+C.bdr,overflow:"hidden"}}>
-              {following.map(function(f,i){return(
-                <div key={f.username} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderBottom:i<following.length-1?"1px solid "+C.bdr:"none"}}>
-                  <div onClick={function(){setViewProfileUser(f.username);setViewProfileData({username:f.username,profilePic:f.profilePic,isFollowing:true,isPending:false})}} style={{display:"flex",alignItems:"center",gap:12,flex:1,cursor:"pointer"}}>
-                    {f.profilePic?
-                      (isImageSrc(f.profilePic)?
-                        <img src={f.profilePic} style={{width:40,height:40,borderRadius:20,objectFit:"cover"}} alt=""/>
-                      :
-                        <span style={{width:40,height:40,borderRadius:20,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{f.profilePic}</span>
-                      )
-                    :
-                      <span style={{width:40,height:40,borderRadius:20,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:C.dark}}>{f.username.charAt(0).toUpperCase()}</span>
-                    }
-                    <div style={{fontWeight:600,fontSize:14,color:C.dark}}>@{f.username}</div>
-                  </div>
-                  <button onClick={function(){unfollowUser(f.username)}} style={{padding:"6px 12px",borderRadius:6,border:"1px solid "+C.bdr,background:C.blush,color:C.dark,fontSize:11,cursor:"pointer"}}>Unfollow</button>
-                </div>
-              )})}
-            </div>
-          </div>:null}
-          
-          {/* Status message */}
-          {followStatus?<div style={{textAlign:"center",padding:12,marginBottom:16,borderRadius:8,background:followStatus.startsWith("error")?"#fef2f2":"#f0fdf4"}}>
-            <span style={{display:"flex",alignItems:"center",gap:5,fontSize:13,fontWeight:600,color:followStatus.startsWith("error")?"var(--danger)":"#27ae60"}}>{followStatus.startsWith("error")?<React.Fragment><Icon name="x" size={13} strokeWidth={2.5}/>{followStatus.replace("error:","")}</React.Fragment>:<React.Fragment><Icon name="check" size={13} strokeWidth={2.5}/>{followStatus.replace("success:","")}</React.Fragment>}</span>
-          </div>:null}
-          
-          {/* Empty state */}
-          {followers.length===0&&following.length===0&&followRequests.length===0&&suggestedFriends.length===0?<div style={{textAlign:"center",padding:30,background:"var(--surface)",borderRadius:12,border:"1px solid "+C.bdr}}>
-            <div style={{marginBottom:12,opacity:.35}}><Icon name="users" size={32} strokeWidth={1.5}/></div>
-            <div style={{fontSize:14,fontWeight:600,color:C.dark,marginBottom:4}}>Connect with friends!</div>
-            <div style={{fontSize:12,color:C.light}}>Search for users above or wait for suggestions</div>
-          </div>:null}
-        </div>}
-      </div>}
-      </div>}
-
       </div>}
 
       {/* ADD PLACEHOLDER MODAL */}
