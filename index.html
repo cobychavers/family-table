@@ -2987,7 +2987,7 @@ function GroceryTab(p){
     /* Family list switcher. Unlike the calendar, a member's list is WRITABLE -
        one person plans, the other shops and ticks things off. */
     (p.members&&p.members.length>1)?React.createElement("div",{style:{display:"flex",gap:8,overflowX:"auto",paddingBottom:6,marginBottom:12}},
-      [{username:p.me,isSelf:true}].concat(p.members.filter(function(m){
+      [{username:p.me,isSelf:true,profilePic:p.myProfilePic}].concat(p.members.filter(function(m){
         return (m.username||"").toLowerCase()!==(p.me||"").toLowerCase();
       })).map(function(m){
         var active=m.isSelf?p.ownList:(p.listOwner||"").toLowerCase()===(m.username||"").toLowerCase();
@@ -2999,7 +2999,7 @@ function GroceryTab(p){
             isImageSrc(m.profilePic)?React.createElement("img",{src:m.profilePic,alt:"",style:{width:"100%",height:"100%",objectFit:"cover"}})
               :m.profilePic?React.createElement("span",{style:{fontSize:13}},m.profilePic)
               :React.createElement("span",{style:{fontSize:11,fontWeight:700,color:active?"#fff":C.dark}},(m.username||"?").charAt(0).toUpperCase())),
-          m.isSelf?"My List":m.username
+          m.username
         );
       })
     ):null,
@@ -3597,6 +3597,9 @@ function App(){
   // family member's recipes are still recipes - that's where you'd look.
   var [recipesSubTab,setRecipesSubTab]=useState("mine"); // "mine" | "family"
   var [familySearch,setFamilySearch]=useState("");
+  var [familyFilter,setFamilyFilter]=useState("all");   // recipeType id or "all"
+  var [familySort,setFamilySort]=useState("newest");    // "newest" | "az" | "cook"
+  var [showFamilyCats,setShowFamilyCats]=useState(false);
   var [pullStart,setPullStart]=useState(null);
   var [pullDistance,setPullDistance]=useState(0);
   var [refreshing,setRefreshing]=useState(false);
@@ -4648,7 +4651,14 @@ function App(){
       return (m.username||"").toLowerCase()!==(userId||"").toLowerCase();
     });
     var filtered=familyRecipes.filter(function(r){
-      return !familySearch||r.name.toLowerCase().includes(familySearch.toLowerCase());
+      var matchesSearch=!familySearch||r.name.toLowerCase().includes(familySearch.toLowerCase());
+      var matchesCat=familyFilter==="all"||(r.recipeType||detectRecipeType(r))===familyFilter;
+      return matchesSearch&&matchesCat;
+    });
+    filtered=filtered.slice().sort(function(a,b){
+      if(familySort==="az")return (a.name||"").localeCompare(b.name||"");
+      if(familySort==="cook")return (a.ownerUsername||"").toLowerCase().localeCompare((b.ownerUsername||"").toLowerCase())||((b.createdAt||0)-(a.createdAt||0));
+      return (b.createdAt||0)-(a.createdAt||0); // newest
     });
 
     if(!household)return <div style={{textAlign:"center",padding:"48px 20px"}}>
@@ -4665,14 +4675,56 @@ function App(){
       <button onClick={function(){setShowFamily(true);setFamilyError("")}} style={{padding:"11px 22px",borderRadius:10,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>Open Family</button>
     </div>;
 
+    // Categories that actually have family recipes behind them, so the picker
+    // never offers an empty one.
+    var famCat=function(r){return r.recipeType||detectRecipeType(r)};
+    var famCatTypes=RECIPE_TYPES.filter(function(t){
+      if(t.id==="all"||t.id==="favorites")return false;
+      return familyRecipes.some(function(r){return famCat(r)===t.id});
+    });
+    var sortBtn=function(id,label){
+      var on=familySort===id;
+      return <button onClick={function(){setFamilySort(id)}} style={{padding:"6px 12px",borderRadius:16,border:"none",background:on?C.dark:C.blushMed,color:on?"#fff":C.light,fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>{label}</button>;
+    };
     return <div>
-      <div style={{fontSize:13,color:C.light,marginBottom:12}}>
-        {household.name||"Your family"} &mdash; everything your family cooks
-      </div>
-      <div style={{marginBottom:12}}>
+      <div style={{marginBottom:10}}>
         <input value={familySearch} onChange={function(e){setFamilySearch(e.target.value)}} placeholder="Search family recipes..." style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box",background:C.card,color:C.ink}}/>
       </div>
-      <div style={{fontSize:12,color:C.light,marginBottom:12}}>{filtered.length} recipe{filtered.length!==1?"s":""}</div>
+
+      {/* Category filter - collapsible, same pattern as My Recipes */}
+      <div style={{marginBottom:10}}>
+        <button onClick={function(){setShowFamilyCats(!showFamilyCats)}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"10px 14px",borderRadius:12,border:"1px solid "+C.bdr,background:C.blush,cursor:"pointer"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <Icon name="folder" size={14} color={C.dark} strokeWidth={1.75}/>
+            <span style={{fontWeight:600,fontSize:14,color:C.ink}}>
+              {familyFilter==="all"?"All Categories":<CatTag type={RECIPE_TYPES.find(function(t){return t.id===familyFilter})}/>}
+            </span>
+          </div>
+          <span style={{fontSize:12,color:C.light}}>{showFamilyCats?"▲":"▼"}</span>
+        </button>
+        {showFamilyCats?<div style={{background:"var(--surface)",borderRadius:12,border:"1px solid "+C.bdr,marginTop:8,padding:8,boxShadow:C.shadowMd}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+            {[{id:"all",label:"All"}].concat(famCatTypes).map(function(t){
+              var active=familyFilter===t.id;
+              var count=t.id==="all"?familyRecipes.length:familyRecipes.filter(function(r){return famCat(r)===t.id}).length;
+              return <button key={t.id} onClick={function(){setFamilyFilter(t.id);setShowFamilyCats(false)}} style={{padding:"10px 12px",borderRadius:10,border:active?"2px solid "+C.dark:"1px solid "+C.bdr,fontSize:13,fontWeight:active?700:500,cursor:"pointer",background:active?C.dark:"var(--surface)",color:active?"#fff":C.dark,textAlign:"left",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span>{t.id==="all"?"All":<CatTag type={t}/>}</span>
+                <span style={{fontSize:12,opacity:.7}}>({count})</span>
+              </button>;
+            })}
+          </div>
+        </div>:null}
+      </div>
+
+      {/* Sort + count */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+        <div style={{fontSize:12,color:C.light}}>{filtered.length} recipe{filtered.length!==1?"s":""}</div>
+        <div style={{display:"flex",gap:6,overflowX:"auto"}}>
+          {sortBtn("newest","Newest")}
+          {sortBtn("az","A–Z")}
+          {others.length>1?sortBtn("cook","By cook"):null}
+        </div>
+      </div>
 
       {filtered.length===0?<div style={{textAlign:"center",padding:"48px 20px"}}>
         <div style={{marginBottom:14,opacity:.35}}><Icon name="book" size={36} color={C.dark} strokeWidth={1.25}/></div>
@@ -6301,7 +6353,7 @@ function App(){
         })()}
       </div></div>}
 
-      {view==="grocery"&&<GroceryTab meals={meals} wdates={wd} wlabel={wl} rgn={region} gSI={gSI} gSFI={gSFI} setItemStore={setSI} userId={groceryListOwner} ownList={groceryIsMine} ownerUid={groceryOwnerUid} listOwner={groceryOwner} setListOwner={setGroceryOwner} members={householdMembers} me={userId} groceryHidden={groceryHidden} setGroceryHidden={setGroceryHidden} stores={STORES} addCustomStore={addCustomStore} removeCustomStore={removeCustomStore} defStore={defStore} setDefStore={handleSetDefStore} categoryStores={categoryStores} setCategoryStore={handleSetCategoryStore} goToCalendar={function(){setView("calendar")}} setWs={setWs} ws={ws}/>}
+      {view==="grocery"&&<GroceryTab meals={meals} wdates={wd} wlabel={wl} rgn={region} gSI={gSI} gSFI={gSFI} setItemStore={setSI} userId={groceryListOwner} ownList={groceryIsMine} ownerUid={groceryOwnerUid} listOwner={groceryOwner} setListOwner={setGroceryOwner} members={householdMembers} me={userId} myProfilePic={userProfilePic} groceryHidden={groceryHidden} setGroceryHidden={setGroceryHidden} stores={STORES} addCustomStore={addCustomStore} removeCustomStore={removeCustomStore} defStore={defStore} setDefStore={handleSetDefStore} categoryStores={categoryStores} setCategoryStore={handleSetCategoryStore} goToCalendar={function(){setView("calendar")}} setWs={setWs} ws={ws}/>}
       </div>}
 
       {/* ADD PLACEHOLDER MODAL */}
