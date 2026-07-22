@@ -2023,7 +2023,28 @@ function GroceryTab(p){
   // Matches on the same cleaned/synonym key the grocery list consolidates by,
   // so "black pepper, to taste" in a recipe matches "black pepper" in a pantry.
   function pantryKey(name){return grocerySynonymKey(displayGroceryName(name||"").trim().toLowerCase())}
-  function pantryHasKey(k){return !!k&&pantry.some(function(x){return pantryKey(x.name)===k})}
+  // A word that, placed in front of a staple, turns it into a genuinely
+  // different product rather than a described version of the same one:
+  // "peanut butter" isn't butter, "sweet potato" isn't a potato, "coconut
+  // milk" isn't milk. When the word immediately before a matched staple is one
+  // of these, the item is NOT considered covered by that staple.
+  var PANTRY_DISTINCT_MODIFIER={peanut:1,almond:1,cashew:1,hazelnut:1,pistachio:1,sunflower:1,pecan:1,nut:1,cocoa:1,cacao:1,shea:1,apple:1,pumpkin:1,coconut:1,soy:1,oat:1,rice:1,cream:1,sweet:1,cauliflower:1};
+  // A pantry staple covers a grocery item when the item IS the staple or a more
+  // specific version of it - i.e. the item ends with the staple as a whole
+  // phrase. "olive oil" covers "extra virgin olive oil", "pepper" covers "black
+  // pepper", "butter" covers "unsalted butter", "salt" covers "kosher salt".
+  // English puts the head noun last, so a trailing-phrase match captures "the
+  // same thing, described more specifically". The distinct-modifier guard keeps
+  // it from swallowing compound products that merely end in the staple word.
+  function itemCoveredByStaple(itemKey,stapleKey){
+    if(!itemKey||!stapleKey)return false;
+    if(itemKey===stapleKey)return true;
+    if(itemKey.length<=stapleKey.length || itemKey.slice(-(stapleKey.length+1))!==" "+stapleKey) return false;
+    var prefix=itemKey.slice(0, itemKey.length-stapleKey.length-1);
+    var lastPrefixWord=prefix.split(" ").pop();
+    return !PANTRY_DISTINCT_MODIFIER[lastPrefixWord];
+  }
+  function pantryHasKey(k){return !!k&&pantry.some(function(x){return itemCoveredByStaple(k,pantryKey(x.name))})}
   function isInPantry(name){return pantryHasKey(pantryKey(name))}
   function savePantry(list){
     setPantry(list);
