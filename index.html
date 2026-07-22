@@ -2754,6 +2754,9 @@ function GroceryTab(p){
   }
   
   function clearAllItems(){
+    // Confirm before wiping - this used to lean on a loud red button as the
+    // safety cue; the button is now a calm neutral one, so the guard moves here.
+    if(!confirm("Clear the entire list? This removes every item."))return;
     // Clear generated items
     setGeneratedItems([]);
     setGeneratedWeekLabel("");
@@ -3053,15 +3056,24 @@ function GroceryTab(p){
     ),
     
     
-    React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},
-      React.createElement("div",{style:{fontSize:12,color:C.light}},all.length+" items · "+tc+" checked"+(hiddenCount>0?" · "+hiddenCount+" hidden":"")),
-      React.createElement("div",{style:{display:"flex",gap:8}},
-        tc>0?React.createElement("button",{onClick:clr,style:{display:"flex",alignItems:"center",gap:5,height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm}},"Clear ",React.createElement(Icon,{name:"check",size:12,strokeWidth:2.5})):null,
-        all.length>0?React.createElement("button",{onClick:clearAllItems,style:{display:"flex",alignItems:"center",gap:5,height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid rgba(192,57,43,0.25)",background:"#fdf2f1",cursor:"pointer",fontWeight:600,color:"var(--danger)"}},React.createElement(Icon,{name:"trash",size:12,strokeWidth:2}),"Clear All"):null,
-        hiddenCount>0?React.createElement("button",{onClick:unhideAllItems,style:{display:"flex",alignItems:"center",height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm}},"Restore "+hiddenCount):null,
-        all.length>0?React.createElement("button",{onClick:function(){setShowSaveLists(true)},style:{display:"flex",alignItems:"center",gap:5,height:32,fontSize:12,padding:"0 12px",borderRadius:8,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:C.shadowSm}},React.createElement(Icon,{name:"bookmark",size:12,strokeWidth:2}),"Save"):null
-      )
-    ),
+    (function(){
+      // Shared style for the list-action buttons so they read as one refined
+      // set - same height, radius, weight - rather than a jumble of sizes.
+      var act={display:"flex",alignItems:"center",gap:6,height:36,fontSize:12.5,padding:"0 14px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm};
+      return React.createElement("div",{style:{marginBottom:12}},
+        React.createElement("div",{style:{fontSize:12,color:C.light,marginBottom:all.length>0||hiddenCount>0?9:0}},all.length+" items · "+tc+" checked"+(hiddenCount>0?" · "+hiddenCount+" hidden":"")),
+        React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+          // Primary action first: save the current list.
+          all.length>0?React.createElement("button",{onClick:function(){setShowSaveLists(true)},style:Object.assign({},act,{border:"none",background:C.dark,color:"#fff"})},React.createElement(Icon,{name:"bookmark",size:13,strokeWidth:2}),"Save"):null,
+          tc>0?React.createElement("button",{onClick:clr,style:act},React.createElement(Icon,{name:"check",size:13,strokeWidth:2.25}),"Uncheck all"):null,
+          hiddenCount>0?React.createElement("button",{onClick:unhideAllItems,style:act},React.createElement(Icon,{name:"refresh",size:13,strokeWidth:2}),"Restore "+hiddenCount):null,
+          // Destructive, so it's set apart by a muted danger tint on the icon
+          // and label rather than a loud red fill; the confirm dialog is the
+          // real guard.
+          all.length>0?React.createElement("button",{onClick:clearAllItems,style:Object.assign({},act,{color:"var(--danger)"})},React.createElement(Icon,{name:"trash",size:13,color:"var(--danger)",strokeWidth:2}),"Clear all"):null
+        )
+      );
+    })(),
 
     showAdd?React.createElement("div",{onClick:function(){setShowAdd(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0,animation:"ft-backdrop-fade .18s ease-out"}},
       React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:480,maxHeight:"85vh",overflowY:"auto",padding:16,paddingBottom:"calc(16px + env(safe-area-inset-bottom))",boxShadow:"0 -4px 20px rgba(0,0,0,0.15)",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
@@ -5705,12 +5717,13 @@ function App(){
       </div></div>}
 
       {view==="calendar"&&<div style={{animation:"ft-fade-in .25s ease-out"}}>
-        {/* Family member switcher - only meaningful once there's someone else
-            in the household. "My Week" is always first and is the only
-            editable calendar; the rest are read-only views of what that
-            person planned. */}
+        {/* Family calendar switcher - only meaningful once there's someone
+            else in the household. The signed-in user is always first (their
+            own name + avatar) and is the only editable calendar; the rest are
+            read-only views. Tapping your own chip is how you return, so no
+            separate "back" control is needed. */}
         {household&&householdMembers.length>1?<div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:6,marginBottom:12}}>
-          {[{username:user,isSelf:true}].concat(householdMembers.filter(function(m){
+          {[{username:user,isSelf:true,profilePic:userProfilePic}].concat(householdMembers.filter(function(m){
             return (m.username||"").toLowerCase()!==(user||"").toLowerCase();
           })).map(function(m){
             var active=m.isSelf?viewingOwnCalendar:(viewingMember||"").toLowerCase()===(m.username||"").toLowerCase();
@@ -5723,14 +5736,13 @@ function App(){
                   :m.profilePic?<span style={{fontSize:13}}>{m.profilePic}</span>
                   :<span style={{fontSize:11,fontWeight:700,color:active?"#fff":C.dark}}>{(m.username||"?").charAt(0).toUpperCase()}</span>}
               </span>
-              {m.isSelf?"My Week":m.username}
+              {m.username}
             </button>;
           })}
         </div>:null}
-        {viewingMember?<div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderRadius:10,background:C.blush,marginBottom:12}}>
-          <Icon name="users" size={14} color={C.dark} strokeWidth={1.75}/>
-          <span style={{fontSize:12,color:C.dark,flex:1}}>Viewing {viewingMember}'s plan &mdash; read only</span>
-          <button onClick={function(){setViewingMember(null)}} style={{background:"none",border:"none",padding:0,cursor:"pointer",fontSize:12,fontWeight:700,color:C.dark,textDecoration:"underline",textUnderlineOffset:2}}>Back to mine</button>
+        {viewingMember?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:12,fontSize:12,color:C.light,fontStyle:"italic"}}>
+          <Icon name="lock" size={11} color={C.light} strokeWidth={1.75}/>
+          {viewingMember}'s plan &middot; read only
         </div>:null}
 
         {/* Week/Month Toggle */}
