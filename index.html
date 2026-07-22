@@ -765,6 +765,20 @@
     }
   </script>
   
+  <!--
+    BUILD NOTE (decided 2026-07-22): all of the JSX below is compiled in the
+    browser by Babel Standalone (loaded from the CDN above) on every cold load.
+    That keeps the app a single editable file with no toolchain - the whole
+    point of how it's built - but it's the development setup running in
+    production: Babel warns the script exceeds 500KB, and every phone pays a
+    JSX->JS compile at startup.
+
+    WHEN THIS APP IS PACKAGED AS A NATIVE iOS APP, introduce a real build step
+    (esbuild or Vite) that precompiles this JSX to plain JS ahead of time, drop
+    Babel Standalone, and ship the compiled bundle. A native wrapper wants
+    optimized assets anyway, so that's the moment the build step earns its cost.
+    Until then the in-browser compile is a deliberate, accepted trade.
+  -->
   <script type="text/babel" data-presets="react">
 const { useState, useEffect, useCallback, useRef } = React;
 
