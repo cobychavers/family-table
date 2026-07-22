@@ -12,7 +12,9 @@ commit messages or a chat log.
 - **`users/{uid}`** — one profile document per user, keyed by Firebase uid.
 - **`usernames/{username}`** — public username → email/uid lookup, needed to
   resolve a typed username to an email before sign-in.
-- **`favoriteCounts/{owner_recipeId}`** — per-recipe favorite counters.
+- **`favoriteCounts/{owner_recipeId}`** — per-recipe favorite counters. **Dead**
+  since Explore was removed: nothing reads or writes these. The collection and
+  its rules block are inert and can be deleted when convenient.
 - **`households/{householdId}`** — a family group: `{name, members[], createdBy,
   inviteCode}`. `members` is a uid array and is the authority for who may read
   whose data. Nothing is stored per-household: every calendar, recipe, and list
@@ -111,21 +113,29 @@ never land on top of something being edited. The manual-items and generated-list
 documents hold text a user may be part-way through changing, so they stay
 load-time reads.
 
-**Reads currently need no new rule, and that is not a good thing.** Reads on the
-`data` collection are open to any authenticated user, because Explore has to
-load arbitrary users' recipe documents and "is this recipe public?" lives inside
-the JSON string value where rules can't see it. Household calendar viewing
-therefore works with no rule change at all — but only because *any* signed-in
-user could already read *any* user's meal plan by constructing the key. The
-household feature doesn't widen this; it just makes the gap more visible by
-building an intentional feature on top of the same permission.
+**Reads on `data` are scoped — owner, family, and the share inbox.** For a long
+time reads were open to any authenticated user, because Explore and profile
+viewing loaded arbitrary users' recipe documents and "is this recipe public?"
+lived inside the JSON string value where rules can't see it. That meant *any*
+signed-in user could read *any* user's private recipes and meal plans by
+constructing the key — private-by-obscurity, not enforced.
 
-The real fix is a `publicRecipes` collection with public-ness as a real field,
-which lets the `data` read rule tighten to owner + household. Until then, treat
-"private" data in `data` as private-by-obscurity, not enforced.
+Removing Explore and following/followers closed the loophole that forced it
+open. Nothing reads arbitrary users' documents anymore; the only cross-account
+reads left are a family member's docs and the share inbox. So the read rule now
+enforces that:
 
-When that tightening happens, it should reuse `sameHousehold()`, which the
-grocery write rule already defines:
+```
+allow read: if request.auth != null && (
+    !('ownerUid' in resource.data)                 // legacy doc, no owner stamp
+    || resource.data.ownerUid == request.auth.uid  // mine
+    || isSocialData(document)                       // share inbox
+    || sameHousehold(resource.data.ownerUid)        // my family
+  );
+```
+
+`sameHousehold` (also used by the grocery write rule) requires both sides to
+carry the same non-null household id:
 
 ```
 sameHousehold(otherUid) =
@@ -135,8 +145,15 @@ sameHousehold(otherUid) =
 
 The `!= null` half is load-bearing. Without it two users in no household both
 resolve to `null`, `null == null` is true, and every account becomes family with
-every other — which would silently grant strangers write access to each other's
-grocery lists today, and defeat the read tightening tomorrow.
+every other — which would defeat the read scoping and silently grant strangers
+write access to each other's grocery lists.
+
+**Residual, deliberately accepted:** the `!('ownerUid' in resource.data)` clause
+keeps documents that predate `ownerUid` stamping readable the way they always
+were, rather than making them unreadable to their own owner (ownership can't be
+proven without the field). That pool is world-readable but only shrinks — every
+save stamps `ownerUid`, moving the doc under the strict rule. The full fix for
+even those is a one-time backfill that re-saves the owner's own legacy docs.
 
 **Joining** is a self-service `update` that appends only your own uid: the rule
 lets a non-member add `request.auth.uid` to `members` while forbidding removal
@@ -163,17 +180,19 @@ then can't write that key, because `update` requires the *existing*
   key space is namespaced by uid and nobody can write into another user's
   namespace. This is a large change touching every read and write path.
 
-### 2. Social documents are writable by any authenticated user
-`dm_followers_*`, `dm_following_*`, `dm_followrequests_*`, `dm_inbox_*`, and
-`dm_mypending_*` are written by users *other* than their subject by design
-(following someone writes their follower list). The rules carve these out by
-key prefix and keep the old any-authenticated-writer behaviour.
+### 2. The share inbox is writable by any authenticated user
+`dm_inbox_*` is written by users *other* than its subject by design: sharing a
+recipe appends it to the recipient's inbox. The rules carve it out (via
+`isSocialData`) and keep any-authenticated-writer behaviour. The follower-related
+prefixes (`dm_followers_*`, `dm_following_*`, `dm_followrequests_*`,
+`dm_mypending_*`) are still in `isSocialData` but no app code writes them
+anymore — following/followers was removed — so they only matter for any legacy
+documents that still exist.
 
-- **Impact:** a malicious user could tamper with another user's follower or
-  inbox lists.
-- **Real fix:** server-side logic (Cloud Functions) that validates each social
-  mutation, or restructuring follows into per-edge documents with ownership.
-  Needs the Blaze plan.
+- **Impact:** a malicious user could spam or tamper with another user's inbox.
+- **Real fix:** server-side logic (Cloud Functions) that validates each inbox
+  append, or an append-only structure with per-item ownership. Needs the Blaze
+  plan.
 
 ### 3. Orphaned photos on recipe deletion
 Deleting a recipe does not delete its Storage photo. This is intentional:
@@ -185,9 +204,17 @@ deletion would break another user's saved copy. Storage therefore only grows.
 
 ## Scale ceilings still present (not security, but related)
 
-- **Explore / friend search load every user.** `loadPublicRecipes` iterates
-  all users and `searchFriends` scans the whole user base client-side. Fine at
-  small scale; needs a `publicRecipes` collection and prefix/paginated queries
-  before a large user base.
+- **`window.users.all()` still reads every user.** One caller remains — the
+  user-data load effect, which pulls all profiles to resolve the signed-in
+  user's own avatar and to hold `allUsers` in memory. This is the last
+  O(all-users) read in the app now that Explore and friend search are gone; it
+  should become a single `users.get(uid)` for the own-profile case. Not a
+  correctness issue, just a read-count one.
+- **Family cookbook reads scale with household size, not user base.** It reads
+  the recipe index and documents of each household member — a handful of point
+  reads, cheap by construction.
+- **`favoriteCounts` collection is dead.** Nothing reads or writes it since
+  Explore was removed; its rules block and any existing counter documents are
+  inert and can be deleted when convenient.
 - **Legacy `dm_users` document** still exists, now unread, kept as a rollback
   path. Safe to delete once the per-user split has proven itself.
