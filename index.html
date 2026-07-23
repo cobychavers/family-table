@@ -1326,7 +1326,44 @@ function migrateRecipe(recipe, storageUser){
   return { recipe: r, changed: changed };
 }
 
-function formatIng(ing){if(typeof ing==="string")return ing;var q=ing.qty?ing.qty+" ":"";var u=ing.unit?ing.unit+" ":"";return q+u+ing.name}
+// Decodes the HTML entities that survive import from a web page - the most
+// common being &nbsp; (which otherwise shows literally, e.g. "toothpick.&nbsp;").
+function decodeRecipeEntities(s){
+  return String(s||"")
+    .replace(/&nbsp;/gi," ")
+    .replace(/&quot;/gi,'"').replace(/&#0*34;/g,'"')
+    .replace(/&apos;/gi,"'").replace(/&#0*39;/g,"'").replace(/&rsquo;/gi,"'").replace(/&lsquo;/gi,"'")
+    .replace(/&ldquo;/gi,'"').replace(/&rdquo;/gi,'"')
+    .replace(/&frac12;/gi,"1/2").replace(/&frac14;/gi,"1/4").replace(/&frac34;/gi,"3/4")
+    .replace(/&deg;/gi,"°").replace(/&lt;/gi,"<").replace(/&gt;/gi,">")
+    .replace(/&#0*(\d+);/g,function(_,n){try{return String.fromCharCode(parseInt(n,10))}catch(e){return""}})
+    .replace(/&amp;/gi,"&");
+}
+// Tidies an ingredient name for display. Recipe-plugin exports (WP Recipe Maker
+// especially) attach the ingredient's note in parentheses, but the formatting
+// often arrives malformed: doubled parens "((sub plain paprika))", a stray
+// leading comma "(, adjust to taste)", or empty "()". This repairs the wrapper
+// without discarding the note - "smoked paprika (sub plain paprika)",
+// "cayenne pepper (adjust to taste)" - so the useful info stays but reads clean.
+function cleanIngredientName(name){
+  var s=decodeRecipeEntities(name);
+  s=s.replace(/\(\(+/g,"(").replace(/\)\)+/g,")"); // ((  -> (  ,  ))  -> )
+  s=s.replace(/\(\s*,\s*/g,"(");             // (, x) -> (x)
+  s=s.replace(/,\s*\)/g,")");                // (x ,) -> (x)
+  s=s.replace(/\(\s*\)/g,"");                // drop empty ()
+  // Drop any leftover unmatched close-parens (from a collapsed nested wrapper
+  // like "((16/20), deveined...)" -> "(16/20)..." with a dangling ")").
+  var out="",depth=0;
+  for(var i=0;i<s.length;i++){
+    var c=s[i];
+    if(c==="(")depth++;
+    else if(c===")"){ if(depth>0)depth--; else continue; }
+    out+=c;
+  }
+  s=out.replace(/\s+([),.])/g,"$1").replace(/\s{2,}/g," ").trim();
+  return s;
+}
+function formatIng(ing){if(typeof ing==="string")return cleanIngredientName(ing);var q=ing.qty?ing.qty+" ":"";var u=ing.unit?ing.unit+" ":"";return q+u+cleanIngredientName(ing.name)}
 // Parses an ingredient line into {qty, unit, name}. Handles the shapes real
 // recipes actually use: whole numbers, decimals, fractions ("1/2"), mixed
 // numbers ("1 1/2"), unicode fractions ("½", "1½"), and RANGES ("1-2",
@@ -1576,16 +1613,41 @@ function formatScaledIng(ing,scale){
   if(num===null)return formatIng(ing);
   var q=formatQtyNum(num*scale);
   var u=ing.unit?ing.unit+" ":"";
-  return(q?q+" ":"")+u+ing.name;
+  return(q?q+" ":"")+u+cleanIngredientName(ing.name);
 }
 
 // Splits an instructions blob into individual steps, tolerating whatever
 // numbering/bullet style the source used (AI-generated "1. 2. 3.", manual
 // bullets, "Step 1:", inconsistent spacing, or none at all) so it can be
 // re-rendered with clean, consistent numbering no matter how it was typed.
+// Breaks one instruction step into its individual sentences so a source that
+// crams eight actions into a single numbered paragraph (common with recipe
+// plugins) renders as granular, followable steps. Splits on . ! ? followed by
+// whitespace and a capital/number, but NEVER inside parentheses (so an aside
+// like "(...crisp up on the bottom.)" stays attached) and never on a decimal
+// ("3.5 minutes" - the digit-after check guards it).
+function splitStepSentences(step){
+  var out=[],buf="",depth=0;
+  for(var i=0;i<step.length;i++){
+    var c=step[i]; buf+=c;
+    if(c==="(")depth++;
+    else if(c===")"&&depth>0)depth--;
+    else if((c==="."||c==="!"||c==="?")&&depth===0){
+      var next=step[i+1];
+      if(next===undefined||/\s/.test(next)){
+        var after=step.slice(i+1).replace(/^\s+/,"");
+        if(after===""||/^[A-Z0-9]/.test(after)){
+          if(buf.trim().length>1){out.push(buf.trim());buf="";}
+        }
+      }
+    }
+  }
+  if(buf.trim())out.push(buf.trim());
+  return out;
+}
 function parseInstructionSteps(text){
   if(!text)return[];
-  var raw=String(text).trim();
+  var raw=decodeRecipeEntities(String(text)).trim();
   if(!raw)return[];
   var STEP_MARKER=/^(?:step\s*)?\d+\s*[.):]\s*|^[•●▪▸*]\s*|^-\s+/i;
   var lines=raw.split(/\r?\n+/).map(function(l){return l.trim();}).filter(Boolean);
@@ -1595,7 +1657,11 @@ function parseInstructionSteps(text){
   if(lines.length<=1 && /\d+\s*[.):]\s+\S.*\d+\s*[.):]\s+\S/.test(raw)){
     lines=raw.split(/\s*(?=\d+\s*[.):]\s)/).map(function(l){return l.trim();}).filter(Boolean);
   }
-  return lines.map(function(l){return l.replace(STEP_MARKER,"").trim();}).filter(Boolean);
+  var steps=lines.map(function(l){return l.replace(STEP_MARKER,"").trim();}).filter(Boolean);
+  // Then break any multi-sentence step into individual steps.
+  var out=[];
+  steps.forEach(function(s){ splitStepSentences(s).forEach(function(x){ if(x)out.push(x); }); });
+  return out;
 }
 
 // No icon field here on purpose. Categories are rendered by CatTag as a gold
