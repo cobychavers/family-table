@@ -1975,7 +1975,7 @@ function GroceryTab(p){
   var [pantrySkipped,setPantrySkipped]=useState(0);
   // Matches on the same cleaned/synonym key the grocery list consolidates by,
   // so "black pepper, to taste" in a recipe matches "black pepper" in a pantry.
-  function pantryKey(name){return grocerySynonymKey(displayGroceryName(name||"").trim().toLowerCase())}
+  function pantryKey(name){return groceryMergeKey(displayGroceryName(name||""))}
   // A word that, placed in front of a staple, turns it into a genuinely
   // different product rather than a described version of the same one:
   // "peanut butter" isn't butter, "sweet potato" isn't a potato, "coconut
@@ -2093,7 +2093,7 @@ function GroceryTab(p){
   // Grocery items don't need recipe prep instructions - "celery, diced" and
   // "celery, chopped" are both just "celery" on a shopping list, and merging
   // on the cleaned name lets those two recipes' celery consolidate together.
-  var GROCERY_PREP_WORD=/^(diced|minced|chopped|sliced|shredded|grated|crushed|julienned|cubed|peeled|seeded|deveined|halved|quartered|trimmed|rinsed|drained|softened|melted|packed|divided|separated|cored|stemmed|zested|juiced|toasted|beaten|whisked|smashed|pitted|browned|cooled|warmed|chilled|thawed|cooked|sifted|boneless|skinless|deboned|unpeeled|freshly|lightly|gently|evenly|well|extra|very|fine|coarse|half|quarter|third|and|into|to|at|the|small|large|thin|thinly|finely|roughly|coarsely|pieces|piece|cubes|cube|cut|size|sized|bite|wedges|wedge|strips|strip|chunks|chunk|room|temp|temperature)$/i;
+  var GROCERY_PREP_WORD=/^(diced|minced|chopped|sliced|shredded|grated|crushed|julienned|cubed|peeled|seeded|deveined|halved|quartered|trimmed|rinsed|drained|softened|melted|packed|divided|separated|cored|stemmed|zested|juiced|toasted|beaten|whisked|smashed|pitted|browned|cooled|warmed|chilled|thawed|cooked|grilled|roasted|baked|boiled|steamed|sauteed|sautéed|seared|poached|blanched|mashed|whipped|shaved|crumbled|torn|sifted|boneless|skinless|deboned|unpeeled|freshly|lightly|gently|evenly|well|extra|very|fine|coarse|half|quarter|third|and|into|to|at|the|small|large|thin|thinly|finely|roughly|coarsely|pieces|piece|cubes|cube|cut|size|sized|bite|wedges|wedge|strips|strip|chunks|chunk|room|temp|temperature)$/i;
   // Matches size tokens like "1-inch", "2-inches", "1/2-inch", "inch" on their own
   function isNumericSizeToken(w){
     return /^[\d.\/]*-?(inch(es)?|in|cm|mm|centimeters?)$/i.test(w);
@@ -2195,6 +2195,38 @@ function GroceryTab(p){
   function grocerySynonymKey(nameLower){
     return GROCERY_SYNONYMS[nameLower]||nameLower;
   }
+  // Leading adjectives that describe a FORM of the same product, safe to drop
+  // when deciding whether two grocery lines are the same thing. Deliberately
+  // conservative: words that change the product (ground, whole, baby, sweet,
+  // smoked, dried, ...) are absent, so "ground beef" never collapses into
+  // "beef" and "sweet potato" never into "potato".
+  var GROCERY_SAFE_DESCRIPTOR={boneless:1,skinless:1,fresh:1,ripe:1,large:1,small:1,medium:1,organic:1,lean:1,jumbo:1,cold:1,warm:1};
+  // Conservative singular of the LAST word - so "chicken breasts" and "chicken
+  // breast" share a key. Guards the cases where dropping "s" is wrong: -ss
+  // (glass), -us (hummus, asparagus), -is, and very short words. This only ever
+  // affects the merge key, never the displayed name, so a mistake at worst
+  // leaves two lines unmerged - it can never mangle what the user sees.
+  function grocerySingularLast(name){
+    var w=name.split(" "),last=w[w.length-1],s=last;
+    if(/[^aeiou]ies$/i.test(last))s=last.slice(0,-3)+"y";
+    else if(/oes$/i.test(last))s=last.slice(0,-2);
+    else if(/(ch|sh|x|z)es$/i.test(last))s=last.slice(0,-2);
+    else if(/s$/i.test(last)&&!/(ss|us|is|ous)$/i.test(last)&&last.length>3)s=last.slice(0,-1);
+    w[w.length-1]=s;
+    return w.join(" ");
+  }
+  // The single normalization used to decide "same ingredient" for consolidation
+  // (and pantry matching): synonym-fold, drop leading safe descriptors, then
+  // singularize. So "2 boneless skinless chicken breasts", "1 lb chicken breast",
+  // and "chicken breasts, grilled" all collapse to one line - while "ground
+  // beef", "sweet potato", and the onion varieties stay correctly distinct.
+  function groceryMergeKey(name){
+    var n=grocerySynonymKey((name||"").trim().toLowerCase());
+    var words=n.split(" ");
+    while(words.length>1&&GROCERY_SAFE_DESCRIPTOR[words[0]])words.shift();
+    n=grocerySingularLast(words.join(" "));
+    return grocerySynonymKey(n);
+  }
   // Display-time cleaning, so an item reads clean no matter how it entered the
   // list - generated from meals, pasted, imported, or saved before these rules
   // existed. It's lighter than the generation pipeline (it can't split
@@ -2250,7 +2282,7 @@ function GroceryTab(p){
       names.forEach(function(nm,i){
         var display=(nm||"").trim();
         if(!display||isCookingWaterByproduct(display))return;
-        var key=grocerySynonymKey(display.toLowerCase());
+        var key=groceryMergeKey(display);
         // A split (salt + pepper) keeps the qty/note on the first piece only.
         var q=i===0?(it.qty||""):"",u=i===0?(it.unit||""):"",n=i===0?note:"";
         var variants=seen[key],merged=false;
@@ -2279,7 +2311,7 @@ function GroceryTab(p){
     var seenNames = {}; // name -> array of item refs ("variants") that share this name
     // Seed with existing items so regenerating can still merge into them
     items.forEach(function(it){
-      var n=grocerySynonymKey((it.name||"").trim().toLowerCase());
+      var n=groceryMergeKey(it.name||"");
       if(!n)return;
       if(!seenNames[n])seenNames[n]=[];
       seenNames[n].push(it);
@@ -2309,7 +2341,7 @@ function GroceryTab(p){
               var itemNames=splitGroceryItemNames(cleanedName).map(normalizeGroceryPepperName);
               itemNames.forEach(function(itemName,ni){
                 if(!itemName.trim())return; // pure-parenthetical alternative, cleaned to nothing
-                var name=grocerySynonymKey(itemName.trim().toLowerCase());
+                var name=groceryMergeKey(itemName);
                 if(GROCERY_EXCLUDE.some(function(ex){return name===ex||name.replace(/\s+/g," ")===ex})||isCookingWaterByproduct(name)) return;
                 // In the pantry - the user has explicitly said they keep this
                 // at home, so don't put it on the shopping list. Counted so the
