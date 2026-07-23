@@ -1349,8 +1349,14 @@ function parseIng(str){
     // Normalize a range to a compact "1-2" regardless of how it was written.
     qty=qm[1].replace(/\s*(?:-|–|—)\s*|\s+to\s+/i,"-").replace(/\s+/g," ").trim();
     rest=str.slice(qm[0].length);
+    // A parenthetical amount right after the quantity is a secondary measure
+    // ("1 (14.5 oz) can") - drop it so the real unit after it is recognized.
+    rest=rest.replace(/^\s*\([^)]*\)\s*/,"");
     var um=rest.match(ING_UNIT_RE);
     if(um){unit=um[1].replace(/\s+/g," ").trim();rest=rest.slice(um[0].length);}
+    // A parenthetical between unit and name ("2 cups (240g) flour") - the
+    // metric weight that sites like King Arthur put beside the volume.
+    rest=rest.replace(/^\s*\([^)]*\)\s*/,"");
   }
   // Trim a leading "of" or stray separator left on the name.
   rest=rest.replace(/^of\s+/i,"").replace(/^[,.\s]+/,"").trim();

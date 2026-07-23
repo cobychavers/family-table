@@ -350,14 +350,11 @@ async function scanImages(images, apiKey, meter) {
   }, apiKey, meter);
 
   const text = data.content?.find(b => b.type === "text")?.text || "";
-  const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-
-  if (!jsonMatch) {
+  const parsed = extractJsonObject(text);
+  if (!parsed) {
     throw new Error("Could not extract recipe from image");
   }
-
-  return JSON.parse(jsonMatch[0]);
+  return parsed;
 }
 
 // Extract a plain grocery list from a photo or PDF. Unlike scanImages (which
@@ -400,38 +397,90 @@ async function groceryScan(images, pdf, apiKey, meter) {
 // and complete, this gives perfectly structured data with no AI call needed
 // at all - faster, free, and no hallucination risk.
 
+function tryParseJson(s) {
+  try { return JSON.parse(s); } catch (e) { return null; }
+}
+
+// Pull the first complete, balanced JSON object out of a model reply, ignoring
+// braces that appear inside strings and any prose the model wrapped around it.
+// More robust than a greedy /\{[\s\S]*\}/ match, which over-grabs on trailing
+// text and then throws on the whole thing instead of degrading. Returns the
+// parsed object, or null if nothing usable is present.
+function extractJsonObject(text) {
+  const cleaned = (text || "").replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const start = cleaned.indexOf("{");
+  if (start === -1) return null;
+  let depth = 0, inStr = false, esc = false;
+  for (let i = start; i < cleaned.length; i++) {
+    const c = cleaned[i];
+    if (esc) { esc = false; continue; }
+    if (c === "\\") { esc = true; continue; }
+    if (c === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (c === "{") depth++;
+    else if (c === "}") { depth--; if (depth === 0) return tryParseJson(cleaned.slice(start, i + 1)); }
+  }
+  // Unbalanced (e.g. a reply truncated at max_tokens) - try the whole span.
+  return tryParseJson(cleaned.slice(start));
+}
+
+// Some sites HTML-escape their JSON-LD (&quot; for the quotes, &amp; for &).
+// Decoding lets those blocks parse. &amp; is decoded last so a genuine "&amp;"
+// in text doesn't get turned into "&" and then mis-decoded.
+function decodeHtmlEntities(s) {
+  return s
+    .replace(/&quot;/g, '"').replace(/&#0*34;/g, '"')
+    .replace(/&apos;/g, "'").replace(/&#0*39;/g, "'")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&#0*10;/g, "\n").replace(/&#0*9;/g, "\t")
+    .replace(/&amp;/g, "&");
+}
+
 function extractJsonLdRecipe(html) {
-  const scriptRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  // The `type` value is matched with OPTIONAL quotes and optional whitespace
+  // around '=': Yoast (the most common WordPress SEO plugin) emits
+  // `<script type=application/ld+json ...>` with no quotes when minified, and
+  // the old quote-required regex silently missed every such page - a large
+  // slice of real recipe sites. \b keeps it from matching e.g. "mimetype=".
+  const scriptRegex = /<script\b[^>]*\btype\s*=\s*["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/gi;
   let match;
   while ((match = scriptRegex.exec(html)) !== null) {
-    try {
-      const data = JSON.parse(match[1].trim());
-      const recipe = findRecipeInJsonLd(data);
-      if (recipe) return recipe;
-    } catch (e) {
-      // Malformed JSON-LD block - skip it and keep looking
-    }
+    let raw = match[1]
+      // Strip CDATA / HTML-comment wrappers some CMSes add around the JSON.
+      .replace(/<!\[CDATA\[/g, "").replace(/\]\]>/g, "")
+      .replace(/^\s*<!--/, "").replace(/-->\s*$/, "")
+      .trim();
+    // Parse as-is first (the common, well-formed case), then fall back to
+    // entity-decoding for HTML-escaped blocks.
+    let data = tryParseJson(raw) || tryParseJson(decodeHtmlEntities(raw));
+    if (!data) continue;
+    const recipe = findRecipeInJsonLd(data);
+    if (recipe) return recipe;
   }
   return null;
 }
 
+// Walk the whole JSON-LD graph for a Recipe node, not just the top level.
+// Sites nest it under @graph, mainEntity, mainEntityOfPage, or inside arrays;
+// the old one-level scan missed all of those.
 function findRecipeInJsonLd(data) {
-  let candidates;
-  if (Array.isArray(data)) {
-    candidates = data;
-  } else if (data && Array.isArray(data["@graph"])) {
-    candidates = data["@graph"];
-  } else {
-    candidates = [data];
-  }
-  for (const item of candidates) {
-    if (!item) continue;
-    const type = item["@type"];
-    if (type === "Recipe" || (Array.isArray(type) && type.includes("Recipe"))) {
-      return item;
+  const seen = new Set();
+  function search(node) {
+    if (!node || typeof node !== "object") return null;
+    if (seen.has(node)) return null;
+    seen.add(node);
+    if (Array.isArray(node)) {
+      for (const item of node) { const r = search(item); if (r) return r; }
+      return null;
     }
+    const type = node["@type"];
+    if (type === "Recipe" || (Array.isArray(type) && type.includes("Recipe"))) return node;
+    for (const key of ["@graph", "mainEntity", "mainEntityOfPage", "itemListElement"]) {
+      if (node[key]) { const r = search(node[key]); if (r) return r; }
+    }
+    return null;
   }
-  return null;
+  return search(data);
 }
 
 function isoDurationToReadable(iso) {
@@ -467,8 +516,15 @@ function parseIngredientLine(str) {
   if (qm) {
     qty = qm[1].replace(/\s*(?:-|–|—)\s*|\s+to\s+/i, "-").replace(/\s+/g, " ").trim();
     rest = str.slice(qm[0].length);
+    // A parenthetical amount right after the quantity is a secondary measure
+    // ("1 (14.5 oz) can", "2 (15 oz) cans") - drop it so the real unit after
+    // it is recognized instead of the "(" blocking the unit match.
+    rest = rest.replace(/^\s*\([^)]*\)\s*/, "");
     const um = rest.match(ING_UNIT_RE);
     if (um) { unit = um[1].replace(/\s+/g, " ").trim(); rest = rest.slice(um[0].length); }
+    // And a parenthetical between the unit and the name ("2 cups (240g) flour")
+    // - the metric weight sites like King Arthur put beside the volume.
+    rest = rest.replace(/^\s*\([^)]*\)\s*/, "");
   }
   rest = rest.replace(/^of\s+/i, "").replace(/^[,.\s]+/, "").trim();
   return { qty, unit, name: rest || str };
@@ -703,14 +759,11 @@ For photo, include the main recipe image URL if found.`;
   const textBlock = data.content?.find(b => b.type === "text");
   const text = textBlock?.text || "";
 
-  const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-
-  if (!jsonMatch) {
+  const parsed = extractJsonObject(text);
+  if (!parsed) {
     throw new Error("Could not extract recipe from URL");
   }
-
-  return JSON.parse(jsonMatch[0]);
+  return parsed;
 }
 
 // Import from PDF
@@ -748,14 +801,11 @@ Valid recipeType: chicken, beef, pork, seafood, pasta, mexican, asian, soup, sal
   }, apiKey, meter);
 
   const text = data.content?.find(b => b.type === "text")?.text || "";
-  const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-
-  if (!jsonMatch) {
+  const parsed = extractJsonObject(text);
+  if (!parsed) {
     throw new Error("Could not extract recipe from PDF");
   }
-
-  return JSON.parse(jsonMatch[0]);
+  return parsed;
 }
 
 // Parse recipe from pasted text
@@ -794,14 +844,11 @@ Important:
   }, apiKey, meter);
 
   const responseText = data.content?.find(b => b.type === "text")?.text || "";
-  const cleaned = responseText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-
-  if (!jsonMatch) {
+  const parsed = extractJsonObject(responseText);
+  if (!parsed) {
     throw new Error("Could not parse recipe from text");
   }
-
-  return JSON.parse(jsonMatch[0]);
+  return parsed;
 }
 
 // Recipe-idea brainstorming chat
@@ -881,12 +928,9 @@ Return ONLY this JSON object with no other text, no markdown code fences, and no
   }, apiKey, meter);
 
   const replyText = data2.content?.find(b => b.type === "text")?.text || "";
-  const cleaned = replyText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-
-  if (!jsonMatch) {
+  const parsed = extractJsonObject(replyText);
+  if (!parsed) {
     throw new Error("Could not get substitution suggestions" + (replyText ? (": " + replyText.slice(0, 200)) : " (empty response)"));
   }
-
-  return JSON.parse(jsonMatch[0]);
+  return parsed;
 }
