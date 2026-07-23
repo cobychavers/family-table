@@ -4944,6 +4944,31 @@ function App(){
     });
   }
 
+  // Drop an imported recipe into the Edit Recipe modal for review instead of
+  // saving it straight to the book or hitting a dead-end error. Used two ways:
+  // when an import comes back too thin to trust (e.g. no ingredients parsed),
+  // and when the user chooses to finish a failed import by hand. Same editor
+  // Scan already uses, so saving from it creates the recipe the normal way -
+  // the point is that no import is ever a dead end.
+  function reviewImportedRecipe(parsed, credit, source){
+    parsed = parsed || {};
+    var draft = stampNewRecipe({
+      name: parsed.name || "",
+      emoji: parsed.emoji || "🍽️",
+      time: parsed.time || "",
+      ingredients: (parsed.ingredients || []).map(sanitizeIng),
+      notes: parsed.notes || "",
+      recipeType: parsed.recipeType || "",
+      photo: parsed.photo || null,
+      credit: credit || parsed.credit || ""
+    }, userId, source || "import");
+    setImportLoading(false);
+    setImportStatus("");
+    setImportUrl("");
+    setShowImport(false);
+    setEditRecipe(draft);
+  }
+
   function importFromUrl(url) {
     if (!url.trim()) return;
     
@@ -4972,7 +4997,15 @@ function App(){
       
       var parsed = data.recipe;
       setImportStatus("Recipe found!");
-      
+
+      // Came back with no ingredients - too thin to trust as a finished recipe
+      // (a page we couldn't fully parse). Hand it to the editor to complete
+      // rather than saving something broken to the book.
+      if (!(parsed.ingredients && parsed.ingredients.length)) {
+        reviewImportedRecipe(parsed, "Imported from " + sourceType, "url");
+        return;
+      }
+
       // Function to save the recipe (called after photo conversion or immediately if no photo)
       function saveRecipe(photoData) {
         var newRecipe = stampNewRecipe({
@@ -4994,7 +5027,15 @@ function App(){
         setViewRecipe(newRecipe);
       }
       
-      // If there's a photo URL, try to convert it to base64 for persistence
+      // If there's a photo URL, try to compress it to a base64 copy we own.
+      // Canvas conversion needs the image host to allow cross-origin reads;
+      // many don't, which taints the canvas. On ANY failure we now keep the
+      // remote URL instead of dropping the photo - a plain <img src> displays
+      // a cross-origin image fine (only reading its pixels is blocked), so the
+      // recipe still shows its picture. The only downside is durability: if the
+      // source site later deletes the image the link breaks, whereas a
+      // compressed copy would have survived. Losing the photo entirely, which
+      // is what happened before, is strictly worse.
       if (parsed.photo && parsed.photo.startsWith("http")) {
         setImportStatus("Saving photo...");
         // Create an image element to load and convert the photo
@@ -5006,7 +5047,7 @@ function App(){
             var maxSize = 800;
             var width = img.width;
             var height = img.height;
-            
+
             // Scale down if needed
             if (width > maxSize || height > maxSize) {
               if (width > height) {
@@ -5017,7 +5058,7 @@ function App(){
                 height = maxSize;
               }
             }
-            
+
             canvas.width = width;
             canvas.height = height;
             var ctx = canvas.getContext("2d");
@@ -5026,15 +5067,15 @@ function App(){
             console.log("Imported and compressed photo, size:", dataUrl.length);
             saveRecipe(dataUrl);
           } catch (e) {
-            // If conversion fails (CORS, etc), save without photo
-            console.log("Could not convert photo:", e);
-            saveRecipe(null);
+            // Canvas tainted (no CORS header) - keep the working remote URL.
+            console.log("Could not compress photo, keeping remote URL:", e);
+            saveRecipe(parsed.photo);
           }
         };
         img.onerror = function() {
-          // If image fails to load, save without photo
-          console.log("Could not load photo");
-          saveRecipe(null);
+          // crossOrigin load refused - keep the remote URL; it still displays.
+          console.log("Could not load photo for compression, keeping remote URL");
+          saveRecipe(parsed.photo);
         };
         img.src = parsed.photo;
       } else {
@@ -5045,7 +5086,11 @@ function App(){
     .catch(function(err) {
       setImportLoading(false);
       setImportStatus("");
-      alert(err.isRateLimit ? err.message : ("Import failed: " + err.message));
+      if (err.isRateLimit) { alert(err.message); return; }
+      // Never a dead end: offer to finish it by hand instead of just failing.
+      if (confirm("Couldn't read that page automatically. Add this recipe by hand instead?")) {
+        reviewImportedRecipe({}, "Imported from " + url, "url");
+      }
     });
   }
 
@@ -5078,7 +5123,13 @@ function App(){
         
         var parsed = data.recipe;
         setImportStatus("Recipe found!");
-        
+
+        // Too thin to trust - complete it in the editor instead of saving it broken.
+        if (!(parsed.ingredients && parsed.ingredients.length)) {
+          reviewImportedRecipe(parsed, "Imported from PDF: " + file.name, "pdf");
+          return;
+        }
+
         var newRecipe = {
           id: Date.now(),
           name: parsed.name || "Imported Recipe",
@@ -5089,7 +5140,7 @@ function App(){
           recipeType: parsed.recipeType || "other",
           credit: "Imported from PDF: " + file.name
         };
-        
+
         svR(recipes.concat([newRecipe]));
         setImportLoading(false);
         setImportStatus("");
@@ -5099,7 +5150,10 @@ function App(){
       .catch(function(err) {
         setImportLoading(false);
         setImportStatus("");
-        alert(err.isRateLimit ? err.message : ("Import failed: " + err.message));
+        if (err.isRateLimit) { alert(err.message); return; }
+        if (confirm("Couldn't read that PDF automatically. Add this recipe by hand instead?")) {
+          reviewImportedRecipe({}, "Imported from PDF: " + file.name, "pdf");
+        }
       });
     };
     reader.readAsDataURL(file);
@@ -6847,7 +6901,14 @@ function App(){
                   
                   var parsed = data.recipe;
                   setImportStatus("Recipe parsed!");
-                  
+
+                  // Too thin to trust - finish it in the editor.
+                  if (!(parsed.ingredients && parsed.ingredients.length)) {
+                    reviewImportedRecipe(parsed, parsed.credit || "", "parse_text");
+                    setImportPasteAll("");
+                    return;
+                  }
+
                   var newRecipe = {
                     id: Date.now(),
                     name: parsed.name || "Imported Recipe",
@@ -6859,7 +6920,7 @@ function App(){
                     credit: parsed.credit || "",
                     isPublic: true
                   };
-                  
+
                   svR(recipes.concat([newRecipe]));
                   setShowImport(false);
                   setImportPasteAll("");
@@ -6870,7 +6931,13 @@ function App(){
                 .catch(function(err) {
                   setImportLoading(false);
                   setImportStatus("");
-                  alert(err.isRateLimit ? err.message : ("Import failed: " + err.message));
+                  if (err.isRateLimit) { alert(err.message); return; }
+                  // Don't lose their pasted text - offer to open it in the
+                  // editor (raw text in notes) so they can organize it by hand.
+                  if (confirm("Couldn't organize that automatically. Open it in the editor to finish by hand?")) {
+                    reviewImportedRecipe({ notes: importPasteAll }, "", "parse_text");
+                    setImportPasteAll("");
+                  }
                 });
               }} 
               disabled={!importPasteAll.trim()}
