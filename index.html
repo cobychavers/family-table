@@ -1532,6 +1532,10 @@ function parseQtyNum(str){
   // coerce defensively so scaling doesn't crash on those recipes.
   str=(str==null?"":String(str)).trim();
   if(!str)return null;
+  // Collapse a range ("4-5", "1 to 2", "4–5") to its upper bound, so a range
+  // amount still yields a number - otherwise it parses to null, which silently
+  // blocks that item from merging or scaling. Upper bound = buy enough.
+  str=str.replace(/^(\d+(?:\.\d+)?(?:\s*\/\s*\d+)?)\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?(?:\s*\/\s*\d+)?)$/i,"$2");
   var total=0,matchedAny=false;
   // Pull off a trailing/standalone unicode fraction char first
   var fracChar=null;
@@ -1577,7 +1581,24 @@ function formatQtyNum(num){
   var n=best.n/g,d=best.d/g;
   return(whole>0?whole+" ":"")+n+"/"+d;
 }
+// "Units" that are really just how a produce item is counted or sized, not an
+// additive measure a recipe is precise about: sizes ("1 small onion") and
+// count-nouns ("3 cloves garlic", "2 sprigs mint"). Treated as no-unit when
+// deciding whether two grocery lines combine, so "1 small white onion" merges
+// with "1/2 white onion" and "3 cloves garlic" with "2 garlic cloves". Kept
+// narrow on purpose - "head", "bunch", "cup", etc. stay real units so a head of
+// garlic never sums with a clove. Only affects merging, never the shown label.
+function isSoftGroceryUnit(u){
+  return /^(small|medium|large|jumbo|clove|cloves|sprig|sprigs|leaf|leaves|stalk|stalks|stem|stems|rib|ribs)$/i.test((u||"").trim());
+}
 function tryMergeQty(aQty,aUnit,bQty,bUnit){
+  // Soft units don't block a merge: compare as if unitless, but keep the
+  // original unit label on whichever side wins the row.
+  var aCmp=isSoftGroceryUnit(aUnit)?"":aUnit, bCmp=isSoftGroceryUnit(bUnit)?"":bUnit;
+  if(aCmp!==aUnit||bCmp!==bUnit){
+    var soft=tryMergeQty(aQty,aCmp,bQty,bCmp);
+    return soft?{qty:soft.qty,unit:aUnit||bUnit}:null;
+  }
   var aBlank=!(aQty||"").trim(),bBlank=!(bQty||"").trim();
   // Both genuinely blank (e.g. "salt" with no qty in either recipe) - nothing
   // to sum, just keep one row, same as the old dedup-by-name behavior.
@@ -2190,6 +2211,10 @@ function GroceryTab(p){
     // Drop a leading small-amount word ("pinch of", "a dash of") - it's captured
     // separately by groceryQualifier as the item's amount, not part of the name.
     name=name.replace(/^(?:a\s+)?(?:pinch|dash|handful|sprinkle)(?:es|s)?\s+(?:of\s+)?/i,"").trim();
+    // Collapse malformed nested parens from recipe-plugin exports ("((sub ...))")
+    // to a single level first, so the strip below removes the whole thing instead
+    // of leaving a stray ")" behind on the shopping line.
+    name=name.replace(/\(\(+/g,"(").replace(/\)\)+/g,")");
     // Strip ALL parentheticals - recipe asides like "(for crema)", "(plus more
     // to taste)", "(optional)", or an alternative "(or fresh mozzarella)" aren't
     // shopping info. Removing them also lets otherwise-identical items ("salt
@@ -2197,8 +2222,15 @@ function GroceryTab(p){
     // pure-parenthetical alternative into an empty string the caller drops
     // instead of listing as its own mystery item.
     name=name.replace(/\s*\([^)]*\)\s*/g," ").replace(/\s+/g," ").trim();
+    // Any parenthesis left over (unbalanced source, e.g. a lone ")") is never
+    // part of a real item name - drop the stray characters.
+    name=name.replace(/[()]/g,"").replace(/\s+/g," ").trim();
     // Trailing "for serving/garnish/..." doesn't need a comma to strip
     name=name.replace(/\s+for\s+(serving|garnish(?:ing)?|topping|frying|greasing|dusting|drizzling|brushing|dipping)\s*$/i,"");
+    // Trailing "plus/or more/extra ..." is a recipe reminder ("mint leaves, plus
+    // extra"), not a distinct thing to buy - strip it so it doesn't become its
+    // own row or block a merge.
+    name=name.replace(/[,;]?\s*\b(plus|or|and)\s+(more|extra)\b.*$/i,"").trim();
     // "to taste" / "as needed" are seasoning instructions, not shopping items -
     // strip them whether they lead ("to taste, black pepper") or trail
     // ("black pepper, to taste" / "black pepper to taste").
@@ -2248,7 +2280,8 @@ function GroceryTab(p){
   // US recipes "coriander" often means the dried seed, not the fresh leaf).
   var GROCERY_SYNONYMS={
     "chicken stock":"chicken broth","beef stock":"beef broth","vegetable stock":"vegetable broth",
-    "green onions":"scallions",
+    "green onions":"scallions","green onion":"scallions","spring onions":"scallions","spring onion":"scallions",
+    "chives":"scallions","chive":"scallions","snipped chives":"scallions",
     "corn starch":"cornstarch",
     "garbanzo beans":"chickpeas",
     "half-and-half":"half and half",
@@ -2286,10 +2319,16 @@ function GroceryTab(p){
   // singularize. So "2 boneless skinless chicken breasts", "1 lb chicken breast",
   // and "chicken breasts, grilled" all collapse to one line - while "ground
   // beef", "sweet potato", and the onion varieties stay correctly distinct.
+  // Trailing count/form nouns that describe how an item is presented, not what to
+  // buy: "garlic cloves" is still garlic, "mint leaves" is still mint. Dropped
+  // from the merge key (only when something precedes them, so the spice "cloves"
+  // or a bare "leaves" is left alone). Merge-key only - never changes the label.
+  var GROCERY_FORM_NOUN={leaf:1,leaves:1,clove:1,cloves:1,sprig:1,sprigs:1,stalk:1,stalks:1,stem:1,stems:1,rib:1,ribs:1};
   function groceryMergeKey(name){
     var n=grocerySynonymKey((name||"").trim().toLowerCase());
     var words=n.split(" ");
     while(words.length>1&&GROCERY_SAFE_DESCRIPTOR[words[0]])words.shift();
+    while(words.length>1&&GROCERY_FORM_NOUN[words[words.length-1]])words.pop();
     n=grocerySingularLast(words.join(" "));
     return grocerySynonymKey(n);
   }
@@ -2952,6 +2991,39 @@ function GroceryTab(p){
   // Filter out hidden items
   var hiddenCount=all.filter(function(e){return hiddenItems[e.id]}).length;
   all=all.filter(function(e){return!hiddenItems[e.id]});
+
+  // Merge same-item rows at DISPLAY time, across BOTH generated and manual
+  // sources - generation only consolidates within the generated set, so a
+  // manual add, a second recipe, or a list built before the current rules would
+  // otherwise show "garlic" and "garlic cloves", or three kinds of "mint", as
+  // separate lines. Keeps the first surviving row's id and source so checked /
+  // hidden / qty-override / delete state all still key off a real item. Names
+  // are cleaned here too, so what's merged is what's shown.
+  (function(){
+    var out=[],seen={};
+    all.forEach(function(it){
+      var nm=displayGroceryName(it.name);
+      if(!nm)return;
+      var key=groceryMergeKey(nm);
+      var variants=seen[key],merged=false;
+      if(variants){
+        for(var vi=0;vi<variants.length;vi++){
+          var r=tryMergeQty(variants[vi].qty,variants[vi].unit,it.qty||"",it.unit||"");
+          if(r){
+            variants[vi].qty=r.qty;variants[vi].unit=r.unit;
+            variants[vi].note=resolveNote(r.qty,variants[vi].note,it.note||"");
+            merged=true;break;
+          }
+        }
+      }
+      if(!merged){
+        var ni={id:it.id,name:nm,qty:it.qty||"",unit:it.unit||"",note:it.note||"",source:it.source};
+        out.push(ni);
+        (seen[key]||(seen[key]=[])).push(ni);
+      }
+    });
+    all=out;
+  })();
 
   var tc=all.filter(function(e){return checked[e.id]}).length;
 
