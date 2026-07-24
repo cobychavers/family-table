@@ -964,6 +964,9 @@ function Icon(p){
   if(name==="chevron-left")return React.createElement("svg",cp,
     React.createElement("polyline",{points:"15 18 9 12 15 6"})
   );
+  if(name==="chevron-up")return React.createElement("svg",cp,
+    React.createElement("polyline",{points:"18 15 12 9 6 15"})
+  );
   if(name==="moon")return React.createElement("svg",cp,
     React.createElement("path",{d:"M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"})
   );
@@ -3669,6 +3672,16 @@ function App(){
       window.removeEventListener("offline",goOffline);
     };
   },[]);
+  // Show a "Back to Top" button once the page is scrolled well down - it earns
+  // its keep most on a long Recipes list. Threshold is ~1.5 screens so it never
+  // flickers in on a short list.
+  var [showBackToTop,setShowBackToTop]=useState(false);
+  useEffect(function(){
+    function onScroll(){setShowBackToTop((window.pageYOffset||document.documentElement.scrollTop||0)>600)}
+    window.addEventListener("scroll",onScroll,{passive:true});
+    onScroll();
+    return function(){window.removeEventListener("scroll",onScroll)};
+  },[]);
   var [meals,setMeals]=useState({});
   // Household ("family") linking. Nothing here changes what the signed-in user
   // owns - it only unlocks reading a family member's calendar and recipes.
@@ -6267,6 +6280,19 @@ function App(){
       </div>}
 
       {view==="recipes"&&<div style={{animation:"ft-fade-in .25s ease-out"}}>
+        {/* Floating "Back to Top" - only on the Recipes list, and only once
+            scrolled well down. Fixed to the bottom-right of the content column,
+            clears the iOS home indicator via the safe-area inset, and sits below
+            modal z-indexes (999+) so an open recipe covers it. */}
+        {showBackToTop?<button
+          className="ft-card-tap"
+          onClick={function(){window.scrollTo({top:0,behavior:"smooth"})}}
+          aria-label="Back to top"
+          style={{position:"fixed",zIndex:900,right:"max(16px, calc(50vw - 300px + 16px))",bottom:"calc(18px + env(safe-area-inset-bottom))",display:"flex",alignItems:"center",gap:7,padding:"11px 17px 11px 15px",borderRadius:26,border:"1px solid rgba(255,255,255,0.08)",background:C.dark,color:"#fff",boxShadow:"0 6px 20px rgba(0,0,0,0.28), 0 2px 6px rgba(0,0,0,0.16)",cursor:"pointer",fontFamily:"'Inter',-apple-system,sans-serif",fontSize:13,fontWeight:600,letterSpacing:0.2,animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}}
+        >
+          <Icon name="chevron-up" size={16} color="#fff" strokeWidth={2.5}/>
+          Top
+        </button>:null}
         {/* Inbox - Recipes shared to you */}
         {userInbox.length>0?<div style={{marginBottom:16,background:"var(--surface)",borderRadius:16,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,padding:16}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
