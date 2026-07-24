@@ -2163,6 +2163,12 @@ function GroceryTab(p){
     if(it.source==="manual"){remM(it.id)}else{hideItem(it.id)}
   }
   var [qtyOverrides,setQtyOverrides]=useState({});
+  // Preferred brand per item, keyed by the item's merge key (so "Barilla" set on
+  // pasta sticks to it no matter which recipe re-adds pasta next week). Stored in
+  // the background - it doesn't force itself into the list, it's remembered and
+  // shown quietly under the item once set. Persisted at dm_gbrands_<user>.
+  var [brands,setBrands]=useState({});
+  var [editBrand,setEditBrand]=useState("");
   var [savedLists,setSavedLists]=useState([]);
   var [showSaveLists,setShowSaveLists]=useState(false);
   var [showLoadList,setShowLoadList]=useState(false);
@@ -2215,6 +2221,7 @@ function GroceryTab(p){
     window.storage.get("dm_gmanual_"+p.userId,true).then(function(r){if(r)setManual(JSON.parse(r.value))}).catch(function(){});
     window.storage.get("dm_groceryhistory_"+p.userId,true).then(function(r){if(r)setGroceryHistory(JSON.parse(r.value))}).catch(function(){});
     window.storage.get("dm_gqtyoverrides_"+p.userId,true).then(function(r){if(r)setQtyOverrides(JSON.parse(r.value))}).catch(function(){});
+    window.storage.get("dm_gbrands_"+p.userId,true).then(function(r){if(r)setBrands(JSON.parse(r.value))}).catch(function(){});
     window.storage.get("dm_savedlists_"+p.userId,true).then(function(r){if(r)setSavedLists(JSON.parse(r.value))}).catch(function(){});
     window.storage.get("dm_pantry_"+p.userId,true).then(function(r){if(r)setPantry(JSON.parse(r.value))}).catch(function(){});
     window.storage.get("dm_generated_"+p.userId,true).then(function(r){if(r){
@@ -2578,6 +2585,18 @@ function GroceryTab(p){
     saveList("dm_gqtyoverrides_"+p.userId,JSON.stringify(updated)).catch(function(){});
   }
 
+  // Brand memory: keyed by the item's merge key so it follows the item across
+  // regenerations and phrasings, exactly like pantry matching does.
+  function brandKeyFor(name){ return groceryMergeKey(displayGroceryName(name||"")); }
+  function brandFor(name){ var k=brandKeyFor(name); return (k&&brands[k])||""; }
+  function saveBrand(name, brand){
+    var key=brandKeyFor(name); if(!key)return;
+    var updated=Object.assign({},brands);
+    if(brand&&brand.trim()) updated[key]=brand.trim(); else delete updated[key];
+    setBrands(updated);
+    saveList("dm_gbrands_"+p.userId,JSON.stringify(updated)).catch(function(){});
+  }
+
   function openEditQty(it){
     var override=qtyOverrides[it.id];
     setEditItem(it);
@@ -2585,6 +2604,7 @@ function GroceryTab(p){
     setEditUnit(override?override.unit:(it.unit||""));
     setEditName(it.name||"");
     setEditCategory(getGCatLocal(it.name));
+    setEditBrand(brandFor(it.name));
   }
 
   function saveEditQty(){
@@ -2602,7 +2622,8 @@ function GroceryTab(p){
       }
       
       saveQtyOverride(editItem.id, editQty, editUnit, nameChanged ? newName : null);
-      
+      saveBrand(newName, editBrand);
+
       // If it's a manual item, also update the manual array
       if(editItem.source==="manual"){
         var updated=manual.map(function(m){
@@ -2620,6 +2641,7 @@ function GroceryTab(p){
     setEditUnit("");
     setEditName("");
     setEditCategory("");
+    setEditBrand("");
   }
 
   function addToHistory(item){
@@ -3107,6 +3129,7 @@ function GroceryTab(p){
     var qty=override?override.qty:(it.qty||"");
     var unit=override?override.unit:(it.unit||"");
     var itemName=override&&override.name?override.name:displayGroceryName(it.name);
+    var itemBrand=brandFor(it.name);
     var qtyLabel=[qty,unit].filter(Boolean).join(" ");
     // Amount column: a real quantity (or a "pinch"/"dash" amount word) shows as
     // a chip; a "to taste" / "optional" qualifier shows as an italic "(...)"
@@ -3142,7 +3165,10 @@ function GroceryTab(p){
           chipText?React.createElement("span",{style:{fontSize:12,fontWeight:700,color:C.dark,background:"var(--blush-med)",borderRadius:6,padding:"2px 8px",flexShrink:0,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",opacity:ic?.5:1}},chipText)
           :qualifier?React.createElement("span",{style:{fontSize:12.5,fontStyle:"italic",color:C.light,fontWeight:500,flexShrink:0,whiteSpace:"nowrap",opacity:ic?.5:1}},"("+qualifier+")")
           :null,
-          React.createElement("span",{style:{fontSize:15,color:C.ink,textDecoration:ic?"line-through":"none",fontWeight:500,lineHeight:1.3}},itemName)
+          React.createElement("div",{style:{minWidth:0}},
+            React.createElement("span",{style:{fontSize:15,color:C.ink,textDecoration:ic?"line-through":"none",fontWeight:500,lineHeight:1.3,display:"block"}},itemName),
+            itemBrand?React.createElement("span",{style:{fontSize:11.5,color:C.gold,fontWeight:600,lineHeight:1.2,opacity:ic?.5:1}},itemBrand):null
+          )
         )
       )
     );
@@ -3544,11 +3570,19 @@ function GroceryTab(p){
         })(),
 
         /* Category */
-        React.createElement("div",{style:{marginBottom:18}},
+        React.createElement("div",{style:{marginBottom:14}},
           React.createElement("label",{style:{fontSize:12,fontWeight:600,color:C.light,display:"block",marginBottom:4}},"Category"),
           React.createElement("select",{value:editCategory,onChange:function(e){setEditCategory(e.target.value)},style:{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:"var(--surface)"}},
             Object.keys(GCATS).concat(["📦 Other"]).map(function(c){return React.createElement("option",{key:c,value:c},c.replace(/^\S+\s*/,""))})
           )
+        ),
+
+        /* Preferred brand - remembered per item in the background and re-applied
+           automatically the next time this item lands on the list. */
+        React.createElement("div",{style:{marginBottom:18}},
+          React.createElement("label",{style:{fontSize:12,fontWeight:600,color:C.light,display:"block",marginBottom:4}},"Preferred Brand (optional)"),
+          React.createElement("input",{type:"text",value:editBrand,onChange:function(e){setEditBrand(e.target.value)},placeholder:"e.g. Barilla, Uncle Ben's",style:{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:C.card}}),
+          React.createElement("div",{style:{fontSize:10.5,color:C.light,marginTop:5}},"Saved for next time this item is on your list.")
         ),
 
         /* "I always have this" - remember it in the pantry and drop it from the
@@ -6825,33 +6859,7 @@ function App(){
         </div>
         <div style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Notes</label><textarea style={Object.assign({},inp,{minHeight:50,resize:"vertical"})} value={editRecipe.notes} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{notes:e.target.value})})}}/></div>
         <div style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Recipe Credit / Source</label><input style={inp} placeholder="e.g. Grandma's recipe, NYT Cooking, @foodblogger" value={editRecipe.credit||""} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{credit:e.target.value})})}}/></div>
-        <div style={{marginBottom:14}}>
-          <label style={{fontSize:12,fontWeight:600,opacity:.6}}>Visibility</label>
-          <div style={{display:"flex",gap:8,marginTop:6}}>
-            <button onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{isPublic:true})})}} style={{flex:1,padding:"10px 12px",borderRadius:10,border:editRecipe.isPublic!==false?"2px solid "+C.dark:"1px solid "+C.bdr,background:editRecipe.isPublic!==false?C.blushMed:"var(--surface)",cursor:"pointer",textAlign:"center"}}>
-              <div style={{marginBottom:2,display:"flex",justifyContent:"center"}}><Icon name="users" size={15} color={C.dark} strokeWidth={1.75}/></div>
-              <div style={{fontSize:12,fontWeight:600,color:C.dark}}>Public</div>
-              <div style={{fontSize:10,color:C.light}}>Visible to followers</div>
-            </button>
-            <button onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{isPublic:false})})}} style={{flex:1,padding:"10px 12px",borderRadius:10,border:editRecipe.isPublic===false?"2px solid "+C.dark:"1px solid "+C.bdr,background:editRecipe.isPublic===false?C.blushMed:"var(--surface)",cursor:"pointer",textAlign:"center"}}>
-              <div style={{marginBottom:2,display:"flex",justifyContent:"center"}}><Icon name="lock" size={15} color={C.dark} strokeWidth={1.75}/></div>
-              <div style={{fontSize:12,fontWeight:600,color:C.dark}}>Private</div>
-              <div style={{fontSize:10,color:C.light}}>Only you can see</div>
-            </button>
-          </div>
-        </div>
         <button className="ft-card-tap" onClick={function(){if(!editRecipe.name.trim()){appAlert("Please enter a recipe name.");return;}if(!editRecipe.recipeType||editRecipe.recipeType==""){appAlert("Please choose a category for this recipe.");return;}var exists=recipes.some(function(r){return r.id===editRecipe.id});var stamped=exists?editRecipe:stampNewRecipe(editRecipe,userId,"manual");if(exists){svR(recipes.map(function(r){return r.id===editRecipe.id?stamped:r}))}else{svR(recipes.concat([stamped]))}setEditRecipe(null);setEditRecipeQty("");setEditRecipeUnit("")}} style={Object.assign({},btn(C.dark),{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:7})}>{recipes.some(function(r){return r.id===editRecipe.id})?<React.Fragment><Icon name="check" size={14} strokeWidth={2}/>Save Changes</React.Fragment>:<React.Fragment><Icon name="book" size={14} strokeWidth={1.75}/>Save Recipe</React.Fragment>}</button>
-        {recipes.some(function(r){return r.id===editRecipe.id})?
-          <button className="ft-card-tap" title="Keep the original recipe (and its favorites) untouched, and save these changes as a brand-new recipe instead." onClick={function(){
-            if(!editRecipe.name.trim()){appAlert("Please enter a recipe name.");return;}
-            if(!editRecipe.recipeType||editRecipe.recipeType===""){appAlert("Please choose a category for this recipe.");return;}
-            var forked=Object.assign({},editRecipe);
-            delete forked.id;delete forked.recipeId;delete forked.originalOwner;delete forked.originalCreatedAt;delete forked.savedAt;delete forked.savedFrom;
-            var stamped=stampNewRecipe(forked,userId,"manual");
-            svR(recipes.concat([stamped]));
-            setEditRecipe(null);setEditRecipeQty("");setEditRecipeUnit("");
-          }} style={{width:"100%",marginTop:8,padding:"10px 12px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.dark,fontWeight:600,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}><Icon name="swap" size={13} strokeWidth={1.75}/>Save as New Recipe</button>
-        :null}
       </div></div>}
 
       {/* RECIPE TO CALENDAR */}
