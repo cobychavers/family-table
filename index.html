@@ -3901,7 +3901,8 @@ function App(){
   var [showRF,setShowRF]=useState(false);
   var [aiScanLoading,setAiScanLoading]=useState(false);
   var [aiScanStatus,setAiScanStatus]=useState("");
-  var [scanPhotos,setScanPhotos]=useState([]); // Array of photos to scan
+  var [scanPhotos,setScanPhotos]=useState([]); // Array of recipe-card photos sent to the AI
+  var [scanDishPhoto,setScanDishPhoto]=useState(null); // Optional appetizing photo of the finished dish, used as the recipe's picture
   var [showScanModal,setShowScanModal]=useState(false);
   var [showRecipePlusMenu,setShowRecipePlusMenu]=useState(false);
   var [rf,setRf]=useState(emptyMeal());
@@ -5225,6 +5226,7 @@ function App(){
     setAiScanStatus("");
     setShowScanModal(false);
     setScanPhotos([]);
+    setScanDishPhoto(null);
   }
   
   function processScanPhotos(photos) {
@@ -5255,14 +5257,19 @@ function App(){
       var parsed = data.recipe;
       setAiScanStatus("Recipe found!");
       
-      // Compress the first photo before saving
-      var firstPhoto = photos[0];
-      if (firstPhoto && firstPhoto.length > 150000) {
-        compressPhoto(firstPhoto, function(compressed) {
-          saveScannedRecipe(parsed, compressed, photos.length);
-        });
+      // Use the dish photo the user added if there is one; otherwise fall back
+      // to the first scanned image (compressed) as before.
+      if (scanDishPhoto) {
+        saveScannedRecipe(parsed, scanDishPhoto, photos.length);
       } else {
-        saveScannedRecipe(parsed, firstPhoto, photos.length);
+        var firstPhoto = photos[0];
+        if (firstPhoto && firstPhoto.length > 150000) {
+          compressPhoto(firstPhoto, function(compressed) {
+            saveScannedRecipe(parsed, compressed, photos.length);
+          });
+        } else {
+          saveScannedRecipe(parsed, firstPhoto, photos.length);
+        }
       }
     })
     .catch(function(err) {
@@ -6891,7 +6898,7 @@ function App(){
       {/* EDIT RECIPE */}
       {editRecipe&&<div style={ovl} onClick={function(){setEditRecipe(null)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontWeight:700,fontSize:17}}>Edit Recipe</div><button onClick={function(){setEditRecipe(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button></div>
-        <div style={{marginBottom:12}}>{editRecipe.photo?<div style={{position:"relative"}}><img src={editRecipe.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/><button onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){setEditRecipe(function(m){return Object.assign({},m,{photo:e.target.result})})};rd.readAsDataURL(f)};inp.click()}} style={Object.assign({},btn("rgba(0,0,0,0.6)"),{position:"absolute",bottom:8,right:8,padding:"4px 10px",display:"flex",alignItems:"center"})}><Icon name="camera" size={13} color="#fff" strokeWidth={1.75}/></button></div>:<div onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){setEditRecipe(function(m){return Object.assign({},m,{photo:e.target.result})})};rd.readAsDataURL(f)};inp.click()}} style={{width:"100%",height:100,borderRadius:10,border:"2px dashed var(--border-strong)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon name="camera" size={26} color="var(--light)" strokeWidth={1.5}/></div>}</div>
+        <div style={{marginBottom:12}}>{editRecipe.photo?<div style={{position:"relative"}}><img src={editRecipe.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/><button onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){compressPhoto(e.target.result,function(c){setEditRecipe(function(m){return Object.assign({},m,{photo:c})})})};rd.readAsDataURL(f)};inp.click()}} style={Object.assign({},btn("rgba(0,0,0,0.6)"),{position:"absolute",bottom:8,right:8,padding:"4px 10px",display:"flex",alignItems:"center"})}><Icon name="camera" size={13} color="#fff" strokeWidth={1.75}/></button></div>:<div onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){compressPhoto(e.target.result,function(c){setEditRecipe(function(m){return Object.assign({},m,{photo:c})})})};rd.readAsDataURL(f)};inp.click()}} style={{width:"100%",height:100,borderRadius:10,border:"2px dashed var(--border-strong)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon name="camera" size={26} color="var(--light)" strokeWidth={1.5}/></div>}</div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Name *</label><input style={inp} value={editRecipe.name} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{name:e.target.value})})}}/></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Category <span style={{color:"var(--danger)"}}>*</span></label><div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=editRecipe.recipeType===t.id;return <button key={t.id} onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"4px 8px",borderRadius:8,border:active?"2px solid "+C.dark:"1px solid var(--border-strong)",background:active?C.blushMed:"var(--surface)",cursor:"pointer",fontSize:11,fontWeight:600}}><CatTag type={t}/></button>})}</div></div>
         <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Time</label><input style={inp} value={editRecipe.time} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{time:e.target.value})})}}/></div>
@@ -7141,10 +7148,10 @@ function App(){
 
       {/* IMPORT RECIPE */}
       {/* Scan Photos Modal */}
-      {showScanModal&&<div style={ovl} onClick={function(){if(!aiScanLoading){setShowScanModal(false);setScanPhotos([])}}}><div style={Object.assign({},mdl,{padding:0,overflow:"hidden",display:"flex",flexDirection:"column"})} onClick={function(e){e.stopPropagation()}}>
+      {showScanModal&&<div style={ovl} onClick={function(){if(!aiScanLoading){setShowScanModal(false);setScanPhotos([]);setScanDishPhoto(null)}}}><div style={Object.assign({},mdl,{padding:0,overflow:"hidden",display:"flex",flexDirection:"column"})} onClick={function(e){e.stopPropagation()}}>
         <div style={{padding:"16px 20px",borderBottom:"1px solid "+C.bdr,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{display:"flex",alignItems:"center",gap:9,fontWeight:700,fontSize:18,color:C.dark}}><Icon name="camera" size={17} strokeWidth={1.75}/>Photo</div>
-          <button onClick={function(){setShowScanModal(false);setScanPhotos([])}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}} disabled={aiScanLoading}><Icon name="x" size={20} strokeWidth={2}/></button>
+          <button onClick={function(){setShowScanModal(false);setScanPhotos([]);setScanDishPhoto(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}} disabled={aiScanLoading}><Icon name="x" size={20} strokeWidth={2}/></button>
         </div>
         
         <div style={{flex:1,overflowY:"auto",padding:16}}>
@@ -7180,7 +7187,31 @@ function App(){
               ev.target.value = "";
             }}/>
           </div>
-          
+
+          {/* Optional appetizing photo of the finished dish - this becomes the
+              recipe's picture. The card photos above are only read by the AI. */}
+          <div style={{borderTop:"1px solid "+C.bdr,paddingTop:14,marginBottom:4}}>
+            <div style={{fontSize:13,fontWeight:600,color:C.dark,marginBottom:2}}>Photo of the dish <span style={{fontWeight:500,color:C.light}}>(optional)</span></div>
+            <div style={{fontSize:11.5,color:C.light,marginBottom:10,lineHeight:1.4}}>Add an appetizing photo to show as the recipe's picture. You can also add or change it later.</div>
+            {scanDishPhoto?
+              <div style={{position:"relative",width:"100%"}}>
+                <img src={scanDishPhoto} style={{width:"100%",height:150,objectFit:"cover",borderRadius:12,display:"block"}} alt="Dish"/>
+                <button onClick={function(){setScanDishPhoto(null)}} style={{position:"absolute",top:8,right:8,width:28,height:28,borderRadius:14,border:"none",background:"rgba(0,0,0,0.6)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="x" size={14} color="#fff" strokeWidth={2.5}/></button>
+              </div>
+            :
+              <label htmlFor="dishPhotoInput" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",height:64,borderRadius:12,border:"2px dashed "+C.bdr,cursor:"pointer",background:C.blush,color:C.dark,fontSize:13,fontWeight:600}}>
+                <Icon name="camera" size={18} color={C.dark} strokeWidth={1.5}/>Add a photo of the dish
+              </label>
+            }
+            <input id="dishPhotoInput" type="file" accept="image/*" style={{display:"none"}} onChange={function(ev){
+              var f=ev.target.files&&ev.target.files[0]; if(!f)return;
+              var rd=new FileReader();
+              rd.onload=function(e){ compressPhoto(e.target.result, function(c){ setScanDishPhoto(c); }); };
+              rd.readAsDataURL(f);
+              ev.target.value="";
+            }}/>
+          </div>
+
           {aiScanStatus?<div style={{textAlign:"center",padding:16,color:C.dark,fontWeight:600}}>{aiScanStatus}</div>:null}
         </div>
         
