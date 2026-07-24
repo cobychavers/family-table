@@ -320,6 +320,23 @@ export default {
   }
 };
 
+// Shared extraction instructions for the vision paths (photo scan + PDF). Both
+// hand Claude an image/document and want the same clean, structured result, so
+// the rules live in one place. Kept deliberately explicit about the failure
+// modes seen in real imports: crammed multi-action steps, page furniture bleeding
+// into the recipe, and prep notes glued onto ingredient names.
+const RECIPE_EXTRACTION_INSTRUCTIONS = `Return ONLY valid JSON with no other text, in exactly this shape:
+{"name":"Recipe Name","time":"30 min","ingredients":[{"qty":"2","unit":"cup","name":"flour"}],"notes":"1. First step\\n2. Second step\\n3. Third step","recipeType":"other"}
+
+Rules:
+- "name": ONLY the dish title (e.g. "Crockpot Italian Sausage Pasta"). Never put times, yields, or instructions here.
+- "time": all cooking/prep time info (e.g. "LOW 6 hours or HIGH 3.5-4 hours"). Empty string if none shown.
+- "ingredients": one object PER ingredient. Split each line into "qty" (number/fraction/range, e.g. "1", "1/2", "1-2"), "unit" (e.g. "cup", "tbsp", "clove", or "" if none), and "name" (the food itself). Put prep or notes like "finely chopped", "divided", "to taste" in parentheses at the END of "name" (e.g. "onion (finely chopped)"). Do NOT wrap a note in double parentheses and do NOT begin a parenthetical with a comma.
+- "notes": numbered steps, each on its OWN line as "1. ", "2. ", etc. Put ONE action per step - if a source paragraph crams several actions together, break it into separate numbered steps. Do not merge multiple steps under one number.
+- IGNORE everything that is not the recipe itself: ads, "Jump to Recipe" links, nutrition facts, ratings, comments, headers/footers, author bios, and story text.
+- Do not invent ingredients or steps that are not shown. If part is unreadable, extract what you can.
+- "recipeType": one of chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, drinks, cocktails, other.`;
+
 // Scan images to extract recipe
 async function scanImages(images, apiKey, meter) {
   if (!images || images.length === 0) {
@@ -337,15 +354,15 @@ async function scanImages(images, apiKey, meter) {
   }));
 
   // Add the prompt
-  const prompt = images.length > 1
-    ? "These images show different parts of the same recipe (e.g. front and back of a recipe card). Extract the complete recipe combining information from all images. Return ONLY valid JSON with no other text: {\"name\":\"Recipe Name\",\"time\":\"30 min\",\"ingredients\":[{\"qty\":\"2\",\"unit\":\"cup\",\"name\":\"flour\"}],\"notes\":\"1. First step\\n2. Second step\\n3. Third step\",\"recipeType\":\"other\"} IMPORTANT: The 'name' field should ONLY contain the recipe title (e.g. 'Crockpot Italian Sausage Pasta'), NOT cooking times or instructions. Put ALL cooking time info in the 'time' field (e.g. 'LOW 6 hours or HIGH 3.5-4 hours'). Format the notes as NUMBERED STEPS (1. 2. 3.) each on its own line. Valid recipeType values: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, drinks, cocktails, other"
-    : "Extract the recipe from this image. Return ONLY valid JSON with no other text: {\"name\":\"Recipe Name\",\"time\":\"30 min\",\"ingredients\":[{\"qty\":\"2\",\"unit\":\"cup\",\"name\":\"flour\"}],\"notes\":\"1. First step\\n2. Second step\\n3. Third step\",\"recipeType\":\"other\"} IMPORTANT: The 'name' field should ONLY contain the recipe title (e.g. 'Crockpot Italian Sausage Pasta'), NOT cooking times or instructions. Put ALL cooking time info in the 'time' field (e.g. 'LOW 6 hours or HIGH 3.5-4 hours'). Format the notes as NUMBERED STEPS (1. 2. 3.) each on its own line. Valid recipeType values: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, drinks, cocktails, other";
+  const intro = images.length > 1
+    ? "These images show different parts of the SAME recipe (e.g. front and back of a recipe card, or two pages). Extract the complete recipe by combining information from all images."
+    : "Extract the recipe from this image.";
 
-  content.push({ type: "text", text: prompt });
+  content.push({ type: "text", text: intro + "\n\n" + RECIPE_EXTRACTION_INSTRUCTIONS });
 
   const data = await callAnthropic({
     model: "claude-sonnet-5",
-    max_tokens: 2000,
+    max_tokens: 4000,
     messages: [{ role: "user", content }]
   }, apiKey, meter);
 
@@ -770,7 +787,7 @@ For photo, include the main recipe image URL if found.`;
 async function importFromPdf(imageData, mimeType, apiKey, meter) {
   const data = await callAnthropic({
     model: "claude-sonnet-5",
-    max_tokens: 2000,
+    max_tokens: 4000,
     messages: [{
       role: "user",
       content: [
@@ -784,17 +801,7 @@ async function importFromPdf(imageData, mimeType, apiKey, meter) {
         },
         {
           type: "text",
-          text: `Extract the recipe from this PDF. Return ONLY valid JSON with no other text:
-{
-  "name": "Recipe Name",
-  "time": "30 min",
-  "ingredients": [{"qty": "2", "unit": "cup", "name": "flour"}],
-  "notes": "1. First step\\n2. Second step\\n3. Third step",
-  "recipeType": "other"
-}
-
-Format the notes as NUMBERED STEPS (1. 2. 3.) each on its own line.
-Valid recipeType: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, drinks, cocktails, other`
+          text: "Extract the recipe from this PDF.\n\n" + RECIPE_EXTRACTION_INSTRUCTIONS
         }
       ]
     }]
