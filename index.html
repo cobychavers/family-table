@@ -7142,33 +7142,30 @@ function App(){
               Import a recipe from any cooking website or recipe blog.
             </div>
             <div style={{marginBottom:12}}>
-              <div style={{display:"flex",gap:8}}>
-                <input 
-                  type="url" 
-                  value={importUrl} 
-                  onChange={function(e){setImportUrl(e.target.value)}} 
-                  placeholder="https://..."
-                  style={{flex:1,padding:"14px 16px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box",background:C.card,color:C.ink}}
-                />
-                <button 
-                  onClick={function(){
-                    navigator.clipboard.readText().then(function(text){
-                      if(text&&text.trim()){
-                        setImportUrl(text.trim());
-                        // Auto-import if it looks like a URL
-                        if(text.trim().startsWith("http")){
-                          importFromUrl(text.trim());
-                        }
-                      }
-                    }).catch(function(){
-                      alert("Could not access clipboard. Please paste manually.");
-                    });
-                  }}
-                  style={{display:"flex",alignItems:"center",gap:6,padding:"14px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:C.blush,cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark,whiteSpace:"nowrap"}}
-                >
-                  <Icon name="clipboard" size={14} strokeWidth={1.75}/> Paste
-                </button>
-              </div>
+              {/* No custom "Paste" button: on iOS, reading the clipboard
+                  programmatically (navigator.clipboard.readText) forces Apple's
+                  own native "Paste" confirmation bubble to appear on top of our
+                  button - two paste buttons, which reads as a bug. Instead the
+                  user pastes straight into the field (long-press -> Paste, one
+                  native action), and this onPaste auto-imports when the pasted
+                  text is a link. */}
+              <input
+                type="url"
+                value={importUrl}
+                onChange={function(e){setImportUrl(e.target.value)}}
+                onPaste={function(e){
+                  var text="";
+                  try{ text=((e.clipboardData||window.clipboardData).getData("text")||""); }catch(err){}
+                  text=text.trim();
+                  if(text.indexOf("http")===0){
+                    e.preventDefault();
+                    setImportUrl(text);
+                    setTimeout(function(){importFromUrl(text)},0); // let state settle, then import
+                  }
+                }}
+                placeholder="Paste a recipe link (https://...)"
+                style={{width:"100%",padding:"14px 16px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box",background:C.card,color:C.ink}}
+              />
               <div style={{fontSize:13,color:C.light,marginTop:10,lineHeight:1.5}}>
                 <strong>Works with:</strong> AllRecipes, Food Network, Bon Appétit, recipe blogs, etc.
               </div>
