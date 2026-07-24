@@ -2060,6 +2060,7 @@ function GroceryTab(p){
   var [itemSwipeStart,setItemSwipeStart]=useState(null); // {x,y,id}
   var [itemSwipeOffset,setItemSwipeOffset]=useState(0);
   var [generatedItems,setGeneratedItems]=useState([]); // Items generated from calendar
+  var [generatedLoaded,setGeneratedLoaded]=useState(false); // true once the saved list has loaded - a push from the calendar must wait for this so it can't clobber an unloaded list
   var [generatedWeekLabel,setGeneratedWeekLabel]=useState(""); // Which week was generated
   var [fCat,setFCat]=useState(null);
   var [showGroceryFilters,setShowGroceryFilters]=useState(false);
@@ -2224,6 +2225,7 @@ function GroceryTab(p){
     window.storage.get("dm_gbrands_"+p.userId,true).then(function(r){if(r)setBrands(JSON.parse(r.value))}).catch(function(){});
     window.storage.get("dm_savedlists_"+p.userId,true).then(function(r){if(r)setSavedLists(JSON.parse(r.value))}).catch(function(){});
     window.storage.get("dm_pantry_"+p.userId,true).then(function(r){if(r)setPantry(JSON.parse(r.value))}).catch(function(){});
+    setGeneratedLoaded(false);
     window.storage.get("dm_generated_"+p.userId,true).then(function(r){if(r){
       var data=JSON.parse(r.value);
       var items=data.items||[],label=data.weekLabel||"";
@@ -2235,7 +2237,7 @@ function GroceryTab(p){
       if(JSON.stringify(c)!==JSON.stringify(items)){
         saveList("dm_generated_"+p.userId,JSON.stringify({items:c,weekLabel:label})).catch(function(){});
       }
-    }}).catch(function(){});
+    }}).catch(function(){}).then(function(){setGeneratedLoaded(true)});
   },[p.userId]);
 
   // Generate grocery list from current week's meals
@@ -2472,6 +2474,68 @@ function GroceryTab(p){
     });
     return out;
   }
+
+  // Push a hand-picked set of meals (chosen in the calendar) onto the grocery
+  // list. Same rules as generateFromWeeks - clean, split "salt and pepper",
+  // drop excludes/pantry staples, consolidate quantities - but for specific
+  // meals rather than whole weeks, and always append. Returns the number of new
+  // lines added (existing lines that just absorbed a quantity aren't counted).
+  function addMealsToGrocery(mealsList){
+    if(!mealsList||!mealsList.length) return 0;
+    var items = generatedItems.slice();
+    var before = items.length;
+    var seenNames = {};
+    items.forEach(function(it){ var n=groceryMergeKey(it.name||""); if(!n)return; if(!seenNames[n])seenNames[n]=[]; seenNames[n].push(it); });
+    var idx = 0;
+    items.forEach(function(it){ var m=(it.id||"").match(/^gen-(\d+)$/); if(m){var n=parseInt(m[1]); if(n>=idx) idx=n+1;} });
+    var skippedPantry = 0;
+    mealsList.forEach(function(m){
+      if(m&&m.ingredients){
+        m.ingredients.forEach(function(g){
+          var ing=typeof g==="string"?parseIng(g):g;
+          var note=groceryQualifier(ing.name||"");
+          var itemNames=splitGroceryItemNames(cleanGroceryItemName(ing.name||"")).map(normalizeGroceryPepperName);
+          itemNames.forEach(function(itemName,ni){
+            if(!itemName.trim())return;
+            var name=groceryMergeKey(itemName);
+            if(GROCERY_EXCLUDE.some(function(ex){return name===ex||name.replace(/\s+/g," ")===ex})||isCookingWaterByproduct(name)) return;
+            if(pantryHasKey(name)){skippedPantry++;return;}
+            var iqty=ni===0?(ing.qty||""):"",iunit=ni===0?(ing.unit||""):"",inote=ni===0?note:"";
+            var variants=seenNames[name],merged=false;
+            if(variants){
+              for(var vi=0;vi<variants.length;vi++){
+                var v=variants[vi];
+                var mr=tryMergeQty(v.qty,v.unit,iqty,iunit);
+                if(mr){ v.qty=mr.qty; v.unit=mr.unit; v.note=resolveNote(mr.qty,v.note,inote); merged=true; break; }
+              }
+            }
+            if(!merged){
+              var newItem={id:"gen-"+idx,name:itemName||ing.name||"",qty:iqty,unit:iunit,note:resolveNote(iqty,inote,"")};
+              items.push(newItem);
+              if(!seenNames[name])seenNames[name]=[];
+              seenNames[name].push(newItem);
+              idx++;
+            }
+          });
+        });
+      }
+    });
+    setGeneratedItems(items);
+    setPantrySkipped(skippedPantry);
+    saveList("dm_generated_"+p.userId,JSON.stringify({items:items,weekLabel:generatedWeekLabel})).catch(function(){});
+    return items.length - before;
+  }
+
+  // Consume meals handed over from the calendar's "Move to Grocery". Waits for
+  // the saved list to finish loading first, so the append can't overwrite an
+  // unloaded (empty) list. One-shot: clears the hand-off once applied.
+  useEffect(function(){
+    if(!generatedLoaded) return;
+    if(p.pendingMeals && p.pendingMeals.length){
+      addMealsToGrocery(p.pendingMeals);
+      if(p.clearPendingMeals) p.clearPendingMeals();
+    }
+  },[generatedLoaded, p.pendingMeals]);
 
   function generateFromWeeks(weekStartDates, mode){
     // mode: "replace" (default) starts fresh, "append" adds to existing list
@@ -3254,10 +3318,8 @@ function GroceryTab(p){
     React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,position:"relative"}},
       React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}},React.createElement(Icon,{name:"cart",size:18,color:C.dark,strokeWidth:1.75}),"Grocery List"),
       React.createElement("div",{style:{display:"flex",gap:8,alignItems:"center"}},
-        /* From Calendar generates from MY week. Offering it while a family
-           member's list is on screen would rebuild their list out of my meal
-           plan, so it's hidden rather than disabled. */
-        p.ownList?React.createElement("button",{onClick:function(){setShowWeekPicker(!showWeekPicker);setShowPlusMenu(false)},title:"From Calendar",style:{display:"flex",alignItems:"center",gap:6,padding:"0 14px",height:36,borderRadius:8,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontWeight:600,fontSize:12,cursor:"pointer",boxShadow:C.shadowSm}},React.createElement(Icon,{name:"calendar",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"From Calendar")):null,
+        /* "From Calendar" moved to the Calendar tab: you now select specific
+           meals there and push them here, instead of picking whole weeks. */
         /* + Plus button with popup menu */
         React.createElement("div",{style:{position:"relative"}},
           React.createElement("button",{onClick:function(){setShowPlusMenu(!showPlusMenu);setShowWeekPicker(false)},style:{width:36,height:36,borderRadius:8,border:"none",background:C.dark,color:"#fff",fontWeight:700,fontSize:20,cursor:"pointer",lineHeight:1}},"+"),
@@ -3299,46 +3361,9 @@ function GroceryTab(p){
       React.createElement("button",{onClick:function(){p.setListOwner(null)},style:{background:"none",border:"none",padding:0,cursor:"pointer",fontSize:12,fontWeight:700,color:C.dark,textDecoration:"underline",textUnderlineOffset:2}},"My list")
     ):null,
 
-    /* Week picker (opens from the From Calendar icon button) */
-    React.createElement("div",{style:{marginBottom:showWeekPicker||generatedWeekLabel?12:0}},
-      showWeekPicker?React.createElement("div",{style:{background:"var(--surface)",border:"1px solid var(--blush-med)",borderRadius:10,padding:"12px"}},
-        React.createElement("div",{style:{fontSize:12,color:"var(--dark)",fontWeight:600,marginBottom:8}},"Select weeks to include:"),
-        [0,1,2,3].map(function(offset){
-          var ws2=new Date(p.wdates[0]);
-          ws2.setDate(ws2.getDate()+offset*7);
-          var we=new Date(ws2);we.setDate(we.getDate()+6);
-          var label=ws2.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+we.toLocaleDateString("en-US",{month:"short",day:"numeric"});
-          var wsKey=dk(ws2);
-          var checked2=selectedWeeks.some(function(w){return dk(w)===wsKey});
-          return React.createElement("label",{key:offset,style:{display:"flex",alignItems:"center",gap:8,padding:"7px 0",cursor:"pointer",borderBottom:offset<3?"1px solid var(--border-strong)":"none"}},
-            React.createElement("input",{type:"checkbox",checked:checked2,onChange:function(e){
-              if(e.target.checked){setSelectedWeeks(selectedWeeks.concat([ws2]))}
-              else{setSelectedWeeks(selectedWeeks.filter(function(w){return dk(w)!==wsKey}))}
-            },style:{accentColor:"var(--dark)",width:16,height:16}}),
-            React.createElement("span",{style:{fontSize:13,color:"var(--ink)"}},offset===0?"This week: "+label:offset===1?"Next week: "+label:"Week "+(offset+1)+": "+label)
-          );
-        }),
-        React.createElement("div",{style:{display:"flex",gap:8,marginTop:10}},
-          React.createElement("button",{onClick:function(){
-            if(selectedWeeks.length===0){appAlert("Select at least one week first!");return;}
-            var count=generateFromWeeks(selectedWeeks,"append");
-            setShowWeekPicker(false);
-            setSelectedWeeks([]);
-            if(count===0){appAlert("No new ingredients to add (already in list or no meals planned).");}
-          },style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,flex:1,padding:"10px",borderRadius:8,border:"1px solid var(--dark)",background:"var(--surface)",color:"var(--dark)",fontWeight:600,fontSize:13,cursor:"pointer"}},React.createElement(Icon,{name:"plus",size:14,color:"var(--dark)",strokeWidth:2}),"Add to List"),
-          React.createElement("button",{onClick:function(){
-            if(selectedWeeks.length===0){appAlert("Select at least one week first!");return;}
-            var doReplace=function(){
-              var count=generateFromWeeks(selectedWeeks,"replace");
-              setShowWeekPicker(false);
-              setSelectedWeeks([]);
-              if(count===0){appAlert("No ingredients found in the selected weeks. Add some meals to the calendar first!");}
-            };
-            if(generatedItems.length>0){ appConfirm("This will replace your current grocery list. Continue?", doReplace, {danger:true, confirmText:"Replace"}); }
-            else { doReplace(); }
-          },style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,flex:1,padding:"10px",borderRadius:8,border:"none",background:"var(--dark)",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}},React.createElement(Icon,{name:"refresh",size:14,color:"#fff",strokeWidth:2}),"Replace List")
-        )
-      ):null,
+    /* Meal selection + push now lives on the Calendar tab. This wrapper keeps
+       the "last generated from" line and the pantry-skipped note. */
+    React.createElement("div",{style:{marginBottom:generatedWeekLabel?12:0}},
       generatedWeekLabel?React.createElement("div",{style:{textAlign:"center",fontSize:11,color:"var(--blush-dark)",marginTop:6}},
         "Last generated from: "+generatedWeekLabel
       ):null,
@@ -3822,6 +3847,26 @@ function App(){
   var [swipedMeal,setSwipedMeal]=useState(null); // {dateKey, mealIndex} of swiped meal
   var [swipeStart,setSwipeStart]=useState(null); // {x, y, dateKey, mealIndex}
   var [swipeOffset,setSwipeOffset]=useState(0);
+  // Calendar -> Grocery "push": which meals are checked, and the hand-off payload
+  // GroceryTab consumes. selectedCalMeals maps "dateKey|index" -> the meal object.
+  var [selectedCalMeals,setSelectedCalMeals]=useState({});
+  var [pendingGroceryMeals,setPendingGroceryMeals]=useState(null);
+  function toggleCalMeal(dateKey,idx,meal){
+    var key=dateKey+"|"+idx;
+    setSelectedCalMeals(function(prev){
+      var next=Object.assign({},prev);
+      if(next[key])delete next[key]; else next[key]=meal;
+      return next;
+    });
+  }
+  function moveSelectedToGrocery(){
+    var meals=Object.keys(selectedCalMeals).map(function(k){return selectedCalMeals[k]});
+    if(!meals.length)return;
+    setPendingGroceryMeals(meals);
+    setSelectedCalMeals({});
+    setGroceryOwner(null); // push always lands on MY own list
+    setView("grocery");
+  }
   var [showPlaceholder,setShowPlaceholder]=useState(null); // date key currently adding a placeholder for, or null
   var [placeholderText,setPlaceholderText]=useState("");
   var [recipes,setRecipes]=useState([]);
@@ -6131,6 +6176,18 @@ function App(){
       </div></div>}
 
       {view==="calendar"&&<div style={{animation:"ft-fade-in .25s ease-out"}}>
+        {/* Floating "Move to Grocery" - appears when meals are checked. Pushes the
+            selected meals' ingredients onto your own grocery list (consolidated,
+            pantry-filtered) and takes you there. */}
+        {Object.keys(selectedCalMeals).length>0?<div style={{position:"fixed",left:0,right:0,bottom:"calc(18px + env(safe-area-inset-bottom))",zIndex:900,display:"flex",justifyContent:"center",pointerEvents:"none"}}>
+          <div style={{display:"flex",alignItems:"center",gap:4,background:C.dark,borderRadius:28,boxShadow:"0 8px 24px rgba(0,0,0,0.3), 0 2px 6px rgba(0,0,0,0.18)",padding:"5px 5px 5px 6px",pointerEvents:"auto",animation:"ft-fade-in .2s cubic-bezier(0.16,1,0.3,1)"}}>
+            <button onClick={function(){setSelectedCalMeals({})}} aria-label="Clear selection" style={{width:38,height:38,borderRadius:19,border:"none",background:"transparent",color:"rgba(255,255,255,0.75)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="x" size={16} color="rgba(255,255,255,0.75)" strokeWidth={2.5}/></button>
+            <button className="ft-card-tap" onClick={moveSelectedToGrocery} style={{display:"flex",alignItems:"center",gap:8,padding:"11px 20px 11px 16px",borderRadius:24,border:"none",background:"rgba(255,255,255,0.12)",color:"#fff",fontFamily:"'Inter',-apple-system,sans-serif",fontSize:14,fontWeight:600,letterSpacing:0.2,cursor:"pointer"}}>
+              <Icon name="cart" size={16} color="#fff" strokeWidth={2}/>
+              {"Move "+Object.keys(selectedCalMeals).length+" to Grocery"}
+            </button>
+          </div>
+        </div>:null}
         {/* Family calendar switcher - only meaningful once there's someone
             else in the household. The signed-in user is always first (their
             own name + avatar) and is the only editable calendar; the rest are
@@ -6220,7 +6277,10 @@ function App(){
                     var isSwipedHere = viewingOwnCalendar && swipedMeal && swipedMeal.dateKey===k && swipedMeal.mealIndex===mi;
                     var translateX = isSwipedHere ? -80 : (viewingOwnCalendar && swipeStart && swipeStart.dateKey===k && swipeStart.mealIndex===mi ? swipeOffset : 0);
                     return(
-                      <div key={mi} style={{position:"relative",marginBottom:10,borderRadius:16,overflow:"hidden"}}>
+                      <div key={mi} style={{position:"relative",marginBottom:10,borderRadius:16,overflow:"hidden",boxShadow:(viewingOwnCalendar&&!m.isPlaceholder&&selectedCalMeals[k+"|"+mi])?"0 0 0 2px "+C.dark:"none"}}>
+                        {/* Grocery-select checkbox - own calendar, real meals only. Sits on
+                            the wrapper (not the card) so it stays put while the card swipes. */}
+                        {viewingOwnCalendar&&!m.isPlaceholder?<button onClick={function(e){e.stopPropagation();toggleCalMeal(k,mi,m)}} aria-label="Select for grocery list" style={{position:"absolute",top:8,left:8,zIndex:3,width:26,height:26,borderRadius:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:selectedCalMeals[k+"|"+mi]?C.dark:"var(--overlay-chip)",border:selectedCalMeals[k+"|"+mi]?"none":"1px solid var(--overlay-chip-border)",boxShadow:"0 1px 5px rgba(0,0,0,0.25)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)"}}>{selectedCalMeals[k+"|"+mi]?<Icon name="check" size={15} color="#fff" strokeWidth={2.5}/>:<span style={{width:12,height:12,borderRadius:6,border:"1.5px solid "+C.blushDeep,display:"block"}}/>}</button>:null}
                         {/* Red delete button revealed behind */}
                         {viewingOwnCalendar?<div style={{position:"absolute",right:0,top:0,bottom:0,width:80,background:"var(--danger)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} onClick={function(e){e.stopPropagation();appConfirm("Remove "+m.name+" from this day?",function(){deleteMealAt(k,mi)},{danger:true,confirmText:"Remove"})}}>
                           <Icon name="trash" size={18} color="#fff" strokeWidth={2}/>
@@ -6728,7 +6788,7 @@ function App(){
         })()}
       </div></div>}
 
-      {view==="grocery"&&<GroceryTab meals={meals} wdates={wd} wlabel={wl} rgn={region} gSI={gSI} gSFI={gSFI} setItemStore={setSI} userId={groceryListOwner} ownList={groceryIsMine} ownerUid={groceryOwnerUid} listOwner={groceryOwner} setListOwner={setGroceryOwner} members={householdMembers} me={userId} myProfilePic={userProfilePic} groceryHidden={groceryHidden} setGroceryHidden={setGroceryHidden} stores={STORES} addCustomStore={addCustomStore} removeCustomStore={removeCustomStore} defStore={defStore} setDefStore={handleSetDefStore} categoryStores={categoryStores} setCategoryStore={handleSetCategoryStore} goToCalendar={function(){setView("calendar")}} setWs={setWs} ws={ws}/>}
+      {view==="grocery"&&<GroceryTab meals={meals} wdates={wd} wlabel={wl} rgn={region} gSI={gSI} gSFI={gSFI} setItemStore={setSI} userId={groceryListOwner} ownList={groceryIsMine} ownerUid={groceryOwnerUid} listOwner={groceryOwner} setListOwner={setGroceryOwner} members={householdMembers} me={userId} myProfilePic={userProfilePic} groceryHidden={groceryHidden} setGroceryHidden={setGroceryHidden} stores={STORES} addCustomStore={addCustomStore} removeCustomStore={removeCustomStore} defStore={defStore} setDefStore={handleSetDefStore} categoryStores={categoryStores} setCategoryStore={handleSetCategoryStore} goToCalendar={function(){setView("calendar")}} setWs={setWs} ws={ws} pendingMeals={pendingGroceryMeals} clearPendingMeals={function(){setPendingGroceryMeals(null)}}/>}
       </div>}
 
       {/* ADD PLACEHOLDER MODAL */}
