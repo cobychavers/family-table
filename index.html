@@ -282,7 +282,7 @@
       set: async (key, value, shared, ownerUid) => {
         if (!db) {
           console.error("Storage set failed - Firebase not connected");
-          alert("Cannot save - Firebase not connected. Try refreshing the page.");
+          appAlert("Cannot save - Firebase not connected. Try refreshing the page.");
           return null;
         }
         try {
@@ -303,7 +303,7 @@
           return { key, value, shared };
         } catch (e) {
           console.error("Storage set error:", key, e);
-          alert("Firebase write error: " + (e.code || "") + " " + (e.message || e));
+          appAlert("Firebase write error: " + (e.code || "") + " " + (e.message || e));
           return null;
         }
       },
@@ -1986,6 +1986,61 @@ function AuthScreen(p){
   );
 }
 
+// ============ APP DIALOGS ============
+// Custom confirm/alert modals that match the app instead of the browser's
+// generic iOS popups. One DialogHost is mounted once; appAlert / appConfirm are
+// module-level so any scope (App, GroceryTab, even window.storage) can call
+// them. Native alert/confirm are kept as a fallback for the unlikely case the
+// host isn't mounted yet (a very early error before first render).
+var _nativeAlert = (typeof window!=="undefined" && window.alert) ? window.alert.bind(window) : function(){};
+var _nativeConfirm = (typeof window!=="undefined" && window.confirm) ? window.confirm.bind(window) : function(){return true};
+var _appDialogPush = null;
+// appAlert(message) or appAlert(message,{title,confirmText,onConfirm})
+function appAlert(message, opts){
+  opts = opts || {};
+  var d = {kind:"alert", title:opts.title||"", message:(typeof message==="string"?message:(message&&message.message)||""), confirmText:opts.confirmText||"OK", danger:!!opts.danger, onConfirm:opts.onConfirm||null, onCancel:null};
+  if(_appDialogPush) _appDialogPush(d);
+  else { _nativeAlert(d.message); if(d.onConfirm)d.onConfirm(); }
+}
+// appConfirm("msg", onConfirmFn, {title,confirmText,cancelText,danger,onCancel})
+// or appConfirm({message, onConfirm, ...})
+function appConfirm(message, onConfirm, opts){
+  if(message && typeof message==="object"){ opts=message; onConfirm=opts.onConfirm; message=opts.message; }
+  opts = opts || {};
+  var d = {kind:"confirm", title:opts.title||"", message:message||"", confirmText:opts.confirmText||"OK", cancelText:opts.cancelText||"Cancel", danger:!!opts.danger, onConfirm:onConfirm||null, onCancel:opts.onCancel||null};
+  if(_appDialogPush) _appDialogPush(d);
+  else { if(_nativeConfirm(d.message)){ if(d.onConfirm)d.onConfirm(); } else if(d.onCancel){ d.onCancel(); } }
+}
+function DialogHost(){
+  var [queue,setQueue]=useState([]);
+  useEffect(function(){
+    _appDialogPush=function(d){ setQueue(function(q){return q.concat([Object.assign({_id:Date.now()+"_"+Math.random()},d)]);}); };
+    return function(){ _appDialogPush=null; };
+  },[]);
+  if(!queue.length) return null;
+  var d=queue[0];
+  function dismiss(){ setQueue(function(q){return q.slice(1);}); }
+  function onOk(){ dismiss(); if(d.onConfirm)d.onConfirm(); }
+  function onCancel(){ dismiss(); if(d.onCancel)d.onCancel(); }
+  var isConfirm = d.kind==="confirm";
+  return React.createElement("div",{
+    onClick:isConfirm?onCancel:onOk,
+    style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(30,22,18,0.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:24,zIndex:3000,animation:"ft-backdrop-fade .18s ease-out",WebkitBackdropFilter:"blur(2px)",backdropFilter:"blur(2px)"}
+  },
+    React.createElement("div",{
+      onClick:function(e){e.stopPropagation();},
+      style:{background:"var(--surface)",borderRadius:20,padding:"24px 22px 18px",width:"100%",maxWidth:360,boxShadow:"0 18px 50px rgba(0,0,0,0.35)",animation:"ft-fade-in .2s cubic-bezier(0.16,1,0.3,1)",boxSizing:"border-box"}
+    },
+      d.title?React.createElement("div",{style:{fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:21,fontWeight:700,color:"var(--ink)",marginBottom:8,letterSpacing:.2}},d.title):null,
+      React.createElement("div",{style:{fontSize:15,lineHeight:1.5,color:"var(--ink)",whiteSpace:"pre-line",marginBottom:22}},d.message),
+      React.createElement("div",{style:{display:"flex",gap:10,justifyContent:"flex-end"}},
+        isConfirm?React.createElement("button",{onClick:onCancel,className:"ft-card-tap",style:{padding:"11px 18px",borderRadius:12,border:"1px solid var(--border)",background:"transparent",color:"var(--light)",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'Inter',-apple-system,sans-serif"}},d.cancelText):null,
+        React.createElement("button",{onClick:onOk,className:"ft-card-tap",style:{padding:"11px 20px",borderRadius:12,border:"none",background:d.danger?"var(--danger)":"var(--dark)",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",boxShadow:"var(--shadow-sm)",fontFamily:"'Inter',-apple-system,sans-serif"}},d.confirmText)
+      )
+    )
+  );
+}
+
 // ============ GROCERY TAB ============
 function GroceryTab(p){
   var C={ink:"var(--ink)",dark:"var(--dark)",light:"var(--light)",gold:"var(--gold)",blush:"var(--blush)",blushMed:"var(--blush-med)",blushDeep:"var(--blush-deep)",blushAccent:"var(--blush-accent)",blushDark:"var(--blush-dark)",card:"var(--surface)",bdr:"var(--border)",shadowSm:"var(--shadow-sm)",shadowMd:"var(--shadow-md)",shadowLg:"var(--shadow-lg)"};
@@ -2645,7 +2700,7 @@ function GroceryTab(p){
     });
     setSavedLists(updated);
     saveList("dm_savedlists_"+p.userId,JSON.stringify(updated)).catch(function(){});
-    alert("List updated!");
+    appAlert("List updated!");
   }
   
   function loadSavedList(list){
@@ -2833,7 +2888,7 @@ function GroceryTab(p){
         groceryProxyFetch({type:"grocery_scan",images:[{base64:base64.split(",")[1],mediaType:file.type}]})
           .then(handleScanResp).then(applyScanned).catch(function(err){
             setImportGroceryLoading(false);
-            alert(err&&err.isRateLimit?err.message:"Failed to process image. Please try pasting the text instead.");
+            appAlert(err&&err.isRateLimit?err.message:"Failed to process image. Please try pasting the text instead.");
           });
       };
       reader.readAsDataURL(file);
@@ -2844,7 +2899,7 @@ function GroceryTab(p){
         groceryProxyFetch({type:"grocery_scan",pdf:{data:base64.split(",")[1],mimeType:"application/pdf"}})
           .then(handleScanResp).then(applyScanned).catch(function(err){
             setImportGroceryLoading(false);
-            alert(err&&err.isRateLimit?err.message:"Failed to process PDF. Please try pasting the text instead.");
+            appAlert(err&&err.isRateLimit?err.message:"Failed to process PDF. Please try pasting the text instead.");
           });
       };
       reader.readAsDataURL(file);
@@ -2902,22 +2957,23 @@ function GroceryTab(p){
   function clearAllItems(){
     // Confirm before wiping - this used to lean on a loud red button as the
     // safety cue; the button is now a calm neutral one, so the guard moves here.
-    if(!confirm("Clear the entire list? This removes every item."))return;
-    // Clear generated items
-    setGeneratedItems([]);
-    setGeneratedWeekLabel("");
-    saveList("dm_generated_"+p.userId,JSON.stringify({items:[],weekLabel:""})).catch(function(){});
-    // Clear manual items
-    setManual([]);
-    saveList("dm_gmanual_"+p.userId,JSON.stringify([])).catch(function(){});
-    // Clear checked
-    setChecked({});
-    window.flags.replace("dm_gcheck_"+p.userId,{},p.ownerUid).catch(function(){});
-    // Clear qty overrides
-    setQtyOverrides({});
-    saveList("dm_gqtyoverrides_"+p.userId,JSON.stringify({})).catch(function(){});
-    // Clear hidden
-    setHiddenItems({});
+    appConfirm("Clear the entire list? This removes every item.", function(){
+      // Clear generated items
+      setGeneratedItems([]);
+      setGeneratedWeekLabel("");
+      saveList("dm_generated_"+p.userId,JSON.stringify({items:[],weekLabel:""})).catch(function(){});
+      // Clear manual items
+      setManual([]);
+      saveList("dm_gmanual_"+p.userId,JSON.stringify([])).catch(function(){});
+      // Clear checked
+      setChecked({});
+      window.flags.replace("dm_gcheck_"+p.userId,{},p.ownerUid).catch(function(){});
+      // Clear qty overrides
+      setQtyOverrides({});
+      saveList("dm_gqtyoverrides_"+p.userId,JSON.stringify({})).catch(function(){});
+      // Clear hidden
+      setHiddenItems({});
+    }, {danger:true, confirmText:"Clear All"});
   }
   
   function clearRecipeItemsOnly(){
@@ -3209,19 +3265,22 @@ function GroceryTab(p){
         }),
         React.createElement("div",{style:{display:"flex",gap:8,marginTop:10}},
           React.createElement("button",{onClick:function(){
-            if(selectedWeeks.length===0){alert("Select at least one week first!");return;}
+            if(selectedWeeks.length===0){appAlert("Select at least one week first!");return;}
             var count=generateFromWeeks(selectedWeeks,"append");
             setShowWeekPicker(false);
             setSelectedWeeks([]);
-            if(count===0){alert("No new ingredients to add (already in list or no meals planned).");}
+            if(count===0){appAlert("No new ingredients to add (already in list or no meals planned).");}
           },style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,flex:1,padding:"10px",borderRadius:8,border:"1px solid var(--dark)",background:"var(--surface)",color:"var(--dark)",fontWeight:600,fontSize:13,cursor:"pointer"}},React.createElement(Icon,{name:"plus",size:14,color:"var(--dark)",strokeWidth:2}),"Add to List"),
           React.createElement("button",{onClick:function(){
-            if(selectedWeeks.length===0){alert("Select at least one week first!");return;}
-            if(generatedItems.length>0 && !confirm("This will replace your current grocery list. Continue?")) return;
-            var count=generateFromWeeks(selectedWeeks,"replace");
-            setShowWeekPicker(false);
-            setSelectedWeeks([]);
-            if(count===0){alert("No ingredients found in the selected weeks. Add some meals to the calendar first!");}
+            if(selectedWeeks.length===0){appAlert("Select at least one week first!");return;}
+            var doReplace=function(){
+              var count=generateFromWeeks(selectedWeeks,"replace");
+              setShowWeekPicker(false);
+              setSelectedWeeks([]);
+              if(count===0){appAlert("No ingredients found in the selected weeks. Add some meals to the calendar first!");}
+            };
+            if(generatedItems.length>0){ appConfirm("This will replace your current grocery list. Continue?", doReplace, {danger:true, confirmText:"Replace"}); }
+            else { doReplace(); }
           },style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,flex:1,padding:"10px",borderRadius:8,border:"none",background:"var(--dark)",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}},React.createElement(Icon,{name:"refresh",size:14,color:"#fff",strokeWidth:2}),"Replace List")
         )
       ):null,
@@ -4663,19 +4722,19 @@ function App(){
     
     // Check if data is too large (Firestore doc limit is ~1MB)
     if (data.length > 900000) {
-      alert("Meal data too large to save! Try removing some old meals.");
+      appAlert("Meal data too large to save! Try removing some old meals.");
       return;
     }
     
     window.storage.set(key,data,true).then(function(result){
       if(!result){
         console.error("Failed to save meals - result was null/false");
-        alert("Failed to save meals! Check Firebase connection.");
+        appAlert("Failed to save meals! Check Firebase connection.");
       }
       else{console.log("Successfully saved meals, size:", data.length)}
     }).catch(function(err){
       console.error("Error saving meals:",err);
-      alert("Error saving meals: " + (err.message || err));
+      appAlert("Error saving meals: " + (err.message || err));
     });
   }
   function svR(r){
@@ -5062,7 +5121,7 @@ function App(){
   
   function processScanPhotos(photos) {
     if (photos.length === 0) return;
-    if (!isOnline) { alert("Scanning a recipe requires an internet connection. Please try again once you're back online."); return; }
+    if (!isOnline) { appAlert("Scanning a recipe requires an internet connection. Please try again once you're back online."); return; }
 
     setAiScanLoading(true);
     setAiScanStatus("Preparing " + photos.length + " photo" + (photos.length > 1 ? "s" : "") + "...");
@@ -5101,7 +5160,7 @@ function App(){
     .catch(function(err) {
       setAiScanLoading(false);
       setAiScanStatus("");
-      alert(err.isRateLimit ? err.message : ("Scan failed: " + err.message));
+      appAlert(err.isRateLimit ? err.message : ("Scan failed: " + err.message));
     });
   }
 
@@ -5170,12 +5229,12 @@ function App(){
     
     if (isSocialMedia) {
       // Social media blocks direct access - guide user to use Scan instead
-      alert("Instagram, TikTok, and Facebook block direct recipe import.\n\n📷 Try this instead:\n1. Screenshot the recipe post\n2. Close this and tap 'Scan'\n3. Upload your screenshot(s)\n\nThe AI will extract the recipe from your photos!");
+      appAlert("Instagram, TikTok, and Facebook block direct recipe import.\n\n📷 Try this instead:\n1. Screenshot the recipe post\n2. Close this and tap 'Scan'\n3. Upload your screenshot(s)\n\nThe AI will extract the recipe from your photos!");
       setImportLoading(false);
       return;
     }
 
-    if (!isOnline) { alert("Importing a recipe requires an internet connection. Please try again once you're back online."); setImportLoading(false); return; }
+    if (!isOnline) { appAlert("Importing a recipe requires an internet connection. Please try again once you're back online."); setImportLoading(false); return; }
 
     setImportLoading(true);
     setImportStatus("Fetching recipe from URL...");
@@ -5279,18 +5338,18 @@ function App(){
     .catch(function(err) {
       setImportLoading(false);
       setImportStatus("");
-      if (err.isRateLimit) { alert(err.message); return; }
+      if (err.isRateLimit) { appAlert(err.message); return; }
       // Never a dead end: offer to finish it by hand instead of just failing.
-      if (confirm("Couldn't read that page automatically. Add this recipe by hand instead?")) {
+      appConfirm("Couldn't read that page automatically. Add this recipe by hand instead?", function(){
         reviewImportedRecipe({}, "Imported from " + url, "url");
-      }
+      }, {confirmText:"Add by Hand"});
     });
   }
 
   // Import recipe from PDF
   function importFromPdf(file) {
     if (!file) return;
-    if (!isOnline) { alert("Importing a recipe requires an internet connection. Please try again once you're back online."); return; }
+    if (!isOnline) { appAlert("Importing a recipe requires an internet connection. Please try again once you're back online."); return; }
     setImportLoading(true);
     setImportStatus("Reading PDF...");
     
@@ -5298,7 +5357,7 @@ function App(){
     reader.onerror = function() {
       setImportLoading(false);
       setImportStatus("");
-      alert("Could not read the PDF file.");
+      appAlert("Could not read the PDF file.");
     };
     reader.onload = function(ev) {
       var base64 = ev.target.result.split(",")[1];
@@ -5343,10 +5402,10 @@ function App(){
       .catch(function(err) {
         setImportLoading(false);
         setImportStatus("");
-        if (err.isRateLimit) { alert(err.message); return; }
-        if (confirm("Couldn't read that PDF automatically. Add this recipe by hand instead?")) {
+        if (err.isRateLimit) { appAlert(err.message); return; }
+        appConfirm("Couldn't read that PDF automatically. Add this recipe by hand instead?", function(){
           reviewImportedRecipe({}, "Imported from PDF: " + file.name, "pdf");
-        }
+        }, {confirmText:"Add by Hand"});
       });
     };
     reader.readAsDataURL(file);
@@ -5525,7 +5584,7 @@ function App(){
   }
 
   function saveChefIdeaAsRecipe(text){
-    if(!isOnline){ alert("Saving this idea as a recipe requires an internet connection. Please try again once you're back online."); return; }
+    if(!isOnline){ appAlert("Saving this idea as a recipe requires an internet connection. Please try again once you're back online."); return; }
     setChefLoading(true);
     proxyFetch({type:"parse_text",text:text})
     .then(function(response){return response.json()})
@@ -5548,7 +5607,7 @@ function App(){
     })
     .catch(function(err){
       setChefLoading(false);
-      alert(err.isRateLimit?err.message:("Couldn't save that as a recipe: "+err.message));
+      appAlert(err.isRateLimit?err.message:("Couldn't save that as a recipe: "+err.message));
     });
   }
 
@@ -5724,6 +5783,8 @@ function App(){
         setPullStart(null);
       }}
       style={{fontFamily:"'Inter',-apple-system,sans-serif",maxWidth:600,margin:"0 auto",padding:"12px 8px",color:C.dark}}>
+      {/* App-styled confirm/alert host - replaces the browser's generic popups */}
+      <DialogHost/>
       {/* Offline indicator */}
       {!isOnline?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:12,fontWeight:600,color:"#8B6914",background:"#FBF0D9",border:"1px solid #EAD9A8",borderRadius:8,padding:"8px 12px",marginBottom:8,animation:"ft-fade-in .22s ease-out"}}>
         <Icon name="offline" size={13} color="#8B6914" strokeWidth={2}/>
@@ -5882,13 +5943,14 @@ function App(){
           }} style={{width:"100%",padding:"11px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontSize:13,fontWeight:600,cursor:familyBusy?"default":"pointer",marginBottom:18,opacity:familyBusy?.5:1}}>Generate a new code</button>
 
           <button disabled={familyBusy} onClick={function(){
-            if(!confirm("Leave this family? You keep all your own recipes and meal plans - you just stop seeing everyone else's."))return;
-            var uid=firebase.auth().currentUser&&firebase.auth().currentUser.uid;
-            setFamilyBusy(true);
-            window.households.leave(household.id,uid).then(function(){
-              setViewingMember(null);
-              return refreshHousehold();
-            }).then(function(){setFamilyBusy(false);setShowFamily(false)});
+            appConfirm("Leave this family? You keep all your own recipes and meal plans - you just stop seeing everyone else's.", function(){
+              var uid=firebase.auth().currentUser&&firebase.auth().currentUser.uid;
+              setFamilyBusy(true);
+              window.households.leave(household.id,uid).then(function(){
+                setViewingMember(null);
+                return refreshHousehold();
+              }).then(function(){setFamilyBusy(false);setShowFamily(false)});
+            }, {danger:true, confirmText:"Leave Family"});
           }} style={{width:"100%",padding:"11px 16px",borderRadius:10,border:"none",background:"transparent",color:"var(--danger)",fontSize:13,fontWeight:600,cursor:familyBusy?"default":"pointer"}}>Leave Family</button>
         </div>
         :<div>
@@ -6097,7 +6159,7 @@ function App(){
                     return(
                       <div key={mi} style={{position:"relative",marginBottom:10,borderRadius:16,overflow:"hidden"}}>
                         {/* Red delete button revealed behind */}
-                        {viewingOwnCalendar?<div style={{position:"absolute",right:0,top:0,bottom:0,width:80,background:"var(--danger)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} onClick={function(e){e.stopPropagation();if(confirm("Remove "+m.name+" from this day?")){deleteMealAt(k,mi)}}}>
+                        {viewingOwnCalendar?<div style={{position:"absolute",right:0,top:0,bottom:0,width:80,background:"var(--danger)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} onClick={function(e){e.stopPropagation();appConfirm("Remove "+m.name+" from this day?",function(){deleteMealAt(k,mi)},{danger:true,confirmText:"Remove"})}}>
                           <Icon name="trash" size={18} color="#fff" strokeWidth={2}/>
                         </div>:null}
                         {/* The card itself */}
@@ -6700,7 +6762,7 @@ function App(){
             </button>
           </div>
         </div>
-        <button className="ft-card-tap" onClick={function(){if(!rf.name.trim()){alert("Please enter a recipe name.");return;}if(!rf.recipeType||rf.recipeType==""){alert("Please choose a category for this recipe.");return;}svR(recipes.concat([stampNewRecipe(rf, userId, "manual")]));setRf(emptyMeal());setShowRF(false);setRni("");setRqty("");setRunit("")}} style={Object.assign({},btn(C.dark),{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:7})}><Icon name="book" size={14} strokeWidth={1.75}/>Save Recipe</button>
+        <button className="ft-card-tap" onClick={function(){if(!rf.name.trim()){appAlert("Please enter a recipe name.");return;}if(!rf.recipeType||rf.recipeType==""){appAlert("Please choose a category for this recipe.");return;}svR(recipes.concat([stampNewRecipe(rf, userId, "manual")]));setRf(emptyMeal());setShowRF(false);setRni("");setRqty("");setRunit("")}} style={Object.assign({},btn(C.dark),{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:7})}><Icon name="book" size={14} strokeWidth={1.75}/>Save Recipe</button>
       </div></div>}
 
       {/* EDIT RECIPE */}
@@ -6778,11 +6840,11 @@ function App(){
             </button>
           </div>
         </div>
-        <button className="ft-card-tap" onClick={function(){if(!editRecipe.name.trim()){alert("Please enter a recipe name.");return;}if(!editRecipe.recipeType||editRecipe.recipeType==""){alert("Please choose a category for this recipe.");return;}var exists=recipes.some(function(r){return r.id===editRecipe.id});var stamped=exists?editRecipe:stampNewRecipe(editRecipe,userId,"manual");if(exists){svR(recipes.map(function(r){return r.id===editRecipe.id?stamped:r}))}else{svR(recipes.concat([stamped]))}setEditRecipe(null);setEditRecipeQty("");setEditRecipeUnit("")}} style={Object.assign({},btn(C.dark),{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:7})}>{recipes.some(function(r){return r.id===editRecipe.id})?<React.Fragment><Icon name="check" size={14} strokeWidth={2}/>Save Changes</React.Fragment>:<React.Fragment><Icon name="book" size={14} strokeWidth={1.75}/>Save Recipe</React.Fragment>}</button>
+        <button className="ft-card-tap" onClick={function(){if(!editRecipe.name.trim()){appAlert("Please enter a recipe name.");return;}if(!editRecipe.recipeType||editRecipe.recipeType==""){appAlert("Please choose a category for this recipe.");return;}var exists=recipes.some(function(r){return r.id===editRecipe.id});var stamped=exists?editRecipe:stampNewRecipe(editRecipe,userId,"manual");if(exists){svR(recipes.map(function(r){return r.id===editRecipe.id?stamped:r}))}else{svR(recipes.concat([stamped]))}setEditRecipe(null);setEditRecipeQty("");setEditRecipeUnit("")}} style={Object.assign({},btn(C.dark),{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:7})}>{recipes.some(function(r){return r.id===editRecipe.id})?<React.Fragment><Icon name="check" size={14} strokeWidth={2}/>Save Changes</React.Fragment>:<React.Fragment><Icon name="book" size={14} strokeWidth={1.75}/>Save Recipe</React.Fragment>}</button>
         {recipes.some(function(r){return r.id===editRecipe.id})?
           <button className="ft-card-tap" title="Keep the original recipe (and its favorites) untouched, and save these changes as a brand-new recipe instead." onClick={function(){
-            if(!editRecipe.name.trim()){alert("Please enter a recipe name.");return;}
-            if(!editRecipe.recipeType||editRecipe.recipeType===""){alert("Please choose a category for this recipe.");return;}
+            if(!editRecipe.name.trim()){appAlert("Please enter a recipe name.");return;}
+            if(!editRecipe.recipeType||editRecipe.recipeType===""){appAlert("Please choose a category for this recipe.");return;}
             var forked=Object.assign({},editRecipe);
             delete forked.id;delete forked.recipeId;delete forked.originalOwner;delete forked.originalCreatedAt;delete forked.savedAt;delete forked.savedFrom;
             var stamped=stampNewRecipe(forked,userId,"manual");
@@ -7028,7 +7090,7 @@ function App(){
         <div style={{padding:16,borderTop:"1px solid "+C.bdr}}>
           <button 
             onClick={function(){
-              if(scanPhotos.length===0){alert("Please add at least one photo");return}
+              if(scanPhotos.length===0){appAlert("Please add at least one photo");return}
               processScanPhotos(scanPhotos);
             }} 
             disabled={aiScanLoading||scanPhotos.length===0}
@@ -7078,7 +7140,7 @@ function App(){
             <button 
               onClick={function(){
                 if(!importPasteAll.trim())return;
-                if(!isOnline){ alert("Importing a recipe requires an internet connection. Please try again once you're back online."); return; }
+                if(!isOnline){ appAlert("Importing a recipe requires an internet connection. Please try again once you're back online."); return; }
                 setImportLoading(true);
                 setImportStatus("Organizing recipe with AI...");
                 
@@ -7121,13 +7183,13 @@ function App(){
                 .catch(function(err) {
                   setImportLoading(false);
                   setImportStatus("");
-                  if (err.isRateLimit) { alert(err.message); return; }
+                  if (err.isRateLimit) { appAlert(err.message); return; }
                   // Don't lose their pasted text - offer to open it in the
                   // editor (raw text in notes) so they can organize it by hand.
-                  if (confirm("Couldn't organize that automatically. Open it in the editor to finish by hand?")) {
+                  appConfirm("Couldn't organize that automatically. Open it in the editor to finish by hand?", function(){
                     reviewImportedRecipe({ notes: importPasteAll }, "", "parse_text");
                     setImportPasteAll("");
-                  }
+                  }, {confirmText:"Open Editor"});
                 });
               }} 
               disabled={!importPasteAll.trim()}
