@@ -4111,6 +4111,13 @@ function App(){
           }
           
           var recipeIds = JSON.parse(indexResult.value);
+          // Guard against a corrupted index that lists the same id more than
+          // once (e.g. an import that concat'd the same recipe object, or a
+          // raced save). Each id maps to exactly ONE document, so a repeated id
+          // just loads that same doc again - producing phantom duplicate cards
+          // that share a React key and then won't delete cleanly. Dedupe here so
+          // the list always reflects the one real document per id.
+          recipeIds = recipeIds.filter(function(id, i) { return recipeIds.indexOf(id) === i; });
           if (recipeIds.length === 0) return [];
           
           // Load each recipe
@@ -4617,8 +4624,11 @@ function App(){
   function saveRecipesIndividually(recipes) {
     var baseKey = "dm_recipe_" + userIdLowerForSave + "_";
     
-    // Save index of recipe IDs (small, just IDs)
-    var recipeIds = recipes.map(function(r) { return r.id; });
+    // Save index of recipe IDs (small, just IDs). Dedupe so a duplicated id can
+    // never be persisted back into the index - this permanently heals a book
+    // that had phantom duplicate cards once any save runs.
+    var recipeIds = recipes.map(function(r) { return r.id; })
+      .filter(function(id, i, arr) { return arr.indexOf(id) === i; });
     window.storage.set("dm_recipe_index_" + userIdLowerForSave, JSON.stringify(recipeIds), true)
       .catch(function(err) { console.error("Error saving recipe index:", err); });
     
@@ -5579,6 +5589,7 @@ function App(){
         window.storage.get("dm_recipe_index_"+userId.toLowerCase(),true).then(function(r){
           if(r&&r.value){
             var ids=JSON.parse(r.value);
+            ids=ids.filter(function(id,i){return ids.indexOf(id)===i}); // drop repeated ids -> no phantom duplicate cards
             Promise.all(ids.map(function(id){
               return window.storage.get("dm_recipe_"+userId.toLowerCase()+"_"+id,true).then(function(x){
                 return x&&x.value?JSON.parse(x.value):null;
