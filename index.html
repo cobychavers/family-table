@@ -2585,9 +2585,31 @@ function GroceryTab(p){
     saveList("dm_gqtyoverrides_"+p.userId,JSON.stringify(updated)).catch(function(){});
   }
 
-  // Brand memory: keyed by the item's merge key so it follows the item across
-  // regenerations and phrasings, exactly like pantry matching does.
-  function brandKeyFor(name){ return groceryMergeKey(displayGroceryName(name||"")); }
+  // Brand memory keys on the item's HEAD NOUN, broader than the merge key on
+  // purpose: you usually buy one brand of rice whether it's brown, jasmine, or
+  // "cooked and chilled rice", so all of those should share a brand. We drop
+  // prep/descriptor words and collapse to the last (head) noun. A short list of
+  // compound staples keeps the word before the head - there "olive oil" vs
+  // "vegetable oil", or "cheddar cheese" vs "mozzarella cheese", or "bell
+  // pepper" vs "black pepper", really are different products you'd brand apart.
+  var BRAND_COMPOUND_HEAD={oil:1,sauce:1,cheese:1,milk:1,vinegar:1,broth:1,stock:1,butter:1,flour:1,paste:1,powder:1,cream:1,juice:1,syrup:1,sugar:1,yogurt:1,yoghurt:1,mustard:1,pepper:1};
+  function brandKeyFor(name){
+    var n=displayGroceryName(name||"").toLowerCase();
+    var words=n.split(/\s+/).filter(Boolean);
+    if(!words.length) return "";
+    // Drop leading/trailing prep + cooking-method words ("cooked and chilled
+    // rice" -> "rice", "boneless skinless chicken breast" -> "chicken breast").
+    while(words.length>1 && isGroceryPrepWord(words[0])) words.shift();
+    while(words.length>1 && isGroceryPrepWord(words[words.length-1])) words.pop();
+    // Fold synonyms (green onion -> scallion) before reducing to the head.
+    words=grocerySynonymKey(words.join(" ")).split(/\s+/).filter(Boolean);
+    if(!words.length) return "";
+    var head=grocerySingularLast(words[words.length-1]);
+    if(words.length>1 && BRAND_COMPOUND_HEAD[head]){
+      return grocerySingularLast(words[words.length-2])+" "+head;
+    }
+    return head;
+  }
   function brandFor(name){ var k=brandKeyFor(name); return (k&&brands[k])||""; }
   function saveBrand(name, brand){
     var key=brandKeyFor(name); if(!key)return;
