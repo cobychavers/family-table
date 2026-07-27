@@ -277,7 +277,7 @@ export default {
 
       if (type === "chef_chat") {
         // Recipe-idea chat - returns a plain-text reply, not a structured recipe
-        payload = { success: true, reply: await chefChat(body.messages, env.ANTHROPIC_API_KEY, meter) };
+        payload = { success: true, reply: await chefChat(body.messages, env.ANTHROPIC_API_KEY, meter, body.avoid) };
       } else if (type === "ingredient_swap") {
         // Substitutes for one ingredient - returns its own {success, original,
         // suggestions} shape, not the {success, recipe} shape
@@ -859,18 +859,31 @@ Important:
 }
 
 // Recipe-idea brainstorming chat
-async function chefChat(messages, apiKey, meter) {
+async function chefChat(messages, apiKey, meter, avoid) {
   if (!messages || messages.length === 0) {
     throw new Error("No messages provided");
   }
 
-  const systemPrompt = `You are a warm, concise recipe-brainstorming assistant inside a home meal-planning app called The Family Table.
+  let systemPrompt = `You are a warm, sharp recipe-brainstorming assistant inside a home meal-planning app called The Family Table.
 
-The user will tell you what ingredients they have on hand (fridge/pantry), or describe a mood or craving. Suggest 2-4 specific, realistic recipe ideas, each as a short bolded name followed by a one-sentence description. Keep the whole reply brief - this is a quick back-and-forth, not an essay.
+The user will tell you what ingredients they have on hand (fridge/pantry), or describe a mood or craving. Suggest 4-6 specific, realistic recipe ideas, each as a short **bolded name** followed by a one-sentence description. Keep the whole reply brief - a quick back-and-forth, not an essay.
 
-If the user asks for more detail on a specific idea (e.g. "tell me more about the second one" or "how do I make that"), respond with ONE full recipe for that dish: the name, total time, a complete ingredient list with quantities, and numbered steps. This detailed reply should be self-contained enough that someone could cook from it without seeing the rest of the conversation.
+VARIETY IS ESSENTIAL - this is the most important rule:
+- Make the ideas genuinely different from EACH OTHER: vary the cuisine, the main protein or base, and the cooking method. Never give several variations of the same dish.
+- Look at everything you have ALREADY suggested earlier in this conversation and never repeat a dish you've offered before. Every reply should be a fresh set of ideas, not a reshuffle of the last one. If the user asks for "more" or "other ideas," give a completely new set they haven't seen.
+- Range widely across world cuisines and styles - don't fall back on the same handful of dishes (e.g. tacos, stir-fry, pasta) every time. Surprise them sometimes.
+
+If the user asks for more detail on a specific idea ("tell me more about the second one", "how do I make that"), respond with ONE full recipe for that dish: the name, total time, a complete ingredient list with quantities, and numbered steps - self-contained enough to cook from without seeing the rest of the chat.
 
 Keep tone practical and friendly. No long preambles, no markdown headers, no emoji spam - the app already has its own visual style.`;
+
+  // Dishes the user has already been shown in previous chats (their history is
+  // cleared between chats, so without this the model would happily re-suggest
+  // the same crowd-pleasers every fresh chat). Only applies to idea lists, not a
+  // "give me the full recipe for X" follow-up, so a requested detail still works.
+  if (Array.isArray(avoid) && avoid.length) {
+    systemPrompt += `\n\nThe user has ALREADY been shown these dishes in recent sessions. When brainstorming a LIST of ideas, do NOT suggest any of these or close variations of them - give genuinely new, different dishes. (This does not apply if the user is asking for the full recipe/details of one specific dish.)\nAlready shown:\n` + avoid.slice(0, 40).map(d => "- " + d).join("\n");
+  }
 
   const anthropicMessages = messages.map(m => ({
     role: m.role === "assistant" ? "assistant" : "user",
@@ -879,7 +892,8 @@ Keep tone practical and friendly. No long preambles, no markdown headers, no emo
 
   const data = await callAnthropic({
     model: "claude-sonnet-5",
-    max_tokens: 1200,
+    max_tokens: 1400,
+    temperature: 1,
     system: systemPrompt,
     messages: anthropicMessages
   }, apiKey, meter);
