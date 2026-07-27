@@ -5674,6 +5674,34 @@ function App(){
     }
   }
 
+  // A lightweight taste profile built from the user's own recipe book: the
+  // categories they save most and the non-staple ingredients that recur.
+  // Favorited recipes count double. Sent to the Chef so ideas lean toward what
+  // they actually cook. Returns "" until there are enough recipes to mean
+  // something, so a brand-new user isn't pigeonholed on day one.
+  var TASTE_STOPLIST={salt:1,pepper:1,"black pepper":1,water:1,oil:1,"olive oil":1,"vegetable oil":1,butter:1,sugar:1,flour:1,"all-purpose flour":1,egg:1,eggs:1,milk:1,garlic:1,onion:1};
+  function buildTasteProfile(){
+    if(!recipes||recipes.length<3)return "";
+    var typeCounts={},ingCounts={};
+    recipes.forEach(function(r){
+      var weight=favorites.indexOf(r.id)!==-1?2:1;
+      var t=r.recipeType||detectRecipeType(r);
+      if(t&&t!=="other"&&t!=="all"&&t!=="favorites")typeCounts[t]=(typeCounts[t]||0)+weight;
+      (r.ingredients||[]).forEach(function(g){
+        var n=(typeof g==="string"?g:(g&&g.name)||"").toLowerCase();
+        n=n.replace(/\([^)]*\)/g,"").replace(/[^a-z\s-]/g,"").replace(/\s+/g," ").trim();
+        if(!n||n.length<3||TASTE_STOPLIST[n])return;
+        ingCounts[n]=(ingCounts[n]||0)+1;
+      });
+    });
+    var topTypes=Object.keys(typeCounts).sort(function(a,b){return typeCounts[b]-typeCounts[a]}).slice(0,4);
+    var topIngs=Object.keys(ingCounts).filter(function(n){return ingCounts[n]>=2}).sort(function(a,b){return ingCounts[b]-ingCounts[a]}).slice(0,10);
+    var parts=[];
+    if(topTypes.length)parts.push("categories they cook most: "+topTypes.join(", "));
+    if(topIngs.length)parts.push("ingredients that recur in their recipes: "+topIngs.join(", "));
+    return parts.join("; ");
+  }
+
   // Chef chat: recipe-idea brainstorming
   function sendChefMessage(text){
     if(!text||!text.trim())return;
@@ -5701,7 +5729,7 @@ function App(){
 
     setChefLoading(true);
 
-    proxyFetch({type:"chef_chat",messages:history.slice(-10),avoid:chefSeenDishes.slice(0,40)})
+    proxyFetch({type:"chef_chat",messages:history.slice(-10),avoid:chefSeenDishes.slice(0,40),taste:buildTasteProfile()})
     .then(function(response){return response.json()})
     .then(function(data){
       if(data.error)throw new Error(data.error);
