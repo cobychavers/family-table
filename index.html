@@ -1427,6 +1427,14 @@ function normalizeUnit(u){
     "teaspoon":"tsp","teaspoons":"tsp",
     "cups":"cup",
     "cans":"can",
+    "fl oz":"floz","floz":"floz","fluid ounce":"floz","fluid ounces":"floz",
+    "pint":"pt","pints":"pt","pt":"pt",
+    "quart":"qt","quarts":"qt","qt":"qt",
+    "gallon":"gal","gallons":"gal","gal":"gal",
+    "milligram":"mg","milligrams":"mg","mg":"mg",
+    "deciliter":"dl","deciliters":"dl","dl":"dl",
+    "milliliter":"ml","milliliters":"ml","liter":"l","liters":"l","litre":"l","litres":"l",
+    "gram":"g","grams":"g","kilogram":"kg","kilograms":"kg","ounce":"oz","ounces":"oz",
     "clove":"clove","cloves":"clove",
     "slices":"slice",
     "pieces":"piece",
@@ -1466,15 +1474,15 @@ function unitFamilyFactor(u){
 // from UNIT_FAMILIES above so user-driven conversion can bridge US/metric
 // without changing how the grocery list auto-consolidates amounts.
 var UNIT_DIMENSIONS={
-  volume:{tsp:4.92892,tbsp:14.7868,cup:236.588,ml:1,l:1000},
-  mass:{oz:28.3495,lb:453.592,g:1,kg:1000}
+  volume:{tsp:4.92892,tbsp:14.7868,floz:29.5735,cup:236.588,pt:473.176,qt:946.353,gal:3785.41,ml:1,dl:100,l:1000},
+  mass:{mg:0.001,g:1,oz:28.3495,lb:453.592,kg:1000}
 };
 function unitDimension(u){
   var n=normalizeUnit(u);
   for(var d in UNIT_DIMENSIONS){if(UNIT_DIMENSIONS[d].hasOwnProperty(n))return d}
   return null;
 }
-function unitLabel(u){return u==="l"?"L":u}
+function unitLabel(u){var m={l:"L",floz:"fl oz",pt:"pint",qt:"quart",gal:"gallon",dl:"dl"};return m[u]||u}
 // Formats a converted amount for its target unit. Cooking fractions ("1 1/8")
 // read well for US units, but they're wrong for metric: rounding 0.4536 kg to
 // "1/2 kg" is ~10% off, and nobody measures 5/8 of a millilitre. So metric
@@ -1519,11 +1527,11 @@ function unitEquivalents(qty,unit){
 }
 // Units offered in the converter, grouped by dimension. Count/container units
 // (can, pkg, bunch...) are intentionally absent - there's nothing to convert.
-var CONVERT_UNITS={mass:["oz","lb","g","kg"],volume:["tsp","tbsp","cup","ml","l"]};
+var CONVERT_UNITS={mass:["oz","lb","mg","g","kg"],volume:["tsp","tbsp","floz","cup","pt","qt","gal","ml","dl","l"]};
 function convertUnitsFor(u){var d=unitDimension(u);return d?CONVERT_UNITS[d]:[]}
 // Default the "to" side to the other measuring system, which is the conversion
 // people actually reach for (a metric recipe amount -> US, or vice versa).
-var CONVERT_DEFAULT={cup:"ml",tbsp:"ml",tsp:"ml",ml:"cup",l:"cup",oz:"g",lb:"g",g:"oz",kg:"lb"};
+var CONVERT_DEFAULT={cup:"ml",tbsp:"ml",tsp:"ml",floz:"ml",pt:"l",qt:"l",gal:"l",ml:"cup",dl:"cup",l:"cup",oz:"g",lb:"g",mg:"g",g:"oz",kg:"lb"};
 function defaultConvertTarget(from){
   var f=normalizeUnit(from);
   return CONVERT_DEFAULT[f]||convertUnitsFor(f)[0]||f;
@@ -2065,6 +2073,71 @@ function DialogHost(){
         isConfirm?React.createElement("button",{onClick:onCancel,className:"ft-card-tap",style:{padding:"11px 18px",borderRadius:12,border:"1px solid var(--border)",background:"transparent",color:"var(--light)",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'Inter',-apple-system,sans-serif"}},d.cancelText):null,
         React.createElement("button",{onClick:onOk,className:"ft-card-tap",style:{padding:"11px 20px",borderRadius:12,border:"none",background:d.danger?"var(--danger)":"var(--dark)",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",boxShadow:"var(--shadow-sm)",fontFamily:"'Inter',-apple-system,sans-serif"}},d.confirmText)
       )
+    )
+  );
+}
+
+// ============ PANTRY TAB ============
+// Own-user pantry management (staples kept off the generated grocery list) plus
+// the unit converter. Self-contained: reads/writes dm_pantry_<user> directly;
+// GroceryTab reloads that doc on mount, so edits here reach the list filtering.
+function PantryTab(p){
+  var C={ink:"var(--ink)",dark:"var(--dark)",light:"var(--light)",gold:"var(--gold)",blush:"var(--blush)",blushMed:"var(--blush-med)",blushDeep:"var(--blush-deep)",card:"var(--surface)",bdr:"var(--border)",shadowSm:"var(--shadow-sm)",shadowMd:"var(--shadow-md)",shadowLg:"var(--shadow-lg)"};
+  var [pantry,setPantry]=useState([]);
+  var [pantryInput,setPantryInput]=useState("");
+  useEffect(function(){
+    if(!p.userId||p.userId==="guest"){setPantry([]);return;}
+    window.storage.get("dm_pantry_"+p.userId.toLowerCase(),true).then(function(r){if(r&&r.value){try{setPantry(JSON.parse(r.value))}catch(e){}}}).catch(function(){});
+  },[p.userId]);
+  function savePantry(list){setPantry(list);if(p.userId&&p.userId!=="guest")window.storage.set("dm_pantry_"+p.userId.toLowerCase(),JSON.stringify(list),true).catch(function(){});}
+  function addToPantry(name){name=(name||"").trim();if(!name)return;if(pantry.some(function(x){return (x.name||"").toLowerCase()===name.toLowerCase()}))return;savePantry(pantry.concat([{name:name}]));}
+  function removeFromPantry(name){savePantry(pantry.filter(function(x){return x.name!==name}));}
+  var [convAmount,setConvAmount]=useState("1");
+  var [convFrom,setConvFrom]=useState("cup");
+  var [convTo,setConvTo]=useState(defaultConvertTarget("cup"));
+  function changeConvFrom(u){setConvFrom(u);setConvTo(defaultConvertTarget(u));}
+  var fld={padding:"12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:"var(--surface)"};
+  return React.createElement("div",{style:{animation:"ft-fade-in .25s ease-out"}},
+    React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:8}},
+      React.createElement(Icon,{name:"clipboard",size:19,color:C.dark,strokeWidth:1.75}),
+      React.createElement("div",{style:{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}},"Pantry")
+    ),
+    React.createElement("div",{style:{fontSize:13,color:C.light,lineHeight:1.5,marginBottom:14}},"Staples you keep at home. These are left off your grocery list when you build it from the calendar."),
+    React.createElement("div",{style:{display:"flex",gap:8,marginBottom:14}},
+      React.createElement("input",{type:"text",value:pantryInput,onChange:function(e){setPantryInput(e.target.value)},onKeyDown:function(e){if(e.key==="Enter"&&pantryInput.trim()){addToPantry(pantryInput);setPantryInput("")}},placeholder:"e.g. olive oil",style:{flex:1,minWidth:0,padding:"11px 12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:C.card}}),
+      React.createElement("button",{onClick:function(){if(pantryInput.trim()){addToPantry(pantryInput);setPantryInput("")}},disabled:!pantryInput.trim(),style:{flex:"0 0 auto",padding:"11px 16px",borderRadius:10,border:"none",background:pantryInput.trim()?C.dark:"var(--disabled)",color:"#fff",fontSize:14,fontWeight:600,cursor:pantryInput.trim()?"pointer":"not-allowed"}},"Add")
+    ),
+    React.createElement("div",{style:{background:"var(--surface)",borderRadius:16,boxShadow:C.shadowSm,border:"1px solid "+C.bdr,padding:"2px 16px",marginBottom:24}},
+      pantry.length===0?React.createElement("div",{style:{textAlign:"center",padding:"26px 16px"}},
+        React.createElement("div",{style:{marginBottom:10,opacity:.35}},React.createElement(Icon,{name:"clipboard",size:28,color:C.dark,strokeWidth:1.25})),
+        React.createElement("div",{style:{fontSize:13,fontWeight:600,color:C.dark,marginBottom:4}},"Your pantry is empty"),
+        React.createElement("div",{style:{fontSize:12,color:C.light,lineHeight:1.5}},"Add the things you always have - salt, olive oil, flour - and they'll stop showing up on your list.")
+      ):pantry.map(function(x){
+        return React.createElement("div",{key:x.name,style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"12px 2px",borderBottom:"1px solid "+C.bdr}},
+          React.createElement("span",{style:{fontSize:15,color:C.ink,fontWeight:500,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},x.name),
+          React.createElement("button",{onClick:function(){removeFromPantry(x.name)},title:"Remove",style:{background:"none",border:"none",cursor:"pointer",opacity:.35,padding:4,display:"flex",flexShrink:0}},React.createElement(Icon,{name:"x",size:15,strokeWidth:2.5}))
+        );
+      })
+    ),
+    React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
+      React.createElement(Icon,{name:"swap",size:17,color:C.gold,strokeWidth:2}),
+      React.createElement("div",{style:{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:19,color:C.ink}},"Unit Converter")
+    ),
+    React.createElement("div",{style:{background:"var(--surface)",borderRadius:16,boxShadow:C.shadowSm,border:"1px solid "+C.bdr,padding:16}},
+      React.createElement("div",{style:{display:"flex",gap:8,marginBottom:10}},
+        React.createElement("input",{type:"text",inputMode:"decimal",value:convAmount,onChange:function(e){setConvAmount(e.target.value)},placeholder:"1",style:Object.assign({},fld,{flex:1,minWidth:0,fontSize:16,fontWeight:600,background:C.card})}),
+        React.createElement("select",{value:convFrom,onChange:function(e){changeConvFrom(e.target.value)},style:Object.assign({},fld,{flex:"0 0 120px"})},
+          Object.keys(CONVERT_UNITS).map(function(d){return React.createElement("optgroup",{key:d,label:d==="mass"?"Weight":"Volume"},CONVERT_UNITS[d].map(function(u){return React.createElement("option",{key:u,value:u},unitLabel(u))}))})
+        )
+      ),
+      React.createElement("div",{style:{display:"flex",gap:8,alignItems:"center",marginBottom:14}},
+        React.createElement("div",{style:{flex:1,minWidth:0,padding:"12px",borderRadius:10,background:"var(--blush)",border:"1px solid "+C.bdr,fontSize:18,fontWeight:700,color:C.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},convertQty(convAmount,convFrom,convTo)||"—"),
+        React.createElement("select",{value:convTo,onChange:function(e){setConvTo(e.target.value)},style:Object.assign({},fld,{flex:"0 0 120px"})},
+          convertUnitsFor(convFrom).map(function(u){return React.createElement("option",{key:u,value:u},unitLabel(u))})
+        )
+      ),
+      (function(){var eqv=unitEquivalents(convAmount,convFrom).filter(function(t){return t.split(" ").pop()!==unitLabel(convTo)});if(!eqv.length)return null;return React.createElement("div",{style:{fontSize:12,color:C.light,lineHeight:1.6,marginBottom:6}},"Also "+eqv.join("  ·  "));})(),
+      React.createElement("div",{style:{fontSize:11,color:C.light,opacity:.8,lineHeight:1.5,borderTop:"1px solid "+C.bdr,paddingTop:12}},"Weight and volume can't be converted into each other - how much a cup of something weighs depends on the ingredient.")
     )
   );
 }
@@ -3346,9 +3419,7 @@ function GroceryTab(p){
           showPlusMenu?React.createElement("div",{style:{position:"absolute",top:42,right:0,background:"var(--surface)",borderRadius:10,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,minWidth:170,zIndex:50,overflow:"hidden"}},
             React.createElement("button",{onClick:function(){setShowAdd(true);setShowPlusMenu(false)},style:{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}},React.createElement(Icon,{name:"plus",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"Add Item")),
             React.createElement("button",{onClick:function(){setShowImportGrocery(true);setShowPlusMenu(false)},style:{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}},React.createElement(Icon,{name:"list",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"Create List")),
-            savedLists.length>0?React.createElement("button",{onClick:function(){setShowLoadList(true);setShowPlusMenu(false)},style:{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}},React.createElement(Icon,{name:"folder",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"Saved Lists")):null,
-            React.createElement("button",{onClick:function(){setShowPantry(true);setShowPlusMenu(false)},style:{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}},React.createElement(Icon,{name:"clipboard",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"Pantry")),
-            React.createElement("button",{onClick:function(){openConverter("","cup");setShowPlusMenu(false)},style:{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",boxSizing:"border-box"}},React.createElement(Icon,{name:"swap",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"Unit Converter"))
+            savedLists.length>0?React.createElement("button",{onClick:function(){setShowLoadList(true);setShowPlusMenu(false)},style:{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",boxSizing:"border-box"}},React.createElement(Icon,{name:"folder",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"Saved Lists")):null
           ):null
         )
       ),
@@ -3388,7 +3459,7 @@ function GroceryTab(p){
         "Last generated from: "+generatedWeekLabel
       ):null,
       /* Say what the pantry took out, rather than silently shrinking the list. */
-      pantrySkipped>0?React.createElement("button",{onClick:function(){setShowPantry(true)},style:{display:"block",width:"100%",textAlign:"center",fontSize:11,color:C.light,marginTop:4,background:"none",border:"none",cursor:"pointer",textDecoration:"underline",textUnderlineOffset:2}},
+      pantrySkipped>0?React.createElement("button",{onClick:function(){p.goToPantry&&p.goToPantry()},style:{display:"block",width:"100%",textAlign:"center",fontSize:11,color:C.light,marginTop:4,background:"none",border:"none",cursor:"pointer",textDecoration:"underline",textUnderlineOffset:2}},
         pantrySkipped+" item"+(pantrySkipped===1?"":"s")+" skipped - already in your pantry"
       ):null,
     ),
@@ -6069,7 +6140,7 @@ function App(){
       {/* Close profile menu when clicking elsewhere */}
       {showProfileMenu?<div onClick={function(){setShowProfileMenu(false)}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:998}}/>:null}
       <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",justifyContent:"center"}}>
-        {[["calendar","calendar","Calendar"],["recipes","book","Recipes"],["chef","sparkle","Chef"],["grocery","cart","Grocery"]].map(function(t){
+        {[["calendar","calendar","Calendar"],["recipes","book","Recipes"],["chef","sparkle","Chef"],["grocery","cart","Grocery"],["pantry","clipboard","Pantry"]].map(function(t){
           var hasInbox=t[0]==="recipes"&&userInbox.length>0;
           var hasRequests=t[0]==="explore"&&followRequests.length>0;
           var badgeCount=hasInbox?userInbox.length:(hasRequests?followRequests.length:0);
@@ -6842,7 +6913,8 @@ function App(){
         </div>
       </div>}
 
-      {view==="grocery"&&<GroceryTab meals={meals} wdates={wd} wlabel={wl} rgn={region} gSI={gSI} gSFI={gSFI} setItemStore={setSI} userId={groceryListOwner} ownList={groceryIsMine} ownerUid={groceryOwnerUid} listOwner={groceryOwner} setListOwner={setGroceryOwner} members={householdMembers} me={userId} myProfilePic={userProfilePic} groceryHidden={groceryHidden} setGroceryHidden={setGroceryHidden} stores={STORES} addCustomStore={addCustomStore} removeCustomStore={removeCustomStore} defStore={defStore} setDefStore={handleSetDefStore} categoryStores={categoryStores} setCategoryStore={handleSetCategoryStore} goToCalendar={function(){setView("calendar")}} setWs={setWs} ws={ws} pendingMeals={pendingGroceryMeals} clearPendingMeals={function(){setPendingGroceryMeals(null)}}/>}
+      {view==="grocery"&&<GroceryTab meals={meals} wdates={wd} wlabel={wl} rgn={region} gSI={gSI} gSFI={gSFI} setItemStore={setSI} userId={groceryListOwner} ownList={groceryIsMine} ownerUid={groceryOwnerUid} listOwner={groceryOwner} setListOwner={setGroceryOwner} members={householdMembers} me={userId} myProfilePic={userProfilePic} groceryHidden={groceryHidden} setGroceryHidden={setGroceryHidden} stores={STORES} addCustomStore={addCustomStore} removeCustomStore={removeCustomStore} defStore={defStore} setDefStore={handleSetDefStore} categoryStores={categoryStores} setCategoryStore={handleSetCategoryStore} goToCalendar={function(){setView("calendar")}} goToPantry={function(){setView("pantry")}} setWs={setWs} ws={ws} pendingMeals={pendingGroceryMeals} clearPendingMeals={function(){setPendingGroceryMeals(null)}}/>}
+      {view==="pantry"&&<PantryTab userId={userId}/>}
       </div>}
 
       {/* ADD PLACEHOLDER MODAL */}
