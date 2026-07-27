@@ -1625,6 +1625,34 @@ function tryMergeQty(aQty,aUnit,bQty,bUnit){
   }
   return null;
 }
+// Add one quantity to a list of "parts" (chips) for a single grocery line.
+// Deliberately conservative: only fold into an existing part when the unit is
+// the SAME (so "2 lb" + "1 lb" -> "3 lb"). Different units - even a count vs a
+// bare number, like "3 cloves" and "2" - stay as separate chips rather than
+// being force-combined into one awkward number. That's the whole point: show
+// both quantities side by side instead of guessing a single total.
+function addQtyPart(parts, qty, unit){
+  qty=(qty==null?"":String(qty)).trim();
+  unit=(unit==null?"":String(unit)).trim();
+  if(!qty && !unit) return; // nothing worth a chip
+  var nu=normalizeUnit(unit);
+  for(var i=0;i<parts.length;i++){
+    if(normalizeUnit(parts[i].unit||"")===nu){
+      if(!(parts[i].qty||"").trim()){ parts[i].qty=qty; return; }
+      var an=parseQtyNum(parts[i].qty), bn=parseQtyNum(qty);
+      if(an!==null && bn!==null){ parts[i].qty=formatQtyNum(an+bn); return; }
+      // same unit but not both numeric (e.g. "to taste") - fall through to a new chip
+    }
+  }
+  parts.push({qty:qty,unit:unit});
+}
+// The chips to show for an item: an explicit parts array if present, otherwise
+// the single qty/unit (covers manual items and anything saved before parts).
+function groceryItemParts(it){
+  if(it && it.parts && it.parts.length) return it.parts;
+  var q=(it&&it.qty||""),u=(it&&it.unit||"");
+  return (q||u)?[{qty:q,unit:u}]:[];
+}
 
 // Formats an ingredient at a given scale multiplier (1 = unscaled), reusing
 // the same parse/format machinery as grocery consolidation. Falls back to
@@ -2451,27 +2479,25 @@ function GroceryTab(p){
       var rawName=it.name||"";
       var note=it.note||groceryQualifier(rawName);
       var names=splitGroceryItemNames(cleanGroceryItemName(rawName)).map(normalizeGroceryPepperName);
+      var incoming=groceryItemParts(it);
       names.forEach(function(nm,i){
         var display=(nm||"").trim();
         if(!display||isCookingWaterByproduct(display))return;
         var key=groceryMergeKey(display);
         // A split (salt + pepper) keeps the qty/note on the first piece only.
-        var q=i===0?(it.qty||""):"",u=i===0?(it.unit||""):"",n=i===0?note:"";
-        var variants=seen[key],merged=false;
-        if(variants){
-          for(var vi=0;vi<variants.length;vi++){
-            var r=tryMergeQty(variants[vi].qty,variants[vi].unit,q,u);
-            if(r){variants[vi].qty=r.qty;variants[vi].unit=r.unit;variants[vi].note=resolveNote(r.qty,variants[vi].note,n);merged=true;break;}
-          }
-        }
-        if(!merged){
-          var ni={id:it.id+(i>0?("_"+i):""),name:display,qty:q,unit:u,note:resolveNote(q,n,"")};
-          out.push(ni);
-          if(!seen[key])seen[key]=[];
-          seen[key].push(ni);
+        var pieceParts=i===0?incoming:[],n=i===0?note:"";
+        var ex=seen[key];
+        if(ex){
+          pieceParts.forEach(function(p){addQtyPart(ex.parts,p.qty,p.unit)});
+          ex.note=resolveNote((ex.parts[0]||{}).qty,ex.note,n);
+        }else{
+          var ni={id:it.id+(i>0?("_"+i):""),name:display,parts:[],note:resolveNote((pieceParts[0]||{}).qty,n,"")};
+          pieceParts.forEach(function(p){addQtyPart(ni.parts,p.qty,p.unit)});
+          out.push(ni);seen[key]=ni;
         }
       });
     });
+    out.forEach(function(it){it.qty=(it.parts[0]||{}).qty||"";it.unit=(it.parts[0]||{}).unit||""});
     return out;
   }
 
@@ -2485,7 +2511,7 @@ function GroceryTab(p){
     var items = generatedItems.slice();
     var before = items.length;
     var seenNames = {};
-    items.forEach(function(it){ var n=groceryMergeKey(it.name||""); if(!n)return; if(!seenNames[n])seenNames[n]=[]; seenNames[n].push(it); });
+    items.forEach(function(it){ var n=groceryMergeKey(it.name||""); if(!n)return; if(!seenNames[n])seenNames[n]=it; });
     var idx = 0;
     items.forEach(function(it){ var m=(it.id||"").match(/^gen-(\d+)$/); if(m){var n=parseInt(m[1]); if(n>=idx) idx=n+1;} });
     var skippedPantry = 0;
@@ -2501,19 +2527,19 @@ function GroceryTab(p){
             if(GROCERY_EXCLUDE.some(function(ex){return name===ex||name.replace(/\s+/g," ")===ex})||isCookingWaterByproduct(name)) return;
             if(pantryHasKey(name)){skippedPantry++;return;}
             var iqty=ni===0?(ing.qty||""):"",iunit=ni===0?(ing.unit||""):"",inote=ni===0?note:"";
-            var variants=seenNames[name],merged=false;
-            if(variants){
-              for(var vi=0;vi<variants.length;vi++){
-                var v=variants[vi];
-                var mr=tryMergeQty(v.qty,v.unit,iqty,iunit);
-                if(mr){ v.qty=mr.qty; v.unit=mr.unit; v.note=resolveNote(mr.qty,v.note,inote); merged=true; break; }
-              }
-            }
-            if(!merged){
-              var newItem={id:"gen-"+idx,name:itemName||ing.name||"",qty:iqty,unit:iunit,note:resolveNote(iqty,inote,"")};
+            var ex=seenNames[name];
+            if(ex){
+              if(!ex.parts)ex.parts=groceryItemParts(ex);
+              addQtyPart(ex.parts,iqty,iunit);
+              ex.qty=(ex.parts[0]||{}).qty||"";ex.unit=(ex.parts[0]||{}).unit||"";
+              ex.note=resolveNote(ex.qty,ex.note,inote);
+            }else{
+              var newItem={id:"gen-"+idx,name:itemName||ing.name||"",parts:[],note:""};
+              addQtyPart(newItem.parts,iqty,iunit);
+              newItem.qty=(newItem.parts[0]||{}).qty||"";newItem.unit=(newItem.parts[0]||{}).unit||"";
+              newItem.note=resolveNote(newItem.qty,inote,"");
               items.push(newItem);
-              if(!seenNames[name])seenNames[name]=[];
-              seenNames[name].push(newItem);
+              seenNames[name]=newItem;
               idx++;
             }
           });
@@ -2542,13 +2568,12 @@ function GroceryTab(p){
     mode = mode || "replace";
     var skippedPantry=0;
     var items = mode==="append" ? generatedItems.slice() : [];
-    var seenNames = {}; // name -> array of item refs ("variants") that share this name
+    var seenNames = {}; // merge key -> the single item for that key
     // Seed with existing items so regenerating can still merge into them
     items.forEach(function(it){
       var n=groceryMergeKey(it.name||"");
       if(!n)return;
-      if(!seenNames[n])seenNames[n]=[];
-      seenNames[n].push(it);
+      if(!seenNames[n])seenNames[n]=it;
     });
     // Find the next available index for new gen-X ids
     var idx = 0;
@@ -2583,27 +2608,21 @@ function GroceryTab(p){
                 if(pantryHasKey(name)){skippedPantry++;return;}
                 // qty/note only apply to the first split piece
                 var iqty=ni===0?(ing.qty||""):"",iunit=ni===0?(ing.unit||""):"",inote=ni===0?note:"";
-                // Try to merge into an existing variant of this ingredient name
-                var variants=seenNames[name];
-                var merged=false;
-                if(variants){
-                  for(var vi=0;vi<variants.length;vi++){
-                    var v=variants[vi];
-                    var mergeResult=tryMergeQty(v.qty,v.unit,iqty,iunit);
-                    if(mergeResult){
-                      v.qty=mergeResult.qty;
-                      v.unit=mergeResult.unit;
-                      v.note=resolveNote(mergeResult.qty,v.note,inote);
-                      merged=true;
-                      break;
-                    }
-                  }
-                }
-                if(!merged){
-                  var newItem={id:"gen-"+idx,name:itemName||ing.name||"",qty:iqty,unit:iunit,note:resolveNote(iqty,inote,"")};
+                // Add this amount as a quantity part on the item for this key -
+                // same unit folds together, a different unit becomes its own chip.
+                var ex=seenNames[name];
+                if(ex){
+                  if(!ex.parts)ex.parts=groceryItemParts(ex);
+                  addQtyPart(ex.parts,iqty,iunit);
+                  ex.qty=(ex.parts[0]||{}).qty||"";ex.unit=(ex.parts[0]||{}).unit||"";
+                  ex.note=resolveNote(ex.qty,ex.note,inote);
+                }else{
+                  var newItem={id:"gen-"+idx,name:itemName||ing.name||"",parts:[],note:""};
+                  addQtyPart(newItem.parts,iqty,iunit);
+                  newItem.qty=(newItem.parts[0]||{}).qty||"";newItem.unit=(newItem.parts[0]||{}).unit||"";
+                  newItem.note=resolveNote(newItem.qty,inote,"");
                   items.push(newItem);
-                  if(!seenNames[name])seenNames[name]=[];
-                  seenNames[name].push(newItem);
+                  seenNames[name]=newItem;
                   idx++;
                 }
               });
@@ -3174,23 +3193,20 @@ function GroceryTab(p){
       var nm=displayGroceryName(it.name);
       if(!nm)return;
       var key=groceryMergeKey(nm);
-      var variants=seen[key],merged=false;
-      if(variants){
-        for(var vi=0;vi<variants.length;vi++){
-          var r=tryMergeQty(variants[vi].qty,variants[vi].unit,it.qty||"",it.unit||"");
-          if(r){
-            variants[vi].qty=r.qty;variants[vi].unit=r.unit;
-            variants[vi].note=resolveNote(r.qty,variants[vi].note,it.note||"");
-            merged=true;break;
-          }
-        }
-      }
-      if(!merged){
-        var ni={id:it.id,name:nm,qty:it.qty||"",unit:it.unit||"",note:it.note||"",source:it.source};
-        out.push(ni);
-        (seen[key]||(seen[key]=[])).push(ni);
+      var incoming=groceryItemParts(it);
+      var ex=seen[key];
+      if(ex){
+        incoming.forEach(function(p){addQtyPart(ex.parts,p.qty,p.unit)});
+        ex.note=resolveNote((ex.parts[0]||{}).qty,ex.note,it.note||"");
+      }else{
+        var ni={id:it.id,name:nm,parts:[],note:it.note||"",source:it.source};
+        incoming.forEach(function(p){addQtyPart(ni.parts,p.qty,p.unit)});
+        out.push(ni);seen[key]=ni;
       }
     });
+    // Keep qty/unit in sync with the first chip so overrides, editing and
+    // category logic (which read it.qty/it.unit) all still work.
+    out.forEach(function(it){it.qty=(it.parts[0]||{}).qty||"";it.unit=(it.parts[0]||{}).unit||""});
     all=out;
   })();
 
@@ -3218,13 +3234,17 @@ function GroceryTab(p){
     var unit=override?override.unit:(it.unit||"");
     var itemName=override&&override.name?override.name:displayGroceryName(it.name);
     var itemBrand=brandFor(it.name);
-    var qtyLabel=[qty,unit].filter(Boolean).join(" ");
+    // One chip per quantity part, so several amounts of the same item show side
+    // by side ("3 cloves", "2") instead of being merged into one number. An
+    // override (the user hand-edited the amount) collapses to a single chip.
+    var chipParts=override?[{qty:override.qty||"",unit:override.unit||""}]:groceryItemParts(it);
+    var chipLabels=chipParts.map(function(p){return [p.qty,p.unit].filter(Boolean).join(" ")}).filter(Boolean);
     // Amount column: a real quantity (or a "pinch"/"dash" amount word) shows as
     // a chip; a "to taste" / "optional" qualifier shows as an italic "(...)"
     // note. Either way the column is never blank when the recipe gave guidance.
     var note=(override&&override.note!==undefined)?override.note:(it.note||"");
-    var chipText=qtyLabel||(note&&isAmountWord(note)?note:"");
-    var qualifier=(!qtyLabel&&note&&!isAmountWord(note))?note:"";
+    if(!chipLabels.length&&note&&isAmountWord(note))chipLabels=[note];
+    var qualifier=(!chipLabels.length&&note&&!isAmountWord(note))?note:"";
     // On a family member's list you may ADD items and remove the ones YOU added,
     // but not delete anyone else's - their generated (meal-plan) items and items
     // the owner or another member added stay put. On your own list, anything goes.
@@ -3255,7 +3275,7 @@ function GroceryTab(p){
         React.createElement("button",{onClick:function(){tog(it.id)},style:{width:24,height:24,borderRadius:"50%",border:ic?"none":"1.5px solid "+C.blushDeep,background:ic?C.dark:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"background 0.15s"}},ic?React.createElement(Icon,{name:"check",size:14,color:"#fff",strokeWidth:2.5}):null),
         React.createElement("button",{onClick:function(){setPickStore(pickStore===it.id?null:it.id)},style:{width:26,height:26,borderRadius:6,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}},renderStoreIcon(st,16)),
         React.createElement("div",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{flex:1,minWidth:0,cursor:"pointer",display:"flex",alignItems:"center",gap:9}},
-          chipText?React.createElement("span",{style:{fontSize:12,fontWeight:700,color:C.dark,background:"var(--blush-med)",borderRadius:6,padding:"2px 8px",flexShrink:0,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",opacity:ic?.5:1}},chipText)
+          chipLabels.length?React.createElement("div",{style:{display:"flex",gap:4,flexShrink:0,flexWrap:"wrap"}},chipLabels.map(function(cl,ci){return React.createElement("span",{key:ci,style:{fontSize:12,fontWeight:700,color:C.dark,background:"var(--blush-med)",borderRadius:6,padding:"2px 8px",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",opacity:ic?.5:1}},cl)}))
           :qualifier?React.createElement("span",{style:{fontSize:12.5,fontStyle:"italic",color:C.light,fontWeight:500,flexShrink:0,whiteSpace:"nowrap",opacity:ic?.5:1}},"("+qualifier+")")
           :null,
           React.createElement("div",{style:{minWidth:0}},
