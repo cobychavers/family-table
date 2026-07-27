@@ -6249,6 +6249,26 @@ function App(){
             <div style={{fontSize:16,fontWeight:600,textAlign:"center",color:C.dark}}>{wl}</div>
             <button onClick={function(){var d=new Date(ws);d.setDate(d.getDate()+7);setWs(d)}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.blush,cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark}}>Next ›</button>
           </div>
+          {/* Select-all: checks every real meal in this week for the grocery push. */}
+          {viewingOwnCalendar?(function(){
+            var weekMeals=[];
+            wd.forEach(function(date){var kk=dk(date);getMealsForDay(kk).forEach(function(m,mi){if(!m.isPlaceholder)weekMeals.push({key:kk+"|"+mi,meal:m})})});
+            if(!weekMeals.length)return null;
+            var allSel=weekMeals.every(function(w){return selectedCalMeals[w.key]});
+            return <div style={{display:"flex",justifyContent:"flex-end",marginTop:-4,marginBottom:12}}>
+              <button className="ft-card-tap" onClick={function(){
+                setSelectedCalMeals(function(prev){
+                  var next=Object.assign({},prev);
+                  if(allSel){weekMeals.forEach(function(w){delete next[w.key]})}
+                  else{weekMeals.forEach(function(w){next[w.key]=w.meal})}
+                  return next;
+                });
+              }} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 15px",borderRadius:20,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",fontSize:12.5,fontWeight:600,color:C.dark,boxShadow:C.shadowSm,letterSpacing:.2}}>
+                <span style={{display:"flex",alignItems:"center",justifyContent:"center",width:16,height:16,borderRadius:4,background:allSel?C.dark:"transparent",border:allSel?"none":"1.5px solid "+C.blushDeep}}>{allSel?<Icon name="check" size={11} color="#fff" strokeWidth={3}/>:null}</span>
+                {allSel?"Deselect all":"Select all"}
+              </button>
+            </div>;
+          })():null}
           {wd.map(function(date,i){var k=dk(date),mlist=getMealsForDay(k),isT=k===todayK;return(
             <div key={k} style={{marginBottom:16}}>
               {/* Day header */}
