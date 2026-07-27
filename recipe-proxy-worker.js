@@ -277,7 +277,7 @@ export default {
 
       if (type === "chef_chat") {
         // Recipe-idea chat - returns a plain-text reply, not a structured recipe
-        payload = { success: true, reply: await chefChat(body.messages, env.ANTHROPIC_API_KEY, meter, body.avoid) };
+        payload = { success: true, reply: await chefChat(body.messages, env.ANTHROPIC_API_KEY, meter, body.avoid, body.taste) };
       } else if (type === "ingredient_swap") {
         // Substitutes for one ingredient - returns its own {success, original,
         // suggestions} shape, not the {success, recipe} shape
@@ -859,7 +859,7 @@ Important:
 }
 
 // Recipe-idea brainstorming chat
-async function chefChat(messages, apiKey, meter, avoid) {
+async function chefChat(messages, apiKey, meter, avoid, taste) {
   if (!messages || messages.length === 0) {
     throw new Error("No messages provided");
   }
@@ -883,6 +883,13 @@ Keep tone practical and friendly. No long preambles, no markdown headers, no emo
   // "give me the full recipe for X" follow-up, so a requested detail still works.
   if (Array.isArray(avoid) && avoid.length) {
     systemPrompt += `\n\nThe user has ALREADY been shown these dishes in recent sessions. When brainstorming a LIST of ideas, do NOT suggest any of these or close variations of them - give genuinely new, different dishes. (This does not apply if the user is asking for the full recipe/details of one specific dish.)\nAlready shown:\n` + avoid.slice(0, 40).map(d => "- " + d).join("\n");
+  }
+
+  // Taste profile inferred from the user's own saved recipes (categories +
+  // recurring ingredients). Bias ideas toward it, but never at the expense of
+  // the variety rules, and always defer to an explicit request in the chat.
+  if (typeof taste === "string" && taste.trim()) {
+    systemPrompt += `\n\nWhat this cook tends to like, inferred from their saved recipes: ${taste.trim()}.\nLean your ideas toward these tastes and ingredients they already enjoy - it makes suggestions feel personal. But keep the variety rules above (still range around, still no repeats), and if the user asks for something specific in the chat, follow that over their usual tastes.`;
   }
 
   const anthropicMessages = messages.map(m => ({
