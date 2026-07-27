@@ -3962,7 +3962,26 @@ function App(){
   var [refreshing,setRefreshing]=useState(false);
   var [exploreSubTab,setExploreSubTab]=useState("recipes"); // "recipes" or "people"
   var [chefMessages,setChefMessages]=useState([]); // [{role:"user"|"assistant", text}]
+  // Dishes the Chef has already suggested, kept across "New Chat" clears (and
+  // browser sessions) so it never repeats itself. Sent as an "avoid" list so a
+  // fresh chat still gets brand-new ideas instead of the same popular defaults.
+  var [chefSeenDishes,setChefSeenDishes]=useState(function(){try{return JSON.parse(localStorage.getItem("dm_chef_seen")||"[]")}catch(e){return[]}});
+  function recordChefDishes(text){
+    var found=[];var re=/\*\*(.+?)\*\*/g,m;
+    while((m=re.exec(text||""))!==null){var name=m[1].replace(/[:*]/g,"").trim();if(name&&name.length<=60)found.push(name)}
+    if(!found.length)return;
+    setChefSeenDishes(function(prev){
+      var next=found.concat(prev);
+      // Dedupe case-insensitively, keep most-recent first, cap the memory.
+      var seen={},out=[];
+      next.forEach(function(d){var k=d.toLowerCase();if(!seen[k]){seen[k]=1;out.push(d)}});
+      out=out.slice(0,60);
+      try{localStorage.setItem("dm_chef_seen",JSON.stringify(out))}catch(e){}
+      return out;
+    });
+  }
   var [chefInput,setChefInput]=useState("");
+  var chefInputRef=useRef(null);
   var [chefLoading,setChefLoading]=useState(false);
   var [chefLastActive,setChefLastActive]=useState(null);
   var [chefSwaps,setChefSwaps]=useState({}); // msgIndex -> {original, substitute} - ephemeral display overlay for un-saved Chef-suggested recipes
@@ -5682,13 +5701,14 @@ function App(){
 
     setChefLoading(true);
 
-    proxyFetch({type:"chef_chat",messages:history.slice(-10)})
+    proxyFetch({type:"chef_chat",messages:history.slice(-10),avoid:chefSeenDishes.slice(0,40)})
     .then(function(response){return response.json()})
     .then(function(data){
       if(data.error)throw new Error(data.error);
       if(!data.success||!data.reply)throw new Error("No reply from assistant");
       setChefLastActive(Date.now());
       setChefMessages(history.concat([{role:"assistant",text:data.reply}]));
+      recordChefDishes(data.reply);
       setChefLoading(false);
     })
     .catch(function(err){
@@ -6719,7 +6739,6 @@ function App(){
             <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}}>AI Chef</div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:14}}>
-            <button onClick={function(){setSwapPickerRecipeKey("");setSwapPickerIngredient("");setSwapPickerNote("");setShowSwapPicker(true)}} style={{display:"flex",alignItems:"center",gap:5,background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.gold,cursor:"pointer"}}><Icon name="swap" size={13} color={C.gold} strokeWidth={2}/>Swap an ingredient</button>
             {chefMessages.length>0?<button onClick={function(){setChefMessages([]);setChefSwaps({})}} style={{background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.light,cursor:"pointer"}}>New Chat</button>:null}
           </div>
         </div>
@@ -6733,6 +6752,9 @@ function App(){
               {["What can I make with what I have?","Something quick and easy tonight","Kid-friendly dinner ideas","Easy meals for busy family","Surprise me with an idea"].map(function(sug){
                 return <button key={sug} onClick={function(){sendChefMessage(sug)}} style={{padding:"12px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",boxShadow:C.shadowSm}}>{sug}</button>
               })}
+              {/* Ingredient swap is just another question now - tapping pre-fills the
+                  input so you name the ingredient, then send routes to the swap flow. */}
+              <button key="__swap__" onClick={function(){setChefInput("What can I use instead of ");setTimeout(function(){chefInputRef.current&&chefInputRef.current.focus()},0)}} style={{padding:"12px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",boxShadow:C.shadowSm}}>What can I use instead of an ingredient?</button>
             </div>
           </div>
         :
@@ -6767,53 +6789,10 @@ function App(){
         }
 
         <div style={{display:"flex",gap:8}}>
-          <input value={chefInput} onChange={function(e){setChefInput(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter"&&!chefLoading&&chefInput.trim())sendChefMessage(chefInput)}} placeholder="Ask the Chef" style={Object.assign({},inp,{flex:1})} disabled={chefLoading}/>
+          <input ref={chefInputRef} value={chefInput} onChange={function(e){setChefInput(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter"&&!chefLoading&&chefInput.trim())sendChefMessage(chefInput)}} placeholder="Ask the Chef" style={Object.assign({},inp,{flex:1})} disabled={chefLoading}/>
           <button onClick={function(){sendChefMessage(chefInput)}} disabled={chefLoading||!chefInput.trim()} style={{width:44,height:44,borderRadius:10,border:"none",background:(chefLoading||!chefInput.trim())?C.blushDeep:C.dark,color:"#fff",cursor:(chefLoading||!chefInput.trim())?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="send" size={18} strokeWidth={2}/></button>
         </div>
       </div>}
-
-      {showSwapPicker&&<div style={ovl} onClick={function(){setShowSwapPicker(false)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-          <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:19,color:C.ink}}>Swap an ingredient</div>
-          <button onClick={function(){setShowSwapPicker(false)}} style={{background:"none",border:"none",padding:4,cursor:"pointer"}}><Icon name="x" size={18} color={C.light} strokeWidth={2}/></button>
-        </div>
-        {(function(){
-          var options=getSwapRecipeOptions();
-          var isAny=swapPickerRecipeKey==="__any__";
-          var selectedOpt=isAny?{source:"none",key:"__any__",label:"Any ingredient"}:options.find(function(o){return o.key===swapPickerRecipeKey});
-          var ingredientNames=isAny?[]:getSwapIngredientNames(selectedOpt);
-          return <div>
-            <label style={{display:"block",fontSize:12,fontWeight:600,color:C.light,marginBottom:6}}>Recipe</label>
-            <select value={swapPickerRecipeKey} onChange={function(e){setSwapPickerRecipeKey(e.target.value);setSwapPickerIngredient("")}} style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,background:"var(--surface)",color:C.dark,marginBottom:14,boxSizing:"border-box"}}>
-              <option value="">Choose a recipe...</option>
-              <option value="__any__">Any ingredient (no recipe)</option>
-              {options.map(function(o){return <option key={o.key} value={o.key}>{o.label}</option>})}
-            </select>
-
-            <label style={{display:"block",fontSize:12,fontWeight:600,color:C.light,marginBottom:6}}>Ingredient</label>
-            {isAny?
-              <input value={swapPickerIngredient} onChange={function(e){setSwapPickerIngredient(e.target.value)}} placeholder="e.g. buttermilk, cilantro, brown sugar" style={Object.assign({},inp,{marginBottom:14})}/>
-            :
-              <select value={swapPickerIngredient} onChange={function(e){setSwapPickerIngredient(e.target.value)}} disabled={!selectedOpt} style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,background:selectedOpt?"var(--surface)":C.blush,color:C.dark,marginBottom:14,cursor:selectedOpt?"pointer":"default",boxSizing:"border-box"}}>
-                <option value="">{selectedOpt?"Choose an ingredient...":"Pick a recipe first"}</option>
-                {ingredientNames.map(function(n,ni){return <option key={ni} value={n}>{n}</option>})}
-              </select>
-            }
-
-            <label style={{display:"block",fontSize:12,fontWeight:600,color:C.light,marginBottom:6}}>Anything specific? (optional)</label>
-            <input value={swapPickerNote} onChange={function(e){setSwapPickerNote(e.target.value)}} placeholder="e.g. no dairy, don't have it" style={Object.assign({},inp,{marginBottom:16})}/>
-
-            <button className="ft-card-tap" disabled={!selectedOpt||!swapPickerIngredient.trim()||chefLoading} onClick={function(){
-              var opt=selectedOpt;
-              var ingredientName=swapPickerIngredient.trim();
-              var note=swapPickerNote;
-              setShowSwapPicker(false);
-              var displayText=isAny?("Swap "+ingredientName+(note?(" - "+note):"")):("Swap "+ingredientName+" in "+opt.label.replace(" (this chat)","")+(note?(" - "+note):""));
-              requestIngredientSwap(opt,ingredientName,note,displayText,chefMessages);
-            }} style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:(!selectedOpt||!swapPickerIngredient||chefLoading)?C.blushDeep:C.dark,color:"#fff",fontWeight:600,fontSize:14,cursor:(!selectedOpt||!swapPickerIngredient||chefLoading)?"not-allowed":"pointer"}}>Get Suggestions</button>
-          </div>;
-        })()}
-      </div></div>}
 
       {view==="grocery"&&<GroceryTab meals={meals} wdates={wd} wlabel={wl} rgn={region} gSI={gSI} gSFI={gSFI} setItemStore={setSI} userId={groceryListOwner} ownList={groceryIsMine} ownerUid={groceryOwnerUid} listOwner={groceryOwner} setListOwner={setGroceryOwner} members={householdMembers} me={userId} myProfilePic={userProfilePic} groceryHidden={groceryHidden} setGroceryHidden={setGroceryHidden} stores={STORES} addCustomStore={addCustomStore} removeCustomStore={removeCustomStore} defStore={defStore} setDefStore={handleSetDefStore} categoryStores={categoryStores} setCategoryStore={handleSetCategoryStore} goToCalendar={function(){setView("calendar")}} setWs={setWs} ws={ws} pendingMeals={pendingGroceryMeals} clearPendingMeals={function(){setPendingGroceryMeals(null)}}/>}
       </div>}
