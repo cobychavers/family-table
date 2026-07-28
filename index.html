@@ -1575,23 +1575,23 @@ var ALL_CONVERT_UNITS=[].concat(CONVERT_UNITS.volume,CONVERT_UNITS.mass);
 // splits into liquid / flour / sugar / butter - each converts to grams by its
 // own weight. Plain volumes (ml, tbsp, ...) assume liquid (water) for weight.
 var CONV_UNITS=[
-  {k:"tsp",label:"tsp",dim:"volume",ml:4.92892},
-  {k:"tbsp",label:"tbsp",dim:"volume",ml:14.7868},
-  {k:"floz",label:"fl oz",dim:"volume",ml:29.5735},
-  {k:"cup",label:"cup (liquid)",dim:"volume",ml:236.588,gpc:236.588},
-  {k:"cupdry",label:"cup (solid)",dim:"volume",ml:236.588,gpc:150},
+  {k:"tsp",label:"teaspoon",dim:"volume",ml:4.92892},
+  {k:"tbsp",label:"tablespoon",dim:"volume",ml:14.7868},
+  {k:"floz",label:"fluid ounce",dim:"volume",ml:29.5735},
+  {k:"cup",label:"cup",dim:"volume",ml:236.588,gpc:236.588},
   {k:"pt",label:"pint",dim:"volume",ml:473.176},
   {k:"qt",label:"quart",dim:"volume",ml:946.353},
   {k:"gal",label:"gallon",dim:"volume",ml:3785.41},
-  {k:"ml",label:"ml",dim:"volume",ml:1},
-  {k:"dl",label:"dl",dim:"volume",ml:100},
-  {k:"l",label:"L",dim:"volume",ml:1000},
-  {k:"mg",label:"mg",dim:"mass",g:0.001},
-  {k:"g",label:"g",dim:"mass",g:1},
-  {k:"oz",label:"oz",dim:"mass",g:28.3495},
-  {k:"lb",label:"lb",dim:"mass",g:453.592},
-  {k:"kg",label:"kg",dim:"mass",g:1000}
+  {k:"ml",label:"milliliter",dim:"volume",ml:1},
+  {k:"l",label:"liter",dim:"volume",ml:1000},
+  {k:"g",label:"gram",dim:"mass",g:1},
+  {k:"kg",label:"kilogram",dim:"mass",g:1000},
+  {k:"oz",label:"ounce",dim:"mass",g:28.3495},
+  {k:"lb",label:"pound",dim:"mass",g:453.592}
 ];
+// "2 cups" but "1 cup" / "1/2 cup" - only amounts above one pluralize (a plain -s
+// covers every unit label here: cups, tablespoons, fluid ounces, grams...).
+function convUnitLabel(key,n){var u=CONV_BY_KEY[key];if(!u)return"";return (n>1)?u.label+"s":u.label;}
 var CONV_BY_KEY={}; CONV_UNITS.forEach(function(u){CONV_BY_KEY[u.k]=u;});
 // Convert between any two pantry-converter units. Volume<->weight bridges via a
 // grams-per-ml: a cup variant in play supplies its own; otherwise water (1 g/ml).
@@ -2165,18 +2165,24 @@ function PantryTab(p){
   function addToPantry(name){name=(name||"").trim();if(!name)return;if(pantry.some(function(x){return (x.name||"").toLowerCase()===name.toLowerCase()}))return;savePantry(pantry.concat([{name:name}]));}
   function removeFromPantry(name){savePantry(pantry.filter(function(x){return x.name!==name}));}
   var [psub,setPsub]=useState("staples"); // "staples" | "converter"
-  // Converter starts blank - no amount, no units picked, no result.
-  var [convAmount,setConvAmount]=useState("");
-  var [convFrom,setConvFrom]=useState("");
-  var [convTo,setConvTo]=useState("");
-  var convResult=(convAmount.trim()&&convFrom&&convTo)?convPantry(convAmount,convFrom,convTo):null;
+  // Opens on a live worked example ("1 cup = 16 tablespoons") so the tool
+  // explains itself instantly; the amount is editable and units are one tap away.
+  var [convAmount,setConvAmount]=useState("1");
+  var [convFrom,setConvFrom]=useState("cup");
+  var [convTo,setConvTo]=useState("tbsp");
+  var convNum=parseQtyNum(convAmount);
+  var convResult=(convAmount.trim()!==""&&convFrom&&convTo)?convPantry(convAmount,convFrom,convTo):null;
+  var convResultNum=convResult!==null?parseQtyNum(convResult):null;
+  function swapUnits(){var f=convFrom;setConvFrom(convTo);setConvTo(f);}
+  // The questions cooks actually ask, always live so they can never be wrong.
+  var CONV_CHEATS=[{a:"1",from:"tbsp",to:"tsp"},{a:"1",from:"cup",to:"tbsp"},{a:"1",from:"cup",to:"floz"},{a:"1",from:"pt",to:"cup"},{a:"1",from:"qt",to:"cup"},{a:"1",from:"gal",to:"qt"}];
+  var AMT_CHIPS=[{v:"1/4",l:"¼"},{v:"1/3",l:"⅓"},{v:"1/2",l:"½"},{v:"1",l:"1"},{v:"2",l:"2"},{v:"3",l:"3"}];
   var SANS="'Inter',-apple-system,BlinkMacSystemFont,sans-serif";
   var fld={padding:"12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:"var(--surface)",fontFamily:SANS,appearance:"none",WebkitAppearance:"none"};
   function unitOpts(){
     var vol=CONV_UNITS.filter(function(u){return u.dim==="volume"});
     var mass=CONV_UNITS.filter(function(u){return u.dim==="mass"});
-    return [React.createElement("option",{key:"_ph",value:"",disabled:true},"Unit"),
-      React.createElement("optgroup",{key:"volume",label:"Volume"},vol.map(function(u){return React.createElement("option",{key:u.k,value:u.k},u.label)})),
+    return [React.createElement("optgroup",{key:"volume",label:"Volume"},vol.map(function(u){return React.createElement("option",{key:u.k,value:u.k},u.label)})),
       React.createElement("optgroup",{key:"mass",label:"Weight"},mass.map(function(u){return React.createElement("option",{key:u.k,value:u.k},u.label)}))];
   }
   function segBtn(active,label){return {flex:1,padding:"9px 16px",borderRadius:9,border:"none",background:active?"var(--surface)":"transparent",color:active?C.ink:C.light,fontWeight:active?700:600,fontSize:13.5,cursor:"pointer",fontFamily:SANS,boxShadow:active?C.shadowSm:"none",transition:"all .18s"};}
@@ -2208,21 +2214,49 @@ function PantryTab(p){
           );
         })
       )
-    ):React.createElement("div",{style:{background:"var(--surface)",borderRadius:16,boxShadow:C.shadowSm,border:"1px solid "+C.bdr,padding:18}},
-      React.createElement("div",{style:{fontSize:11,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.7,marginBottom:7}},"From"),
-      React.createElement("div",{style:{display:"flex",gap:8,marginBottom:16}},
-        React.createElement("input",{type:"text",inputMode:"decimal",value:convAmount,onChange:function(e){setConvAmount(e.target.value)},placeholder:"Amount",style:Object.assign({},fld,{flex:1,minWidth:0,fontSize:19,fontWeight:600,fontVariantNumeric:"tabular-nums",background:C.card})}),
-        React.createElement("select",{value:convFrom,onChange:function(e){setConvFrom(e.target.value)},style:Object.assign({},fld,{flex:"0 0 132px",fontSize:14.5,fontWeight:500,color:convFrom?C.ink:C.light})},unitOpts())
+    ):React.createElement("div",null,
+      /* Interactive converter: two symmetric stops with a swap control. */
+      React.createElement("div",{style:{background:"var(--surface)",borderRadius:16,boxShadow:C.shadowSm,border:"1px solid "+C.bdr,padding:18,marginBottom:18}},
+        /* FROM stop */
+        React.createElement("div",{style:{display:"flex",gap:8}},
+          React.createElement("input",{type:"text",inputMode:"decimal",value:convAmount,onChange:function(e){setConvAmount(e.target.value)},placeholder:"Amount",style:Object.assign({},fld,{flex:1,minWidth:0,fontSize:20,fontWeight:600,fontVariantNumeric:"tabular-nums",background:C.card})}),
+          React.createElement("select",{value:convFrom,onChange:function(e){setConvFrom(e.target.value)},style:Object.assign({},fld,{flex:"0 0 140px",fontSize:14.5,fontWeight:600})},unitOpts())
+        ),
+        /* Amount quick-chips - cooks think in ½, ⅓, ¼ */
+        React.createElement("div",{style:{display:"flex",gap:6,marginTop:10}},
+          AMT_CHIPS.map(function(ch){
+            var on=convAmount.trim()===ch.v;
+            return React.createElement("button",{key:ch.v,onClick:function(){setConvAmount(ch.v)},style:{flex:1,padding:"7px 0",borderRadius:8,border:"1px solid "+(on?C.dark:C.bdr),background:on?C.dark:"var(--surface)",color:on?"#fff":C.ink,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:SANS}},ch.l);
+          })
+        ),
+        /* Swap divider */
+        React.createElement("div",{style:{display:"flex",alignItems:"center",gap:12,margin:"14px 0"}},
+          React.createElement("div",{style:{flex:1,height:1,background:C.bdr}}),
+          React.createElement("button",{onClick:swapUnits,"aria-label":"Swap units",style:{width:34,height:34,borderRadius:17,background:C.blush,border:"1px solid "+C.bdr,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer",padding:0}},React.createElement(Icon,{name:"swap",size:15,color:C.gold,strokeWidth:2})),
+          React.createElement("div",{style:{flex:1,height:1,background:C.bdr}})
+        ),
+        /* TO stop - computed, tinted to read as the answer */
+        React.createElement("div",{style:{display:"flex",gap:8}},
+          React.createElement("div",{style:{flex:1,minWidth:0,padding:"0 14px",minHeight:52,borderRadius:10,background:C.blush,display:"flex",alignItems:"center",fontSize:20,fontWeight:700,color:convResult?C.ink:C.light,fontFamily:SANS,fontVariantNumeric:"tabular-nums",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},convResult||"—"),
+          React.createElement("select",{value:convTo,onChange:function(e){setConvTo(e.target.value)},style:Object.assign({},fld,{flex:"0 0 140px",fontSize:14.5,fontWeight:600})},unitOpts())
+        ),
+        /* Plain-English answer */
+        (convNum!==null&&convResult)?React.createElement("div",{style:{textAlign:"center",marginTop:16,paddingTop:14,borderTop:"1px solid "+C.bdr,fontSize:15,color:C.light,fontFamily:SANS}},
+          formatQtyNum(convNum)+" "+convUnitLabel(convFrom,convNum)+" ",
+          React.createElement("span",{style:{color:C.ink,fontWeight:700}},"= "+convResult+" "+convUnitLabel(convTo,convResultNum===null?2:convResultNum))
+        ):null
       ),
-      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:12,margin:"0 0 16px"}},
-        React.createElement("div",{style:{flex:1,height:1,background:C.bdr}}),
-        React.createElement("span",{style:{width:30,height:30,borderRadius:15,background:C.blush,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},React.createElement(Icon,{name:"swap",size:14,color:C.gold,strokeWidth:2})),
-        React.createElement("div",{style:{flex:1,height:1,background:C.bdr}})
-      ),
-      React.createElement("div",{style:{fontSize:11,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.7,marginBottom:7}},"To"),
-      React.createElement("div",{style:{display:"flex",gap:8,alignItems:"stretch"}},
-        React.createElement("div",{style:{flex:1,minWidth:0,padding:"0 14px",minHeight:48,borderRadius:10,background:C.card,border:"1px solid "+C.bdr,display:"flex",alignItems:"center",fontSize:18,fontWeight:500,color:convResult?C.ink:C.light,fontFamily:SANS,fontVariantNumeric:"tabular-nums",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},convResult||"Result"),
-        React.createElement("select",{value:convTo,onChange:function(e){setConvTo(e.target.value)},style:Object.assign({},fld,{flex:"0 0 132px",fontSize:14.5,fontWeight:500,color:convTo?C.ink:C.light})},unitOpts())
+      /* Kitchen cheat sheet - instant answers, tap to load into the converter */
+      React.createElement("div",{style:{fontSize:11,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.7,marginBottom:9,paddingLeft:2}},"Kitchen conversions"),
+      React.createElement("div",{style:{background:"var(--surface)",borderRadius:16,boxShadow:C.shadowSm,border:"1px solid "+C.bdr,overflow:"hidden"}},
+        CONV_CHEATS.map(function(cheat,i){
+          var res=convPantry(cheat.a,cheat.from,cheat.to);
+          var resNum=res!==null?parseQtyNum(res):2;
+          return React.createElement("button",{key:i,onClick:function(){setConvAmount(cheat.a);setConvFrom(cheat.from);setConvTo(cheat.to);},style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,width:"100%",padding:"13px 16px",border:"none",borderTop:i?"1px solid "+C.bdr:"none",background:"none",textAlign:"left",cursor:"pointer",fontFamily:SANS}},
+            React.createElement("span",{style:{fontSize:14.5,color:C.light,fontWeight:500}},cheat.a+" "+convUnitLabel(cheat.from,parseQtyNum(cheat.a))),
+            React.createElement("span",{style:{fontSize:14.5,color:C.ink,fontWeight:700,flexShrink:0}},"= "+res+" "+convUnitLabel(cheat.to,resNum))
+          );
+        })
       )
     )
   );
