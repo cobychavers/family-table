@@ -1568,6 +1568,48 @@ function convertQtyDensity(qty,fromUnit,toUnit,gramsPerCup){
 // All convertible units (both dimensions), for the ingredient-aware mode where
 // any unit can map to any other.
 var ALL_CONVERT_UNITS=[].concat(CONVERT_UNITS.volume,CONVERT_UNITS.mass);
+
+// --- Pantry-tab converter units --------------------------------------------
+// Self-contained unit set for the Pantry converter (leaves the grocery-editor
+// converter untouched). Volume units carry a gram-per-cup weight so a "cup"
+// splits into liquid / flour / sugar / butter - each converts to grams by its
+// own weight. Plain volumes (ml, tbsp, ...) assume liquid (water) for weight.
+var CONV_UNITS=[
+  {k:"tsp",label:"tsp",dim:"volume",ml:4.92892},
+  {k:"tbsp",label:"tbsp",dim:"volume",ml:14.7868},
+  {k:"floz",label:"fl oz",dim:"volume",ml:29.5735},
+  {k:"cup",label:"cup (liquid)",dim:"volume",ml:236.588,gpc:236.588},
+  {k:"cupflour",label:"cup (flour)",dim:"volume",ml:236.588,gpc:120},
+  {k:"cupsugar",label:"cup (sugar)",dim:"volume",ml:236.588,gpc:200},
+  {k:"cupbutter",label:"cup (butter)",dim:"volume",ml:236.588,gpc:227},
+  {k:"pt",label:"pint",dim:"volume",ml:473.176},
+  {k:"qt",label:"quart",dim:"volume",ml:946.353},
+  {k:"gal",label:"gallon",dim:"volume",ml:3785.41},
+  {k:"ml",label:"ml",dim:"volume",ml:1},
+  {k:"dl",label:"dl",dim:"volume",ml:100},
+  {k:"l",label:"L",dim:"volume",ml:1000},
+  {k:"mg",label:"mg",dim:"mass",g:0.001},
+  {k:"g",label:"g",dim:"mass",g:1},
+  {k:"oz",label:"oz",dim:"mass",g:28.3495},
+  {k:"lb",label:"lb",dim:"mass",g:453.592},
+  {k:"kg",label:"kg",dim:"mass",g:1000}
+];
+var CONV_BY_KEY={}; CONV_UNITS.forEach(function(u){CONV_BY_KEY[u.k]=u;});
+// Convert between any two pantry-converter units. Volume<->weight bridges via a
+// grams-per-ml: a cup variant in play supplies its own; otherwise water (1 g/ml).
+function convPantry(qty,fromKey,toKey){
+  var n=parseQtyNum(qty); if(n===null)return null;
+  var f=CONV_BY_KEY[fromKey],t=CONV_BY_KEY[toKey];
+  if(!f||!t)return null;
+  var gPerMl = f.gpc ? f.gpc/236.588 : (t.gpc ? t.gpc/236.588 : 1);
+  var grams = f.dim==="volume" ? n*f.ml*gPerMl : n*f.g;
+  var res = t.dim==="mass" ? grams/t.g : (grams/gPerMl)/t.ml;
+  if(!isFinite(res))return null;
+  // Metric weights/volumes read as decimals; everything else as cooking fractions.
+  return (t.k==="g"||t.k==="mg"||t.k==="ml") ? (res<1?String(Math.round(res*100)/100):String(Math.round(res)))
+       : (t.k==="kg"||t.k==="l"||t.k==="dl") ? String(Math.round(res*100)/100)
+       : formatQtyNum(res);
+}
 var UNICODE_FRACTIONS={"½":0.5,"¼":0.25,"¾":0.75,"⅓":1/3,"⅔":2/3,"⅛":0.125};
 function parseQtyNum(str){
   // AI-imported recipes sometimes return qty as a JSON number (e.g. 2)
@@ -2125,15 +2167,20 @@ function PantryTab(p){
   function addToPantry(name){name=(name||"").trim();if(!name)return;if(pantry.some(function(x){return (x.name||"").toLowerCase()===name.toLowerCase()}))return;savePantry(pantry.concat([{name:name}]));}
   function removeFromPantry(name){savePantry(pantry.filter(function(x){return x.name!==name}));}
   var [psub,setPsub]=useState("staples"); // "staples" | "converter"
-  var [convAmount,setConvAmount]=useState("1");
-  var [convFrom,setConvFrom]=useState("cup");
-  var [convTo,setConvTo]=useState("ml");
-  // Any unit -> any unit. Crossing volume<->weight assumes a liquid (water,
-  // 236.588 g/cup), so a cup gives a weight without asking what it holds.
-  var convResult=convertQtyDensity(convAmount,convFrom,convTo,236.588);
+  // Converter starts blank - no amount, no units picked, no result.
+  var [convAmount,setConvAmount]=useState("");
+  var [convFrom,setConvFrom]=useState("");
+  var [convTo,setConvTo]=useState("");
+  var convResult=(convAmount.trim()&&convFrom&&convTo)?convPantry(convAmount,convFrom,convTo):null;
   var SANS="'Inter',-apple-system,BlinkMacSystemFont,sans-serif";
   var fld={padding:"12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:"var(--surface)",fontFamily:SANS,appearance:"none",WebkitAppearance:"none"};
-  var unitGroups=Object.keys(CONVERT_UNITS).map(function(d){return React.createElement("optgroup",{key:d,label:d==="mass"?"Weight":"Volume"},CONVERT_UNITS[d].map(function(u){return React.createElement("option",{key:u,value:u},unitLabel(u))}))});
+  function unitOpts(){
+    var vol=CONV_UNITS.filter(function(u){return u.dim==="volume"});
+    var mass=CONV_UNITS.filter(function(u){return u.dim==="mass"});
+    return [React.createElement("option",{key:"_ph",value:"",disabled:true},"Unit"),
+      React.createElement("optgroup",{key:"volume",label:"Volume"},vol.map(function(u){return React.createElement("option",{key:u.k,value:u.k},u.label)})),
+      React.createElement("optgroup",{key:"mass",label:"Weight"},mass.map(function(u){return React.createElement("option",{key:u.k,value:u.k},u.label)}))];
+  }
   function segBtn(active,label){return {flex:1,padding:"9px 16px",borderRadius:9,border:"none",background:active?"var(--surface)":"transparent",color:active?C.ink:C.light,fontWeight:active?700:600,fontSize:13.5,cursor:"pointer",fontFamily:SANS,boxShadow:active?C.shadowSm:"none",transition:"all .18s"};}
   return React.createElement("div",{style:{animation:"ft-fade-in .25s ease-out",fontFamily:SANS}},
     React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:14}},
@@ -2166,8 +2213,8 @@ function PantryTab(p){
     ):React.createElement("div",{style:{background:"var(--surface)",borderRadius:16,boxShadow:C.shadowSm,border:"1px solid "+C.bdr,padding:18}},
       React.createElement("div",{style:{fontSize:11,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.7,marginBottom:7}},"From"),
       React.createElement("div",{style:{display:"flex",gap:8,marginBottom:16}},
-        React.createElement("input",{type:"text",inputMode:"decimal",value:convAmount,onChange:function(e){setConvAmount(e.target.value)},placeholder:"1",style:Object.assign({},fld,{flex:1,minWidth:0,fontSize:19,fontWeight:600,fontVariantNumeric:"tabular-nums",background:C.card})}),
-        React.createElement("select",{value:convFrom,onChange:function(e){setConvFrom(e.target.value)},style:Object.assign({},fld,{flex:"0 0 128px",fontSize:14.5,fontWeight:500})},unitGroups)
+        React.createElement("input",{type:"text",inputMode:"decimal",value:convAmount,onChange:function(e){setConvAmount(e.target.value)},placeholder:"Amount",style:Object.assign({},fld,{flex:1,minWidth:0,fontSize:19,fontWeight:600,fontVariantNumeric:"tabular-nums",background:C.card})}),
+        React.createElement("select",{value:convFrom,onChange:function(e){setConvFrom(e.target.value)},style:Object.assign({},fld,{flex:"0 0 132px",fontSize:14.5,fontWeight:500,color:convFrom?C.ink:C.light})},unitOpts())
       ),
       React.createElement("div",{style:{display:"flex",alignItems:"center",gap:12,margin:"0 0 16px"}},
         React.createElement("div",{style:{flex:1,height:1,background:C.bdr}}),
@@ -2175,11 +2222,10 @@ function PantryTab(p){
         React.createElement("div",{style:{flex:1,height:1,background:C.bdr}})
       ),
       React.createElement("div",{style:{fontSize:11,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.7,marginBottom:7}},"To"),
-      React.createElement("div",{style:{display:"flex",gap:8,alignItems:"stretch",marginBottom:16}},
-        React.createElement("div",{style:{flex:1,minWidth:0,padding:"0 16px",minHeight:52,borderRadius:10,background:C.blush,display:"flex",alignItems:"center",fontSize:24,fontWeight:700,color:C.ink,fontFamily:SANS,fontVariantNumeric:"tabular-nums",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},convResult||"—"),
-        React.createElement("select",{value:convTo,onChange:function(e){setConvTo(e.target.value)},style:Object.assign({},fld,{flex:"0 0 128px",fontSize:14.5,fontWeight:500})},unitGroups)
-      ),
-      React.createElement("div",{style:{fontSize:11.5,color:C.light,opacity:.85,lineHeight:1.5,borderTop:"1px solid "+C.bdr,paddingTop:12}},"Cup ↔ weight assumes a liquid (like water). Dry goods measured by the cup - flour, sugar - weigh a bit less, so treat those as an estimate.")
+      React.createElement("div",{style:{display:"flex",gap:8,alignItems:"stretch"}},
+        React.createElement("div",{style:{flex:1,minWidth:0,padding:"0 14px",minHeight:48,borderRadius:10,background:C.card,border:"1px solid "+C.bdr,display:"flex",alignItems:"center",fontSize:18,fontWeight:500,color:convResult?C.ink:C.light,fontFamily:SANS,fontVariantNumeric:"tabular-nums",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},convResult||"Result"),
+        React.createElement("select",{value:convTo,onChange:function(e){setConvTo(e.target.value)},style:Object.assign({},fld,{flex:"0 0 132px",fontSize:14.5,fontWeight:500,color:convTo?C.ink:C.light})},unitOpts())
+      )
     )
   );
 }
