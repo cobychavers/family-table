@@ -2262,6 +2262,11 @@ function GroceryTab(p){
   var [pickStore,setPickStore]=useState(null);
   var [groceryHistory,setGroceryHistory]=useState([]);
   var [showHistory,setShowHistory]=useState(false);
+  // Send-to-member: push chosen items onto another household member's list.
+  var [showSend,setShowSend]=useState(false);
+  var [sendTo,setSendTo]=useState(null);   // recipient username
+  var [sendSel,setSendSel]=useState({});   // item id -> selected
+  var [sending,setSending]=useState(false);
   var [editItem,setEditItem]=useState(null);
   var [editQty,setEditQty]=useState("");
   var [editUnit,setEditUnit]=useState("");
@@ -3493,6 +3498,41 @@ function GroceryTab(p){
   var [showDefStorePicker,setShowDefStorePicker]=useState(false);
   var defStoreObj=p.stores.find(function(s){return s.id===p.defStore})||p.stores[0];
 
+  // Household members other than me - the people I can send items to.
+  var sendRecipients=(p.members||[]).filter(function(m){return (m.username||"").toLowerCase()!==(p.me||"").toLowerCase()});
+  // Open the Send sheet with a default recipient and every item pre-selected.
+  function openSend(){
+    var sel={}; all.forEach(function(it){sel[it.id]=true});
+    setSendSel(sel);
+    setSendTo(sendRecipients.length?sendRecipients[0].username:null);
+    setShowSend(true);
+  }
+  // Write the picked items onto the recipient's own manual list. We stamp their
+  // uid as ownerUid (never mine) so the document stays theirs, and addedBy=me so
+  // they can see - and only they/I remove - who put it there.
+  function doSendItems(){
+    var recip=sendRecipients.find(function(m){return (m.username||"").toLowerCase()===(sendTo||"").toLowerCase()});
+    var picked=all.filter(function(it){return sendSel[it.id]});
+    if(!recip||!recip.uid){appAlert("Couldn't find that person's list.");return}
+    if(!picked.length)return;
+    setSending(true);
+    var key="dm_gmanual_"+recip.username;
+    window.storage.get(key,true).then(function(r){
+      var existing=[];
+      if(r&&r.value){try{existing=JSON.parse(r.value)}catch(e){existing=[]}}
+      var additions=picked.map(function(it){
+        var first=(it.parts&&it.parts[0])||{};
+        return {id:"snd"+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+          name:it.name,qty:first.qty||it.qty||"",unit:first.unit||it.unit||"",
+          source:"manual",addedBy:p.me};
+      });
+      return window.storage.set(key,JSON.stringify(existing.concat(additions)),true,recip.uid);
+    }).then(function(){
+      setSending(false);setShowSend(false);
+      appAlert(picked.length+" item"+(picked.length===1?"":"s")+" sent to "+recip.username+".");
+    }).catch(function(){setSending(false);appAlert("Couldn't send right now - please try again.")});
+  }
+
   return React.createElement("div",{style:{animation:"ft-fade-in .25s ease-out"}},
     React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,position:"relative"}},
       React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}},React.createElement(Icon,{name:"cart",size:18,color:C.dark,strokeWidth:1.75}),"Grocery List"),
@@ -3513,30 +3553,9 @@ function GroceryTab(p){
       showPlusMenu?React.createElement("div",{onClick:function(){setShowPlusMenu(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:40}}):null
     ),
     
-    /* Family list switcher. Unlike the calendar, a member's list is WRITABLE -
-       one person plans, the other shops and ticks things off. */
-    (p.members&&p.members.length>1)?React.createElement("div",{style:{display:"flex",gap:8,overflowX:"auto",paddingBottom:6,marginBottom:12}},
-      [{username:p.me,isSelf:true,profilePic:p.myProfilePic}].concat(p.members.filter(function(m){
-        return (m.username||"").toLowerCase()!==(p.me||"").toLowerCase();
-      })).map(function(m){
-        var active=m.isSelf?p.ownList:(p.listOwner||"").toLowerCase()===(m.username||"").toLowerCase();
-        return React.createElement("button",{key:m.username,onClick:function(){p.setListOwner(m.isSelf?null:m.username)},
-          style:{display:"flex",alignItems:"center",gap:7,padding:"6px 14px 6px 6px",borderRadius:20,flexShrink:0,
-            border:"1px solid "+(active?C.dark:C.bdr),background:active?C.dark:"var(--surface)",
-            color:active?"#fff":C.ink,fontSize:13,fontWeight:600,cursor:"pointer",transition:"all .2s"}},
-          React.createElement("span",{style:{width:24,height:24,borderRadius:12,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:active?"rgba(255,255,255,.2)":C.blush}},
-            isImageSrc(m.profilePic)?React.createElement("img",{src:m.profilePic,alt:"",style:{width:"100%",height:"100%",objectFit:"cover"}})
-              :m.profilePic?React.createElement("span",{style:{fontSize:13}},m.profilePic)
-              :React.createElement("span",{style:{fontSize:11,fontWeight:700,color:active?"#fff":C.dark}},(m.username||"?").charAt(0).toUpperCase())),
-          m.username
-        );
-      })
-    ):null,
-    !p.ownList?React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderRadius:10,background:C.blush,marginBottom:12}},
-      React.createElement(Icon,{name:"users",size:14,color:C.dark,strokeWidth:1.75}),
-      React.createElement("span",{style:{fontSize:12,color:C.dark,flex:1}},"Shopping "+p.listOwner+"'s list — what you tick off saves to it"),
-      React.createElement("button",{onClick:function(){p.setListOwner(null)},style:{background:"none",border:"none",padding:0,cursor:"pointer",fontSize:12,fontWeight:700,color:C.dark,textDecoration:"underline",textUnderlineOffset:2}},"My list")
-    ):null,
+    /* The family-list switcher was removed: rather than viewing (and ticking off)
+       someone else's list, you now stay on your own list and push items to a
+       household member with the Send button below. */
 
     /* Meal selection + push now lives on the Calendar tab. This wrapper keeps
        the "last generated from" line and the pantry-skipped note. */
@@ -3560,6 +3579,8 @@ function GroceryTab(p){
         React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
           // Primary action first: save the current list.
           all.length>0?React.createElement("button",{onClick:function(){setShowSaveLists(true)},style:Object.assign({},act,{border:"none",background:C.dark,color:"#fff"})},React.createElement(Icon,{name:"bookmark",size:13,strokeWidth:2}),"Save"):null,
+          // Push items to a household member's own list (only when there's someone to send to).
+          (sendRecipients.length>0&&all.length>0)?React.createElement("button",{onClick:openSend,style:Object.assign({},act,{color:C.gold,borderColor:C.gold})},React.createElement(Icon,{name:"send",size:13,color:C.gold,strokeWidth:2}),"Send"):null,
           tc>0?React.createElement("button",{onClick:clr,style:act},React.createElement(Icon,{name:"check",size:13,strokeWidth:2.25}),"Uncheck all"):null,
           hiddenCount>0?React.createElement("button",{onClick:unhideAllItems,style:act},React.createElement(Icon,{name:"refresh",size:13,strokeWidth:2}),"Restore "+hiddenCount):null,
           // Destructive, so it's set apart by a muted danger tint on the icon
@@ -3569,6 +3590,63 @@ function GroceryTab(p){
         )
       );
     })(),
+
+    /* Send-to-member sheet: pick who, tick which items, push them to their list. */
+    showSend?(function(){
+      var selCount=all.filter(function(it){return sendSel[it.id]}).length;
+      var recip=sendRecipients.find(function(m){return (m.username||"").toLowerCase()===(sendTo||"").toLowerCase()});
+      function toggleSel(id){var s=Object.assign({},sendSel);s[id]=!s[id];setSendSel(s)}
+      function setAll(on){var s={};all.forEach(function(it){s[it.id]=on});setSendSel(s)}
+      return React.createElement("div",{onClick:function(){if(!sending)setShowSend(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0,animation:"ft-backdrop-fade .18s ease-out"}},
+        React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:480,maxHeight:"85vh",display:"flex",flexDirection:"column",boxShadow:"0 -4px 20px rgba(0,0,0,0.15)",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
+          /* Header */
+          React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px 16px 12px",borderBottom:"1px solid "+C.bdr}},
+            React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16,color:C.dark}},React.createElement(Icon,{name:"send",size:16,color:C.dark,strokeWidth:2}),"Send items"),
+            React.createElement("button",{onClick:function(){if(!sending)setShowSend(false)},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,padding:0,lineHeight:1,display:"flex"}},React.createElement(Icon,{name:"x",size:20,strokeWidth:2}))
+          ),
+          React.createElement("div",{style:{padding:"14px 16px 0",overflowY:"auto"}},
+            /* Recipient */
+            React.createElement("div",{style:{fontSize:11,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.7,marginBottom:8}},"To"),
+            sendRecipients.length>1?React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}},
+              sendRecipients.map(function(m){
+                var on=(sendTo||"").toLowerCase()===(m.username||"").toLowerCase();
+                return React.createElement("button",{key:m.username,onClick:function(){setSendTo(m.username)},style:{display:"flex",alignItems:"center",gap:7,padding:"6px 14px 6px 6px",borderRadius:20,border:"1px solid "+(on?C.dark:C.bdr),background:on?C.dark:"var(--surface)",color:on?"#fff":C.ink,fontSize:13,fontWeight:600,cursor:"pointer",transition:"all .2s"}},
+                  React.createElement("span",{style:{width:24,height:24,borderRadius:12,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:on?"rgba(255,255,255,.2)":C.blush}},
+                    isImageSrc(m.profilePic)?React.createElement("img",{src:m.profilePic,alt:"",style:{width:"100%",height:"100%",objectFit:"cover"}})
+                      :m.profilePic?React.createElement("span",{style:{fontSize:13}},m.profilePic)
+                      :React.createElement("span",{style:{fontSize:11,fontWeight:700,color:on?"#fff":C.dark}},(m.username||"?").charAt(0).toUpperCase())),
+                  m.username
+                );
+              })
+            ):React.createElement("div",{style:{fontSize:15,fontWeight:600,color:C.ink,marginBottom:16}},recip?recip.username:"—"),
+            /* Select all / none */
+            React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
+              React.createElement("div",{style:{fontSize:11,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.7}},"Items ("+selCount+")"),
+              React.createElement("button",{onClick:function(){setAll(selCount<all.length)},style:{background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:700,color:C.gold}},selCount<all.length?"Select all":"Clear all")
+            ),
+            React.createElement("div",{style:{border:"1px solid "+C.bdr,borderRadius:12,overflow:"hidden",marginBottom:16}},
+              all.map(function(it,idx){
+                var on=!!sendSel[it.id];
+                var parts=groceryItemParts(it);
+                var amt=parts.map(function(pp){return [pp.qty,pp.unit].filter(Boolean).join(" ")}).filter(Boolean).join(", ");
+                return React.createElement("button",{key:it.id,onClick:function(){toggleSel(it.id)},style:{display:"flex",alignItems:"center",gap:11,width:"100%",padding:"11px 14px",border:"none",borderTop:idx?"1px solid "+C.bdr:"none",background:"none",textAlign:"left",cursor:"pointer"}},
+                  React.createElement("span",{style:{width:22,height:22,borderRadius:6,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:on?C.dark:"var(--surface)",border:"1.5px solid "+(on?C.dark:C.bdr)}},on?React.createElement(Icon,{name:"check",size:13,color:"#fff",strokeWidth:3}):null),
+                  React.createElement("span",{style:{flex:1,minWidth:0,fontSize:14.5,color:C.ink,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},displayGroceryName(it.name)),
+                  amt?React.createElement("span",{style:{fontSize:12,color:C.light,fontWeight:600,flexShrink:0}},amt):null
+                );
+              })
+            )
+          ),
+          /* Footer */
+          React.createElement("div",{style:{padding:"12px 16px",paddingBottom:"calc(12px + env(safe-area-inset-bottom))",borderTop:"1px solid "+C.bdr}},
+            React.createElement("button",{onClick:doSendItems,disabled:sending||selCount===0||!recip,style:{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",padding:"13px",borderRadius:12,border:"none",background:(sending||selCount===0||!recip)?"var(--disabled)":C.dark,color:"#fff",fontSize:15,fontWeight:700,cursor:(sending||selCount===0||!recip)?"not-allowed":"pointer"}},
+              React.createElement(Icon,{name:"send",size:15,color:"#fff",strokeWidth:2}),
+              sending?"Sending...":("Send "+selCount+" item"+(selCount===1?"":"s")+(recip?" to "+recip.username:""))
+            )
+          )
+        )
+      );
+    })():null,
 
     showAdd?React.createElement("div",{onClick:function(){setShowAdd(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0,animation:"ft-backdrop-fade .18s ease-out"}},
       React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:480,maxHeight:"85vh",overflowY:"auto",padding:16,paddingBottom:"calc(16px + env(safe-area-inset-bottom))",boxShadow:"0 -4px 20px rgba(0,0,0,0.15)",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
