@@ -2124,56 +2124,62 @@ function PantryTab(p){
   function savePantry(list){setPantry(list);if(p.userId&&p.userId!=="guest")window.storage.set("dm_pantry_"+p.userId.toLowerCase(),JSON.stringify(list),true).catch(function(){});}
   function addToPantry(name){name=(name||"").trim();if(!name)return;if(pantry.some(function(x){return (x.name||"").toLowerCase()===name.toLowerCase()}))return;savePantry(pantry.concat([{name:name}]));}
   function removeFromPantry(name){savePantry(pantry.filter(function(x){return x.name!==name}));}
+  var [psub,setPsub]=useState("staples"); // "staples" | "converter"
   var [convAmount,setConvAmount]=useState("1");
   var [convFrom,setConvFrom]=useState("cup");
   var [convTo,setConvTo]=useState("ml");
-  function changeConvFrom(u){setConvFrom(u);}
-  // Any unit converts to any other. Crossing volume<->weight assumes a liquid
-  // (water density, 236.588 g/cup), so a cup gives a weight without asking what
-  // it holds. Dry goods weigh a little differently - noted under the converter.
-  var convToUnits=ALL_CONVERT_UNITS;
+  // Any unit -> any unit. Crossing volume<->weight assumes a liquid (water,
+  // 236.588 g/cup), so a cup gives a weight without asking what it holds.
   var convResult=convertQtyDensity(convAmount,convFrom,convTo,236.588);
-  var fld={padding:"12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:"var(--surface)"};
-  return React.createElement("div",{style:{animation:"ft-fade-in .25s ease-out"}},
-    React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:8}},
+  var SANS="'Inter',-apple-system,BlinkMacSystemFont,sans-serif";
+  var fld={padding:"12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:"var(--surface)",fontFamily:SANS,appearance:"none",WebkitAppearance:"none"};
+  var unitGroups=Object.keys(CONVERT_UNITS).map(function(d){return React.createElement("optgroup",{key:d,label:d==="mass"?"Weight":"Volume"},CONVERT_UNITS[d].map(function(u){return React.createElement("option",{key:u,value:u},unitLabel(u))}))});
+  function segBtn(active,label){return {flex:1,padding:"9px 16px",borderRadius:9,border:"none",background:active?"var(--surface)":"transparent",color:active?C.ink:C.light,fontWeight:active?700:600,fontSize:13.5,cursor:"pointer",fontFamily:SANS,boxShadow:active?C.shadowSm:"none",transition:"all .18s"};}
+  return React.createElement("div",{style:{animation:"ft-fade-in .25s ease-out",fontFamily:SANS}},
+    React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:14}},
       React.createElement(Icon,{name:"clipboard",size:19,color:C.dark,strokeWidth:1.75}),
-      React.createElement("div",{style:{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}},"Pantry")
+      React.createElement("div",{style:{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:22,color:C.ink}},"Pantry")
     ),
-    React.createElement("div",{style:{fontSize:13,color:C.light,lineHeight:1.5,marginBottom:14}},"Staples you keep at home. These are left off your grocery list when you build it from the calendar."),
-    React.createElement("div",{style:{display:"flex",gap:8,marginBottom:14}},
-      React.createElement("input",{type:"text",value:pantryInput,onChange:function(e){setPantryInput(e.target.value)},onKeyDown:function(e){if(e.key==="Enter"&&pantryInput.trim()){addToPantry(pantryInput);setPantryInput("")}},placeholder:"e.g. olive oil",style:{flex:1,minWidth:0,padding:"11px 12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:C.card}}),
-      React.createElement("button",{onClick:function(){if(pantryInput.trim()){addToPantry(pantryInput);setPantryInput("")}},disabled:!pantryInput.trim(),style:{flex:"0 0 auto",padding:"11px 16px",borderRadius:10,border:"none",background:pantryInput.trim()?C.dark:"var(--disabled)",color:"#fff",fontSize:14,fontWeight:600,cursor:pantryInput.trim()?"pointer":"not-allowed"}},"Add")
+    /* Segmented toggle */
+    React.createElement("div",{style:{display:"flex",gap:4,background:C.blush,borderRadius:12,padding:4,marginBottom:18}},
+      React.createElement("button",{onClick:function(){setPsub("staples")},style:segBtn(psub==="staples")},"Staples"),
+      React.createElement("button",{onClick:function(){setPsub("converter")},style:segBtn(psub==="converter")},"Converter")
     ),
-    React.createElement("div",{style:{background:"var(--surface)",borderRadius:16,boxShadow:C.shadowSm,border:"1px solid "+C.bdr,padding:"2px 16px",marginBottom:24}},
-      pantry.length===0?React.createElement("div",{style:{textAlign:"center",padding:"26px 16px"}},
-        React.createElement("div",{style:{marginBottom:10,opacity:.35}},React.createElement(Icon,{name:"clipboard",size:28,color:C.dark,strokeWidth:1.25})),
-        React.createElement("div",{style:{fontSize:13,fontWeight:600,color:C.dark,marginBottom:4}},"Your pantry is empty"),
-        React.createElement("div",{style:{fontSize:12,color:C.light,lineHeight:1.5}},"Add the things you always have - salt, olive oil, flour - and they'll stop showing up on your list.")
-      ):pantry.map(function(x){
-        return React.createElement("div",{key:x.name,style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"12px 2px",borderBottom:"1px solid "+C.bdr}},
-          React.createElement("span",{style:{fontSize:15,color:C.ink,fontWeight:500,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},x.name),
-          React.createElement("button",{onClick:function(){removeFromPantry(x.name)},title:"Remove",style:{background:"none",border:"none",cursor:"pointer",opacity:.35,padding:4,display:"flex",flexShrink:0}},React.createElement(Icon,{name:"x",size:15,strokeWidth:2.5}))
-        );
-      })
-    ),
-    React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
-      React.createElement(Icon,{name:"swap",size:17,color:C.gold,strokeWidth:2}),
-      React.createElement("div",{style:{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:19,color:C.ink}},"Unit Converter")
-    ),
-    React.createElement("div",{style:{background:"var(--surface)",borderRadius:16,boxShadow:C.shadowSm,border:"1px solid "+C.bdr,padding:16}},
-      React.createElement("div",{style:{display:"flex",gap:8,marginBottom:10}},
-        React.createElement("input",{type:"text",inputMode:"decimal",value:convAmount,onChange:function(e){setConvAmount(e.target.value)},placeholder:"1",style:Object.assign({},fld,{flex:1,minWidth:0,fontSize:16,fontWeight:600,background:C.card})}),
-        React.createElement("select",{value:convFrom,onChange:function(e){changeConvFrom(e.target.value)},style:Object.assign({},fld,{flex:"0 0 120px"})},
-          Object.keys(CONVERT_UNITS).map(function(d){return React.createElement("optgroup",{key:d,label:d==="mass"?"Weight":"Volume"},CONVERT_UNITS[d].map(function(u){return React.createElement("option",{key:u,value:u},unitLabel(u))}))})
-        )
+    psub==="staples"?React.createElement("div",null,
+      React.createElement("div",{style:{fontSize:13,color:C.light,lineHeight:1.5,marginBottom:14}},"Staples you keep at home. These are left off your grocery list when you build it from the calendar."),
+      React.createElement("div",{style:{display:"flex",gap:8,marginBottom:14}},
+        React.createElement("input",{type:"text",value:pantryInput,onChange:function(e){setPantryInput(e.target.value)},onKeyDown:function(e){if(e.key==="Enter"&&pantryInput.trim()){addToPantry(pantryInput);setPantryInput("")}},placeholder:"e.g. olive oil",style:{flex:1,minWidth:0,padding:"11px 12px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,boxSizing:"border-box",color:C.ink,background:C.card,fontFamily:SANS}}),
+        React.createElement("button",{onClick:function(){if(pantryInput.trim()){addToPantry(pantryInput);setPantryInput("")}},disabled:!pantryInput.trim(),style:{flex:"0 0 auto",padding:"11px 16px",borderRadius:10,border:"none",background:pantryInput.trim()?C.dark:"var(--disabled)",color:"#fff",fontSize:14,fontWeight:600,cursor:pantryInput.trim()?"pointer":"not-allowed",fontFamily:SANS}},"Add")
       ),
-      React.createElement("div",{style:{display:"flex",gap:8,alignItems:"center",marginBottom:14}},
-        React.createElement("div",{style:{flex:1,minWidth:0,padding:"12px",borderRadius:10,background:"var(--blush)",border:"1px solid "+C.bdr,fontSize:18,fontWeight:700,color:C.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},convResult||"—"),
-        React.createElement("select",{value:convTo,onChange:function(e){setConvTo(e.target.value)},style:Object.assign({},fld,{flex:"0 0 120px"})},
-          Object.keys(CONVERT_UNITS).map(function(d){return React.createElement("optgroup",{key:d,label:d==="mass"?"Weight":"Volume"},CONVERT_UNITS[d].map(function(u){return React.createElement("option",{key:u,value:u},unitLabel(u))}))})
-        )
+      React.createElement("div",{style:{background:"var(--surface)",borderRadius:16,boxShadow:C.shadowSm,border:"1px solid "+C.bdr,padding:"2px 16px"}},
+        pantry.length===0?React.createElement("div",{style:{textAlign:"center",padding:"30px 16px"}},
+          React.createElement("div",{style:{marginBottom:10,opacity:.35}},React.createElement(Icon,{name:"clipboard",size:28,color:C.dark,strokeWidth:1.25})),
+          React.createElement("div",{style:{fontSize:13,fontWeight:600,color:C.dark,marginBottom:4}},"Your pantry is empty"),
+          React.createElement("div",{style:{fontSize:12,color:C.light,lineHeight:1.5}},"Add the things you always have - salt, olive oil, flour - and they'll stop showing up on your list.")
+        ):pantry.map(function(x){
+          return React.createElement("div",{key:x.name,style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"12px 2px",borderBottom:"1px solid "+C.bdr}},
+            React.createElement("span",{style:{fontSize:15,color:C.ink,fontWeight:500,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},x.name),
+            React.createElement("button",{onClick:function(){removeFromPantry(x.name)},title:"Remove",style:{background:"none",border:"none",cursor:"pointer",opacity:.35,padding:4,display:"flex",flexShrink:0}},React.createElement(Icon,{name:"x",size:15,strokeWidth:2.5}))
+          );
+        })
+      )
+    ):React.createElement("div",{style:{background:"var(--surface)",borderRadius:16,boxShadow:C.shadowSm,border:"1px solid "+C.bdr,padding:18}},
+      React.createElement("div",{style:{fontSize:11,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.7,marginBottom:7}},"From"),
+      React.createElement("div",{style:{display:"flex",gap:8,marginBottom:16}},
+        React.createElement("input",{type:"text",inputMode:"decimal",value:convAmount,onChange:function(e){setConvAmount(e.target.value)},placeholder:"1",style:Object.assign({},fld,{flex:1,minWidth:0,fontSize:19,fontWeight:600,fontVariantNumeric:"tabular-nums",background:C.card})}),
+        React.createElement("select",{value:convFrom,onChange:function(e){setConvFrom(e.target.value)},style:Object.assign({},fld,{flex:"0 0 128px",fontSize:14.5,fontWeight:500})},unitGroups)
       ),
-      React.createElement("div",{style:{fontSize:11,color:C.light,opacity:.8,lineHeight:1.5,borderTop:"1px solid "+C.bdr,paddingTop:12}},"Cup ↔ weight assumes a liquid (like water). Dry goods measured by the cup - flour, sugar - weigh a bit less, so treat those as an estimate.")
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:12,margin:"0 0 16px"}},
+        React.createElement("div",{style:{flex:1,height:1,background:C.bdr}}),
+        React.createElement("span",{style:{width:30,height:30,borderRadius:15,background:C.blush,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},React.createElement(Icon,{name:"swap",size:14,color:C.gold,strokeWidth:2})),
+        React.createElement("div",{style:{flex:1,height:1,background:C.bdr}})
+      ),
+      React.createElement("div",{style:{fontSize:11,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.7,marginBottom:7}},"To"),
+      React.createElement("div",{style:{display:"flex",gap:8,alignItems:"stretch",marginBottom:16}},
+        React.createElement("div",{style:{flex:1,minWidth:0,padding:"0 16px",minHeight:52,borderRadius:10,background:C.blush,display:"flex",alignItems:"center",fontSize:24,fontWeight:700,color:C.ink,fontFamily:SANS,fontVariantNumeric:"tabular-nums",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},convResult||"—"),
+        React.createElement("select",{value:convTo,onChange:function(e){setConvTo(e.target.value)},style:Object.assign({},fld,{flex:"0 0 128px",fontSize:14.5,fontWeight:500})},unitGroups)
+      ),
+      React.createElement("div",{style:{fontSize:11.5,color:C.light,opacity:.85,lineHeight:1.5,borderTop:"1px solid "+C.bdr,paddingTop:12}},"Cup ↔ weight assumes a liquid (like water). Dry goods measured by the cup - flour, sugar - weigh a bit less, so treat those as an estimate.")
     )
   );
 }
