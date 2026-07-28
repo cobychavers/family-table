@@ -5340,10 +5340,15 @@ function App(){
       var matchesCat=familyFilter==="all"||(r.recipeType||detectRecipeType(r))===familyFilter;
       return matchesSearch&&matchesCat;
     });
+    // "Newest" needs a creation time, but recipes don't all carry createdAt -
+    // most only have id (a Date.now() at creation) and a migration-guaranteed
+    // savedAt. Keying on createdAt alone sank every recipe missing it to the
+    // bottom. Fall back through the fields that are really creation timestamps.
+    function recipeTime(r){return Number(r.createdAt)||Number(r.id)||Number(r.savedAt)||0;}
     filtered=filtered.slice().sort(function(a,b){
       if(familySort==="az")return (a.name||"").localeCompare(b.name||"");
-      if(familySort==="cook")return (a.ownerUsername||"").toLowerCase().localeCompare((b.ownerUsername||"").toLowerCase())||((b.createdAt||0)-(a.createdAt||0));
-      return (b.createdAt||0)-(a.createdAt||0); // newest
+      if(familySort==="cook")return (a.ownerUsername||"").toLowerCase().localeCompare((b.ownerUsername||"").toLowerCase())||(recipeTime(b)-recipeTime(a));
+      return recipeTime(b)-recipeTime(a); // newest
     });
 
     if(!household)return <div style={{textAlign:"center",padding:"48px 20px"}}>
