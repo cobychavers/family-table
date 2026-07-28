@@ -2165,9 +2165,9 @@ function PantryTab(p){
   function addToPantry(name){name=(name||"").trim();if(!name)return;if(pantry.some(function(x){return (x.name||"").toLowerCase()===name.toLowerCase()}))return;savePantry(pantry.concat([{name:name}]));}
   function removeFromPantry(name){savePantry(pantry.filter(function(x){return x.name!==name}));}
   var [psub,setPsub]=useState("staples"); // "staples" | "converter"
-  // Opens on a live worked example ("1 cup = 16 tablespoons") so the tool
-  // explains itself instantly; the amount is editable and units are one tap away.
-  var [convAmount,setConvAmount]=useState("1");
+  // Starts blank - the cheat sheet below carries the instant answers, and units
+  // default to a common pairing so it's one amount away from a result.
+  var [convAmount,setConvAmount]=useState("");
   var [convFrom,setConvFrom]=useState("cup");
   var [convTo,setConvTo]=useState("tbsp");
   var convNum=parseQtyNum(convAmount);
