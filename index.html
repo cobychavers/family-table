@@ -4094,11 +4094,12 @@ function App(){
   var [familyError,setFamilyError]=useState("");
   var [joinCode,setJoinCode]=useState("");
   var [familyName,setFamilyName]=useState("");
-  // Which member's calendar is on screen. null = my own (the editable case).
-  // Set to another member's username to look at their week read-only.
-  var [viewingMember,setViewingMember]=useState(null);
-  var [memberMeals,setMemberMeals]=useState({});
-  var [memberMealsLoading,setMemberMealsLoading]=useState(false);
+  // Calendar view: "mine" = my own editable plan, "family" = every household
+  // member's plans merged into one read-only view. otherMemberMeals caches the
+  // other members' meal docs (username -> meals object) for the merge.
+  var [calendarSubTab,setCalendarSubTab]=useState("mine");
+  var [otherMemberMeals,setOtherMemberMeals]=useState({});
+  var [familyMealsLoading,setFamilyMealsLoading]=useState(false);
   var [swipedMeal,setSwipedMeal]=useState(null); // {dateKey, mealIndex} of swiped meal
   var [swipeStart,setSwipeStart]=useState(null); // {x, y, dateKey, mealIndex}
   var [swipeOffset,setSwipeOffset]=useState(0);
@@ -4488,20 +4489,29 @@ function App(){
     }).catch(function(){return null});
   }
 
-  // Viewing a family member's week is a plain read of the meals document they
-  // already own - nothing is copied, merged, or written back. The rules permit
-  // the read because we share a household; the UI keeps it strictly read-only.
+  // The Family calendar merges every household member's plan into one view. Each
+  // member's meals document is a plain read of a doc they already own - nothing
+  // is copied, merged server-side, or written back. The rules permit the read
+  // because we share a household; the UI keeps the merged view strictly read-only.
   useEffect(function(){
-    if(!viewingMember){setMemberMeals({});setMemberMealsLoading(false);return}
+    if(calendarSubTab!=="family"){return}
+    var others=householdMembers.filter(function(m){return (m.username||"").toLowerCase()!==(user||"").toLowerCase()});
+    if(!others.length){setOtherMemberMeals({});return}
     var cancelled=false;
-    setMemberMealsLoading(true);
-    window.storage.get("dm_meals_"+viewingMember.toLowerCase(),true).catch(function(){return null}).then(function(r){
+    setFamilyMealsLoading(true);
+    Promise.all(others.map(function(m){
+      return window.storage.get("dm_meals_"+(m.username||"").toLowerCase(),true).catch(function(){return null}).then(function(r){
+        return {username:m.username,meals:(r&&r.value)?(function(){try{return JSON.parse(r.value)}catch(e){return{}}})():{}};
+      });
+    })).then(function(results){
       if(cancelled)return;
-      setMemberMeals(r&&r.value?JSON.parse(r.value):{});
-      setMemberMealsLoading(false);
+      var map={};
+      results.forEach(function(x){map[x.username]=x.meals});
+      setOtherMemberMeals(map);
+      setFamilyMealsLoading(false);
     });
     return function(){cancelled=true};
-  },[viewingMember]);
+  },[calendarSubTab,household?household.id:null,householdMembers.length]);
 
   // Membership changed (joined, left, someone else joined) - drop the cached
   // family cookbook so the tab refetches against the new member list.
@@ -4525,7 +4535,7 @@ function App(){
       setFollowing([]); setFollowers([]); setFollowRequests([]);
       setMyPendingRequests([]); setUserInbox([]);
       setUserEmail(""); setUserProfilePic(null); setIsPrivateProfile(false);
-      setHousehold(null); setHouseholdMembers([]); setViewingMember(null); setMemberMeals({});
+      setHousehold(null); setHouseholdMembers([]); setCalendarSubTab("mine"); setOtherMemberMeals({});
       return;
     }
     var userIdLower=userId.toLowerCase();
@@ -6035,8 +6045,32 @@ function App(){
   // is the single seam that switches the whole view. Every write path still
   // goes through svM() against `meals`, which is always the signed-in user's
   // own document - a member's week can be read but never edited.
-  var viewingOwnCalendar=!viewingMember;
-  var activeMeals=viewingMember?memberMeals:meals;
+  // Family view only exists when there's a household with someone else in it -
+  // otherwise fall back to my own plan even if "family" was the last tab picked.
+  var hasFamily=!!(household&&householdMembers.length>1);
+  var viewingOwnCalendar=!(calendarSubTab==="family"&&hasFamily);
+  // Family view: merge my own live meals with each other member's cached meals,
+  // tagging every meal with who it belongs to so cards can show the owner. Built
+  // fresh each render from `meals` (mine, always current) + otherMemberMeals.
+  var activeMeals=(function(){
+    if(viewingOwnCalendar)return meals;
+    var merged={};
+    function addFrom(src,owner,pic){
+      if(!src)return;
+      Object.keys(src).forEach(function(dayKey){
+        var v=src[dayKey];if(v==null)return;
+        var list=Array.isArray(v)?v:[v];
+        if(!merged[dayKey])merged[dayKey]=[];
+        list.forEach(function(m){merged[dayKey].push(Object.assign({},m,{_owner:owner,_ownerPic:pic}))});
+      });
+    }
+    addFrom(meals,user,userProfilePic);
+    householdMembers.forEach(function(mem){
+      if((mem.username||"").toLowerCase()===(user||"").toLowerCase())return;
+      addFrom(otherMemberMeals[mem.username],mem.username,mem.profilePic);
+    });
+    return merged;
+  })();
   function mealsForDayFrom(src,d){
     var v=src[d];
     if(!v)return[];
@@ -6062,6 +6096,18 @@ function App(){
   // document. This keeps the two directions physically separate rather than
   // relying on the UI to never offer an edit while viewing someone else.
   function getOwnMealsForDay(d){return mealsForDayFrom(meals,d)}
+  // In the merged Family view, a small chip on each card says whose plan it is.
+  function ownerTag(m){
+    if(viewingOwnCalendar||!m._owner)return null;
+    return <div style={{display:"inline-flex",alignItems:"center",gap:5,marginBottom:6,padding:"2px 9px 2px 2px",borderRadius:11,background:C.blush,maxWidth:"100%"}}>
+      <span style={{width:18,height:18,borderRadius:9,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:C.blushMed}}>
+        {isImageSrc(m._ownerPic)?<img src={m._ownerPic} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+          :m._ownerPic?<span style={{fontSize:10}}>{m._ownerPic}</span>
+          :<span style={{fontSize:9,fontWeight:700,color:C.dark}}>{(m._owner||"?").charAt(0).toUpperCase()}</span>}
+      </span>
+      <span style={{fontSize:11,fontWeight:700,color:C.dark,letterSpacing:.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m._owner}</span>
+    </div>;
+  }
   function openEdit(d,idx){setSelDate(d);var list=getOwnMealsForDay(d);if(typeof idx==="number"&&list[idx]){setEditIdx(idx);setEm(Object.assign({},list[idx],{ingredients:(list[idx].ingredients||[]).slice()}))}else{setEditIdx(null);setEm(emptyMeal())}setNi2("");setNqty2("");setNunit2("")}
   function saveM(){
     if(!em.name.trim())return;
@@ -6365,7 +6411,7 @@ function App(){
               var uid=firebase.auth().currentUser&&firebase.auth().currentUser.uid;
               setFamilyBusy(true);
               window.households.leave(household.id,uid).then(function(){
-                setViewingMember(null);
+                setCalendarSubTab("mine");
                 return refreshHousehold();
               }).then(function(){setFamilyBusy(false);setShowFamily(false)});
             }, {danger:true, confirmText:"Leave Family"});
@@ -6498,32 +6544,16 @@ function App(){
             </button>
           </div>
         </div>:null}
-        {/* Family calendar switcher - only meaningful once there's someone
-            else in the household. The signed-in user is always first (their
-            own name + avatar) and is the only editable calendar; the rest are
-            read-only views. Tapping your own chip is how you return, so no
-            separate "back" control is needed. */}
-        {household&&householdMembers.length>1?<div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:6,marginBottom:12}}>
-          {[{username:user,isSelf:true,profilePic:userProfilePic}].concat(householdMembers.filter(function(m){
-            return (m.username||"").toLowerCase()!==(user||"").toLowerCase();
-          })).map(function(m){
-            var active=m.isSelf?viewingOwnCalendar:(viewingMember||"").toLowerCase()===(m.username||"").toLowerCase();
-            return <button key={m.username} onClick={function(){setViewingMember(m.isSelf?null:m.username)}}
-              style={{display:"flex",alignItems:"center",gap:7,padding:"6px 14px 6px 6px",borderRadius:20,flexShrink:0,
-                border:"1px solid "+(active?C.dark:C.bdr),background:active?C.dark:"var(--surface)",
-                color:active?"#fff":C.ink,fontSize:13,fontWeight:600,cursor:"pointer",transition:"all .2s"}}>
-              <span style={{width:24,height:24,borderRadius:12,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:active?"rgba(255,255,255,.2)":C.blush}}>
-                {isImageSrc(m.profilePic)?<img src={m.profilePic} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-                  :m.profilePic?<span style={{fontSize:13}}>{m.profilePic}</span>
-                  :<span style={{fontSize:11,fontWeight:700,color:active?"#fff":C.dark}}>{(m.username||"?").charAt(0).toUpperCase()}</span>}
-              </span>
-              {m.username}
-            </button>;
-          })}
+        {/* My Calendar / Family Calendar tabs - same underlined style as the
+            Recipes tab. Only shown once there's a household to merge; "Family"
+            combines every member's plan into one read-only view. */}
+        {household&&householdMembers.length>1?<div style={{display:"flex",gap:22,marginBottom:16,borderBottom:"1px solid "+C.bdr}}>
+          <button onClick={function(){setCalendarSubTab("mine")}} style={{background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:calendarSubTab==="mine"?C.ink:C.light,borderBottom:calendarSubTab==="mine"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>My Calendar</button>
+          <button onClick={function(){setCalendarSubTab("family")}} style={{background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:calendarSubTab==="family"?C.ink:C.light,borderBottom:calendarSubTab==="family"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>Family Calendar</button>
         </div>:null}
-        {viewingMember?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:12,fontSize:12,color:C.light,fontStyle:"italic"}}>
+        {!viewingOwnCalendar?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:12,fontSize:12,color:C.light,fontStyle:"italic"}}>
           <Icon name="lock" size={11} color={C.light} strokeWidth={1.75}/>
-          {viewingMember}'s plan &middot; read only
+          {familyMealsLoading?"Loading everyone's plans…":"Everyone's plans, combined · read only"}
         </div>:null}
 
         {/* Week/Month Toggle */}
@@ -6654,9 +6684,12 @@ function App(){
                             }
                           }}>
                           {m.isPlaceholder?
-                            <div style={{display:"flex",alignItems:"center",gap:10,padding:"14px 16px"}}>
-                              <Icon name="tag" size={16} color={C.gold} strokeWidth={1.75}/>
-                              <div style={{fontWeight:600,fontSize:15,color:C.ink}}>{m.name}</div>
+                            <div style={{padding:"14px 16px"}}>
+                              {ownerTag(m)}
+                              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                                <Icon name="tag" size={16} color={C.gold} strokeWidth={1.75}/>
+                                <div style={{fontWeight:600,fontSize:15,color:C.ink}}>{m.name}</div>
+                              </div>
                             </div>
                           :<React.Fragment>
                           {m.photo?
@@ -6670,6 +6703,7 @@ function App(){
                             </div>
                           }
                           <div style={{padding:"12px 16px"}}>
+                            {ownerTag(m)}
                             <div style={{fontWeight:600,fontSize:16,color:C.dark}}>{m.name}</div>
                             {m.time?<div style={{display:"flex",alignItems:"center",gap:4,fontSize:12,color:C.light,marginTop:2}}><Icon name="clock" size={11} strokeWidth={1.75}/>{m.time}</div>:null}
                           </div>
@@ -6742,9 +6776,12 @@ function App(){
                   var mealType=m.recipeType||detectRecipeType(m);
                   var typeInfo=RECIPE_TYPES.find(function(t){return t.id===mealType})||RECIPE_TYPES[RECIPE_TYPES.length-1];
                   if(m.isPlaceholder)return(
-                    <div key={mi} style={{display:"flex",alignItems:"center",gap:10,background:"var(--surface)",borderRadius:16,marginBottom:12,padding:"14px 18px",boxShadow:C.shadowMd,cursor:viewingOwnCalendar?"pointer":"default"}} onClick={function(){if(viewingOwnCalendar)openEdit(selectedCalDate,mi)}}>
-                      <Icon name="tag" size={17} color={C.gold} strokeWidth={1.75}/>
-                      <div style={{fontWeight:600,fontSize:16,color:C.ink}}>{m.name}</div>
+                    <div key={mi} style={{background:"var(--surface)",borderRadius:16,marginBottom:12,padding:"14px 18px",boxShadow:C.shadowMd,cursor:viewingOwnCalendar?"pointer":"default"}} onClick={function(){if(viewingOwnCalendar)openEdit(selectedCalDate,mi)}}>
+                      {ownerTag(m)}
+                      <div style={{display:"flex",alignItems:"center",gap:10}}>
+                        <Icon name="tag" size={17} color={C.gold} strokeWidth={1.75}/>
+                        <div style={{fontWeight:600,fontSize:16,color:C.ink}}>{m.name}</div>
+                      </div>
                     </div>
                   );
                   return(
@@ -6760,6 +6797,7 @@ function App(){
                         </div>
                       }
                       <div style={{padding:"14px 18px"}}>
+                        {ownerTag(m)}
                         <div style={{fontWeight:600,fontSize:17,color:C.dark}}>{m.name}</div>
                         {m.time?<div style={{display:"flex",alignItems:"center",gap:4,fontSize:12,color:C.light,marginTop:3}}><Icon name="clock" size={11} strokeWidth={1.75}/>{m.time}</div>:null}
                       </div>
