@@ -2262,6 +2262,11 @@ function PantryTab(p){
   );
 }
 
+// Stable identity for a planned meal (a given dish on a given day), used to link
+// it to the grocery items it produced so the calendar can flag what's on the
+// list or already bought. Date + name, so the same dish on two days tracks apart.
+function mealSig(dateKey,name){return (dateKey||"")+"|"+((name||"").toLowerCase().trim());}
+
 // ============ GROCERY TAB ============
 function GroceryTab(p){
   var C={ink:"var(--ink)",dark:"var(--dark)",light:"var(--light)",gold:"var(--gold)",blush:"var(--blush)",blushMed:"var(--blush-med)",blushDeep:"var(--blush-deep)",blushAccent:"var(--blush-accent)",blushDark:"var(--blush-dark)",card:"var(--surface)",bdr:"var(--border)",shadowSm:"var(--shadow-sm)",shadowMd:"var(--shadow-md)",shadowLg:"var(--shadow-lg)"};
@@ -2715,6 +2720,11 @@ function GroceryTab(p){
     var skippedPantry = 0;
     mealsList.forEach(function(m){
       if(m&&m.ingredients){
+        // Tag every item this meal touches with its signature, so the calendar
+        // can later tell which meals are on the list / bought. Only when we know
+        // the meal's day (pushes from the calendar carry _calDate).
+        var sig=m._calDate?mealSig(m._calDate,m.name):null;
+        function tagSig(it){if(!sig)return;it.meals=it.meals||[];if(it.meals.indexOf(sig)<0)it.meals.push(sig);}
         m.ingredients.forEach(function(g){
           var ing=typeof g==="string"?parseIng(g):g;
           var note=groceryQualifier(ing.name||"");
@@ -2731,11 +2741,13 @@ function GroceryTab(p){
               addQtyPart(ex.parts,iqty,iunit);
               ex.qty=(ex.parts[0]||{}).qty||"";ex.unit=(ex.parts[0]||{}).unit||"";
               ex.note=resolveNote(ex.qty,ex.note,inote);
+              tagSig(ex);
             }else{
               var newItem={id:"gen-"+idx,name:itemName||ing.name||"",parts:[],note:""};
               addQtyPart(newItem.parts,iqty,iunit);
               newItem.qty=(newItem.parts[0]||{}).qty||"";newItem.unit=(newItem.parts[0]||{}).unit||"";
               newItem.note=resolveNote(newItem.qty,inote,"");
+              tagSig(newItem);
               items.push(newItem);
               seenNames[name]=newItem;
               idx++;
@@ -2760,6 +2772,28 @@ function GroceryTab(p){
       if(p.clearPendingMeals) p.clearPendingMeals();
     }
   },[generatedLoaded, p.pendingMeals]);
+
+  // Keep the calendar's per-meal grocery status current: for each meal that
+  // contributed items, is it still on the list ("added") or fully checked off
+  // ("purchased")? Read from the raw generated items (which carry meal sigs) plus
+  // the checked/hidden flags. A meal whose items are all gone (deleted/cleared)
+  // simply drops out. Persisted so the calendar has it on a cold load, and lifted
+  // so it updates live while the app stays open.
+  useEffect(function(){
+    var agg={};
+    (generatedItems||[]).forEach(function(it){
+      if(!it.meals||!it.meals.length||hiddenItems[it.id])return;
+      var isChecked=!!checked[it.id];
+      it.meals.forEach(function(sig){
+        if(!agg[sig])agg[sig]={total:0,done:0};
+        agg[sig].total++; if(isChecked)agg[sig].done++;
+      });
+    });
+    var out={};
+    Object.keys(agg).forEach(function(sig){out[sig]=(agg[sig].done===agg[sig].total)?"purchased":"added";});
+    if(p.setMealStatus)p.setMealStatus(out);
+    if(p.userId&&p.userId!=="guest")window.storage.set("dm_mealstatus_"+p.userId.toLowerCase(),JSON.stringify(out),true).catch(function(){});
+  },[generatedItems,checked,hiddenItems]);
 
   function generateFromWeeks(weekStartDates, mode){
     // mode: "replace" (default) starts fresh, "append" adds to existing list
@@ -4119,6 +4153,10 @@ function App(){
     return function(){window.removeEventListener("scroll",onScroll)};
   },[]);
   var [meals,setMeals]=useState({});
+  // Per-meal grocery status ({ mealSig: "added"|"purchased" }) so the calendar
+  // can flag which planned meals are on the grocery list or already bought. Kept
+  // current by GroceryTab; loaded from storage on sign-in for a cold start.
+  var [mealStatus,setMealStatus]=useState({});
   // Household ("family") linking. Nothing here changes what the signed-in user
   // owns - it only unlocks reading a family member's calendar and recipes.
   var [household,setHousehold]=useState(null);       // the household doc, or null if solo
@@ -4128,10 +4166,9 @@ function App(){
   var [familyError,setFamilyError]=useState("");
   var [joinCode,setJoinCode]=useState("");
   var [familyName,setFamilyName]=useState("");
-  // Calendar view: "mine" = my own editable plan, "family" = every household
-  // member's plans merged into one read-only view. otherMemberMeals caches the
-  // other members' meal docs (username -> meals object) for the merge.
-  var [calendarSubTab,setCalendarSubTab]=useState("mine");
+  // The one shared calendar merges every household member's plan. otherMemberMeals
+  // caches the other members' meal docs (username -> meals object) for the merge;
+  // my own meals come from `meals`, so my edits show instantly.
   var [otherMemberMeals,setOtherMemberMeals]=useState({});
   var [familyMealsLoading,setFamilyMealsLoading]=useState(false);
   var [swipedMeal,setSwipedMeal]=useState(null); // {dateKey, mealIndex} of swiped meal
@@ -4150,7 +4187,9 @@ function App(){
     });
   }
   function moveSelectedToGrocery(){
-    var meals=Object.keys(selectedCalMeals).map(function(k){return selectedCalMeals[k]});
+    // Carry each meal's calendar date (the first half of its selection key) so
+    // the grocery items it produces can be tagged back to this exact meal+day.
+    var meals=Object.keys(selectedCalMeals).map(function(k){return Object.assign({},selectedCalMeals[k],{_calDate:k.split("|")[0]})});
     if(!meals.length)return;
     setPendingGroceryMeals(meals);
     setSelectedCalMeals({});
@@ -4523,12 +4562,12 @@ function App(){
     }).catch(function(){return null});
   }
 
-  // The Family calendar merges every household member's plan into one view. Each
+  // The shared calendar merges every household member's plan into one view. Each
   // member's meals document is a plain read of a doc they already own - nothing
-  // is copied, merged server-side, or written back. The rules permit the read
-  // because we share a household; the UI keeps the merged view strictly read-only.
+  // is copied or written back here; my own adds go to my own doc. The rules
+  // permit the read because we share a household. Loads whenever there's a
+  // household with someone else in it, and refetches when the membership changes.
   useEffect(function(){
-    if(calendarSubTab!=="family"){return}
     var others=householdMembers.filter(function(m){return (m.username||"").toLowerCase()!==(user||"").toLowerCase()});
     if(!others.length){setOtherMemberMeals({});return}
     var cancelled=false;
@@ -4545,7 +4584,7 @@ function App(){
       setFamilyMealsLoading(false);
     });
     return function(){cancelled=true};
-  },[calendarSubTab,household?household.id:null,householdMembers.length]);
+  },[household?household.id:null,householdMembers.length]);
 
   // Membership changed (joined, left, someone else joined) - drop the cached
   // family cookbook so the tab refetches against the new member list.
@@ -4569,7 +4608,8 @@ function App(){
       setFollowing([]); setFollowers([]); setFollowRequests([]);
       setMyPendingRequests([]); setUserInbox([]);
       setUserEmail(""); setUserProfilePic(null); setIsPrivateProfile(false);
-      setHousehold(null); setHouseholdMembers([]); setCalendarSubTab("mine"); setOtherMemberMeals({});
+      setHousehold(null); setHouseholdMembers([]); setOtherMemberMeals({});
+      setMealStatus({});
       return;
     }
     var userIdLower=userId.toLowerCase();
@@ -4613,6 +4653,11 @@ function App(){
       } else {
         console.log("No meals found for key dm_meals_"+userIdLower);
       }
+    });
+    // Per-meal grocery status (calendar badges). GroceryTab keeps it current;
+    // this seeds it so badges show before the Grocery tab is ever opened.
+    window.storage.get("dm_mealstatus_"+userIdLower,true).catch(function(){return null}).then(function(r){
+      if(r&&r.value){try{setMealStatus(JSON.parse(r.value))}catch(e){}}
     });
     
     // Load recipes - try new individual format first, fall back to old format
@@ -6084,15 +6129,21 @@ function App(){
   // is the single seam that switches the whole view. Every write path still
   // goes through svM() against `meals`, which is always the signed-in user's
   // own document - a member's week can be read but never edited.
-  // Family view only exists when there's a household with someone else in it -
-  // otherwise fall back to my own plan even if "family" was the last tab picked.
+  // One shared calendar. In a household, every member's plan is merged into a
+  // single view: each meal keeps _owner/_ownerPic (who planned it) and _idx (its
+  // position in that person's own meals doc, so my own meals stay editable). No
+  // new shared document - each person's adds live in their own doc and simply
+  // show up here for everyone; edits/deletes only ever touch my own doc, which
+  // is why the owner-only storage rules keep working untouched. Solo users just
+  // see their own meals, untagged.
   var hasFamily=!!(household&&householdMembers.length>1);
-  var viewingOwnCalendar=!(calendarSubTab==="family"&&hasFamily);
-  // Family view: merge my own live meals with each other member's cached meals,
-  // tagging every meal with who it belongs to so cards can show the owner. Built
-  // fresh each render from `meals` (mine, always current) + otherMemberMeals.
+  var me=(user||"").toLowerCase();
+  // Kept as a constant: with the single shared calendar there's no read-only
+  // "someone else's week" mode anymore - the calendar is always yours to add to,
+  // and per-meal editing is gated by isMine() instead.
+  var viewingOwnCalendar=true;
   var activeMeals=(function(){
-    if(viewingOwnCalendar)return meals;
+    if(!hasFamily)return meals;
     var merged={};
     function addFrom(src,owner,pic){
       if(!src)return;
@@ -6100,16 +6151,22 @@ function App(){
         var v=src[dayKey];if(v==null)return;
         var list=Array.isArray(v)?v:[v];
         if(!merged[dayKey])merged[dayKey]=[];
-        list.forEach(function(m){merged[dayKey].push(Object.assign({},m,{_owner:owner,_ownerPic:pic}))});
+        list.forEach(function(m,i){merged[dayKey].push(Object.assign({},m,{_owner:owner,_ownerPic:pic,_idx:i}))});
       });
     }
     addFrom(meals,user,userProfilePic);
     householdMembers.forEach(function(mem){
-      if((mem.username||"").toLowerCase()===(user||"").toLowerCase())return;
+      if((mem.username||"").toLowerCase()===me)return;
       addFrom(otherMemberMeals[mem.username],mem.username,mem.profilePic);
     });
     return merged;
   })();
+  // A meal is mine - editable, deletable, swipeable - unless it's tagged as
+  // another member's. Untagged (solo) meals are always mine.
+  function isMine(m){return !m._owner||(m._owner||"").toLowerCase()===me;}
+  // The index to use when editing/deleting a meal: its position in MY own doc
+  // (_idx) for merged meals, or the plain render index when solo/untagged.
+  function ownIdx(m,fallback){return (m&&m._idx!=null)?m._idx:fallback;}
   function mealsForDayFrom(src,d){
     var v=src[d];
     if(!v)return[];
@@ -6135,9 +6192,10 @@ function App(){
   // document. This keeps the two directions physically separate rather than
   // relying on the UI to never offer an edit while viewing someone else.
   function getOwnMealsForDay(d){return mealsForDayFrom(meals,d)}
-  // In the merged Family view, a small chip on each card says whose plan it is.
+  // In a shared household calendar, a small chip on another member's cards says
+  // whose plan it is. My own meals stay untagged (the untagged ones are mine).
   function ownerTag(m){
-    if(viewingOwnCalendar||!m._owner)return null;
+    if(!hasFamily||!m._owner||isMine(m))return null;
     return <div style={{display:"inline-flex",alignItems:"center",gap:5,marginBottom:6,padding:"2px 9px 2px 2px",borderRadius:11,background:C.blush,maxWidth:"100%"}}>
       <span style={{width:18,height:18,borderRadius:9,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:C.blushMed}}>
         {isImageSrc(m._ownerPic)?<img src={m._ownerPic} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
@@ -6146,6 +6204,19 @@ function App(){
       </span>
       <span style={{fontSize:11,fontWeight:700,color:C.dark,letterSpacing:.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m._owner}</span>
     </div>;
+  }
+  // Grocery status flag for a planned meal: gold cart while its ingredients are
+  // on the list, green check once they're all bought. Nothing for placeholders
+  // (no ingredients) or meals never sent to grocery.
+  function mealStatusChip(dateKey,m){
+    if(!m||m.isPlaceholder)return null;
+    var s=mealStatus[mealSig(dateKey,m.name)];
+    if(!s)return null;
+    var bought=s==="purchased";
+    return <span style={{display:"inline-flex",alignItems:"center",gap:4,marginTop:6,padding:"3px 9px 3px 7px",borderRadius:11,fontSize:10.5,fontWeight:700,letterSpacing:.2,background:bought?"rgba(46,125,50,0.12)":C.blush,color:bought?"#2e7d32":C.gold}}>
+      <Icon name={bought?"check":"cart"} size={11} color={bought?"#2e7d32":C.gold} strokeWidth={bought?3:2}/>
+      {bought?"Purchased":"On grocery list"}
+    </span>;
   }
   function openEdit(d,idx){setSelDate(d);var list=getOwnMealsForDay(d);if(typeof idx==="number"&&list[idx]){setEditIdx(idx);setEm(Object.assign({},list[idx],{ingredients:(list[idx].ingredients||[]).slice()}))}else{setEditIdx(null);setEm(emptyMeal())}setNi2("");setNqty2("");setNunit2("")}
   function saveM(){
@@ -6450,7 +6521,7 @@ function App(){
               var uid=firebase.auth().currentUser&&firebase.auth().currentUser.uid;
               setFamilyBusy(true);
               window.households.leave(household.id,uid).then(function(){
-                setCalendarSubTab("mine");
+                setOtherMemberMeals({});
                 return refreshHousehold();
               }).then(function(){setFamilyBusy(false);setShowFamily(false)});
             }, {danger:true, confirmText:"Leave Family"});
@@ -6583,16 +6654,11 @@ function App(){
             </button>
           </div>
         </div>:null}
-        {/* My Calendar / Family Calendar tabs - same underlined style as the
-            Recipes tab. Only shown once there's a household to merge; "Family"
-            combines every member's plan into one read-only view. */}
-        {household&&householdMembers.length>1?<div style={{display:"flex",gap:22,marginBottom:16,borderBottom:"1px solid "+C.bdr}}>
-          <button onClick={function(){setCalendarSubTab("mine")}} style={{background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:calendarSubTab==="mine"?C.ink:C.light,borderBottom:calendarSubTab==="mine"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>My Calendar</button>
-          <button onClick={function(){setCalendarSubTab("family")}} style={{background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:calendarSubTab==="family"?C.ink:C.light,borderBottom:calendarSubTab==="family"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>Family Calendar</button>
-        </div>:null}
-        {!viewingOwnCalendar?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:12,fontSize:12,color:C.light,fontStyle:"italic"}}>
-          <Icon name="lock" size={11} color={C.light} strokeWidth={1.75}/>
-          {familyMealsLoading?"Loading everyone's plans…":"Everyone's plans, combined · read only"}
+        {/* One shared calendar: in a household everyone's plans show together and
+            anyone can add. A subtle line notes it's shared (and while syncing). */}
+        {hasFamily?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:14,fontSize:12,color:C.light}}>
+          <Icon name="users" size={12} color={C.light} strokeWidth={1.75}/>
+          {familyMealsLoading?"Syncing your family's plans…":"Shared family calendar · everyone can add"}
         </div>:null}
 
         {/* Week/Month Toggle */}
@@ -6671,28 +6737,30 @@ function App(){
                   {mlist.map(function(m,mi){
                     var mealType=m.recipeType||detectRecipeType(m);
                     var typeInfo=RECIPE_TYPES.find(function(t){return t.id===mealType})||RECIPE_TYPES[RECIPE_TYPES.length-1];
-                    // Swipe-to-delete and tap-to-edit are suppressed entirely on
-                    // a family member's calendar - it's someone else's plan.
-                    var isSwipedHere = viewingOwnCalendar && swipedMeal && swipedMeal.dateKey===k && swipedMeal.mealIndex===mi;
-                    var translateX = isSwipedHere ? -80 : (viewingOwnCalendar && swipeStart && swipeStart.dateKey===k && swipeStart.mealIndex===mi ? swipeOffset : 0);
+                    // Swipe-to-delete and tap-to-edit apply only to MY meals - a
+                    // household member's meal shows here but is theirs to change.
+                    // Grocery-select works on anyone's meal (we both shop from it).
+                    var mine=isMine(m);
+                    var isSwipedHere = mine && swipedMeal && swipedMeal.dateKey===k && swipedMeal.mealIndex===mi;
+                    var translateX = isSwipedHere ? -80 : (mine && swipeStart && swipeStart.dateKey===k && swipeStart.mealIndex===mi ? swipeOffset : 0);
                     return(
-                      <div key={mi} style={{position:"relative",marginBottom:10,borderRadius:16,overflow:"hidden",boxShadow:(viewingOwnCalendar&&!m.isPlaceholder&&selectedCalMeals[k+"|"+mi])?"0 0 0 2px "+C.dark:"none"}}>
-                        {/* Grocery-select checkbox - own calendar, real meals only. Sits on
-                            the wrapper (not the card) so it stays put while the card swipes. */}
-                        {viewingOwnCalendar&&!m.isPlaceholder?<button onClick={function(e){e.stopPropagation();toggleCalMeal(k,mi,m)}} aria-label="Select for grocery list" style={{position:"absolute",top:8,left:8,zIndex:3,width:26,height:26,borderRadius:7,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:selectedCalMeals[k+"|"+mi]?C.dark:"var(--overlay-chip)",border:selectedCalMeals[k+"|"+mi]?"none":"1.5px solid var(--overlay-chip-border)",boxShadow:"0 1px 5px rgba(0,0,0,0.25)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)"}}>{selectedCalMeals[k+"|"+mi]?<Icon name="check" size={16} color="#fff" strokeWidth={2.5}/>:null}</button>:null}
-                        {/* Red delete button revealed behind */}
-                        {viewingOwnCalendar?<div style={{position:"absolute",right:0,top:0,bottom:0,width:80,background:"var(--danger)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} onClick={function(e){e.stopPropagation();appConfirm("Remove "+m.name+" from this day?",function(){deleteMealAt(k,mi)},{danger:true,confirmText:"Remove"})}}>
+                      <div key={mi} style={{position:"relative",marginBottom:10,borderRadius:16,overflow:"hidden",boxShadow:(!m.isPlaceholder&&selectedCalMeals[k+"|"+mi])?"0 0 0 2px "+C.dark:"none"}}>
+                        {/* Grocery-select checkbox - any real meal on the shared calendar.
+                            Sits on the wrapper (not the card) so it stays put while it swipes. */}
+                        {!m.isPlaceholder?<button onClick={function(e){e.stopPropagation();toggleCalMeal(k,mi,m)}} aria-label="Select for grocery list" style={{position:"absolute",top:8,left:8,zIndex:3,width:26,height:26,borderRadius:7,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:selectedCalMeals[k+"|"+mi]?C.dark:"var(--overlay-chip)",border:selectedCalMeals[k+"|"+mi]?"none":"1.5px solid var(--overlay-chip-border)",boxShadow:"0 1px 5px rgba(0,0,0,0.25)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)"}}>{selectedCalMeals[k+"|"+mi]?<Icon name="check" size={16} color="#fff" strokeWidth={2.5}/>:null}</button>:null}
+                        {/* Red delete button revealed behind - only for my own meals */}
+                        {mine?<div style={{position:"absolute",right:0,top:0,bottom:0,width:80,background:"var(--danger)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} onClick={function(e){e.stopPropagation();appConfirm("Remove "+m.name+" from this day?",function(){deleteMealAt(k,ownIdx(m,mi))},{danger:true,confirmText:"Remove"})}}>
                           <Icon name="trash" size={18} color="#fff" strokeWidth={2}/>
                         </div>:null}
                         {/* The card itself */}
                         <div
                           onTouchStart={function(e){
-                            if(!viewingOwnCalendar) return;
+                            if(!mine) return;
                             var t=e.touches[0];
                             setSwipeStart({x:t.clientX,y:t.clientY,dateKey:k,mealIndex:mi});
                           }}
                           onTouchMove={function(e){
-                            if(!viewingOwnCalendar) return;
+                            if(!mine) return;
                             if(!swipeStart || swipeStart.dateKey!==k || swipeStart.mealIndex!==mi) return;
                             var t=e.touches[0];
                             var dx=t.clientX-swipeStart.x;
@@ -6703,7 +6771,7 @@ function App(){
                             }
                           }}
                           onTouchEnd={function(e){
-                            if(!viewingOwnCalendar) return;
+                            if(!mine) return;
                             if(!swipeStart || swipeStart.dateKey!==k || swipeStart.mealIndex!==mi) return;
                             if(swipeOffset < -40){
                               setSwipedMeal({dateKey:k,mealIndex:mi});
@@ -6713,13 +6781,13 @@ function App(){
                             setSwipeStart(null);
                             setSwipeOffset(0);
                           }}
-                          style={{background:"var(--surface)",borderRadius:16,overflow:"hidden",boxShadow:C.shadowMd,cursor:viewingOwnCalendar?"pointer":"default",transform:"translateX("+translateX+"px)",transition:swipeStart?"none":"transform 0.2s",position:"relative",zIndex:1}}
+                          style={{background:"var(--surface)",borderRadius:16,overflow:"hidden",boxShadow:C.shadowMd,cursor:mine?"pointer":"default",transform:"translateX("+translateX+"px)",transition:swipeStart?"none":"transform 0.2s",position:"relative",zIndex:1}}
                           onClick={function(){
-                            if(!viewingOwnCalendar) return;
+                            if(!mine) return;
                             if(isSwipedHere){
                               setSwipedMeal(null);
                             } else if(!m.isPlaceholder){
-                              openEdit(k,mi);
+                              openEdit(k,ownIdx(m,mi));
                             }
                           }}>
                           {m.isPlaceholder?
@@ -6745,6 +6813,7 @@ function App(){
                             {ownerTag(m)}
                             <div style={{fontWeight:600,fontSize:16,color:C.dark}}>{m.name}</div>
                             {m.time?<div style={{display:"flex",alignItems:"center",gap:4,fontSize:12,color:C.light,marginTop:2}}><Icon name="clock" size={11} strokeWidth={1.75}/>{m.time}</div>:null}
+                            <div>{mealStatusChip(k,m)}</div>
                           </div>
                           </React.Fragment>}
                         </div>
@@ -6815,7 +6884,7 @@ function App(){
                   var mealType=m.recipeType||detectRecipeType(m);
                   var typeInfo=RECIPE_TYPES.find(function(t){return t.id===mealType})||RECIPE_TYPES[RECIPE_TYPES.length-1];
                   if(m.isPlaceholder)return(
-                    <div key={mi} style={{background:"var(--surface)",borderRadius:16,marginBottom:12,padding:"14px 18px",boxShadow:C.shadowMd,cursor:viewingOwnCalendar?"pointer":"default"}} onClick={function(){if(viewingOwnCalendar)openEdit(selectedCalDate,mi)}}>
+                    <div key={mi} style={{background:"var(--surface)",borderRadius:16,marginBottom:12,padding:"14px 18px",boxShadow:C.shadowMd,cursor:isMine(m)?"pointer":"default"}} onClick={function(){if(isMine(m))openEdit(selectedCalDate,ownIdx(m,mi))}}>
                       {ownerTag(m)}
                       <div style={{display:"flex",alignItems:"center",gap:10}}>
                         <Icon name="tag" size={17} color={C.gold} strokeWidth={1.75}/>
@@ -6824,7 +6893,7 @@ function App(){
                     </div>
                   );
                   return(
-                    <div key={mi} style={{background:"var(--surface)",borderRadius:16,marginBottom:12,overflow:"hidden",boxShadow:C.shadowMd,cursor:viewingOwnCalendar?"pointer":"default"}} onClick={function(){if(viewingOwnCalendar)openEdit(selectedCalDate,mi)}}>
+                    <div key={mi} style={{background:"var(--surface)",borderRadius:16,marginBottom:12,overflow:"hidden",boxShadow:C.shadowMd,cursor:isMine(m)?"pointer":"default"}} onClick={function(){if(isMine(m))openEdit(selectedCalDate,ownIdx(m,mi))}}>
                       {m.photo?
                         <div style={{position:"relative"}}>
                           <img src={m.photo} style={{width:"100%",height:140,objectFit:"cover",display:"block"}} alt=""/>
@@ -6839,6 +6908,7 @@ function App(){
                         {ownerTag(m)}
                         <div style={{fontWeight:600,fontSize:17,color:C.dark}}>{m.name}</div>
                         {m.time?<div style={{display:"flex",alignItems:"center",gap:4,fontSize:12,color:C.light,marginTop:3}}><Icon name="clock" size={11} strokeWidth={1.75}/>{m.time}</div>:null}
+                        <div>{mealStatusChip(selectedCalDate,m)}</div>
                       </div>
                     </div>
                   );
@@ -7154,7 +7224,7 @@ function App(){
         </div>
       </div>}
 
-      {view==="grocery"&&<GroceryTab meals={meals} wdates={wd} wlabel={wl} rgn={region} gSI={gSI} gSFI={gSFI} setItemStore={setSI} userId={groceryListOwner} ownList={groceryIsMine} ownerUid={groceryOwnerUid} listOwner={groceryOwner} setListOwner={setGroceryOwner} members={householdMembers} me={userId} myProfilePic={userProfilePic} groceryHidden={groceryHidden} setGroceryHidden={setGroceryHidden} stores={STORES} addCustomStore={addCustomStore} removeCustomStore={removeCustomStore} defStore={defStore} setDefStore={handleSetDefStore} categoryStores={categoryStores} setCategoryStore={handleSetCategoryStore} goToCalendar={function(){setView("calendar")}} goToPantry={function(){setView("pantry")}} setWs={setWs} ws={ws} pendingMeals={pendingGroceryMeals} clearPendingMeals={function(){setPendingGroceryMeals(null)}}/>}
+      {view==="grocery"&&<GroceryTab meals={meals} wdates={wd} wlabel={wl} rgn={region} gSI={gSI} gSFI={gSFI} setItemStore={setSI} userId={groceryListOwner} ownList={groceryIsMine} ownerUid={groceryOwnerUid} listOwner={groceryOwner} setListOwner={setGroceryOwner} members={householdMembers} me={userId} myProfilePic={userProfilePic} groceryHidden={groceryHidden} setGroceryHidden={setGroceryHidden} stores={STORES} addCustomStore={addCustomStore} removeCustomStore={removeCustomStore} defStore={defStore} setDefStore={handleSetDefStore} categoryStores={categoryStores} setCategoryStore={handleSetCategoryStore} goToCalendar={function(){setView("calendar")}} goToPantry={function(){setView("pantry")}} setWs={setWs} ws={ws} pendingMeals={pendingGroceryMeals} clearPendingMeals={function(){setPendingGroceryMeals(null)}} setMealStatus={setMealStatus}/>}
       {view==="pantry"&&<PantryTab userId={userId}/>}
       </div>}
 
