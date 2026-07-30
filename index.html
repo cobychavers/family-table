@@ -6691,11 +6691,11 @@ function App(){
             </button>
           </div>
         </div>:null}
-        {/* One shared calendar: in a household everyone's plans show together and
-            anyone can add. A subtle line notes it's shared (and while syncing). */}
-        {hasFamily?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:14,fontSize:12,color:C.light}}>
+        {/* One shared calendar. Only a brief syncing note while the family's
+            plans load - no permanent banner (it was just clutter). */}
+        {hasFamily&&familyMealsLoading?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:14,fontSize:12,color:C.light}}>
           <Icon name="users" size={12} color={C.light} strokeWidth={1.75}/>
-          {familyMealsLoading?"Syncing your family's plans…":"Shared family calendar · everyone can add"}
+          Syncing your family's plans…
         </div>:null}
 
         {/* Week/Month Toggle */}
