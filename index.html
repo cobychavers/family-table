@@ -4206,6 +4206,7 @@ function App(){
     setView("grocery");
   }
   var [showPlaceholder,setShowPlaceholder]=useState(null); // date key currently adding a placeholder for, or null
+  var [dayAddMenu,setDayAddMenu]=useState(null); // date key whose "+" add-menu is open, or null
   var [placeholderText,setPlaceholderText]=useState("");
   var [recipes,setRecipes]=useState([]);
   var [favorites,setFavorites]=useState([]);
@@ -6746,27 +6747,27 @@ function App(){
             </div>;
           })():null}
           {wd.map(function(date,i){var k=dk(date),mlist=getMealsForDay(k),isT=k===todayK;return(
-            <div key={k} style={{display:"flex",gap:12,marginBottom:18,alignItems:"center"}}>
-              {/* Date column - day name + circled date, centered against the card
-                  like a real calendar agenda row. Today is a filled circle. */}
-              <div style={{width:44,flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center"}}>
-                <div style={{fontSize:10.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:isT?C.dark:C.light,marginBottom:5}}>{DAYS_SHORT[i]}</div>
-                <div style={{width:38,height:38,borderRadius:19,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:700,background:isT?C.dark:"transparent",border:isT?"none":"1.5px solid "+C.bdr,color:isT?"#fff":C.ink,boxShadow:isT?C.shadowSm:"none"}}>{date.getDate()}</div>
-              </div>
-              {/* Meals column */}
-              <div style={{flex:1,minWidth:0}}>
-              {/* Meals styled like recipe cards */}
-              {mlist.length===0?
-                <div style={{background:"var(--surface)",borderRadius:16,padding:"14px 16px",boxShadow:C.shadowMd}}>
-                  <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:viewingOwnCalendar?10:0}}>
-                    <Icon name="calendar" size={14} color={C.light} strokeWidth={1.5}/>
-                    <span style={{fontSize:13,color:C.light,fontWeight:500}}>Nothing planned yet</span>
-                  </div>
-                  {viewingOwnCalendar?<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                    <button onClick={function(){setRpick(k)}} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:18,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}}><Icon name="book" size={12} strokeWidth={2}/> From Recipes</button>
-                    <button onClick={function(){openEdit(k)}} style={{padding:"8px 16px",borderRadius:18,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",color:C.ink,fontSize:12,fontWeight:500}}>+ New Meal</button>
-                    <button onClick={function(){setShowPlaceholder(k)}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,borderRadius:15,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",color:C.dark,flexShrink:0}}><Icon name="tag" size={13} strokeWidth={2}/></button>
+            <div key={k} style={{border:isT?"1.5px solid "+C.dark:"1px solid "+C.bdr,borderRadius:18,padding:"11px 12px 13px",marginBottom:14,background:isT?C.blush:"transparent"}}>
+              {/* Each day is its own bordered "page". The circled date + day name
+                  sit up top; the + opens the add options for that day. */}
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:mlist.length?11:5}}>
+                <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0}}>
+                  <div style={{width:36,height:36,borderRadius:18,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:700,background:isT?C.dark:"var(--surface)",border:isT?"none":"1.5px solid "+C.bdr,color:isT?"#fff":C.ink,boxShadow:isT?"none":C.shadowSm}}>{date.getDate()}</div>
+                  <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:18,fontWeight:700,color:C.ink,lineHeight:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{DAYS_FULL[i]}</div>
+                </div>
+                {viewingOwnCalendar?<div style={{position:"relative",flexShrink:0}}>
+                  <button onClick={function(e){e.stopPropagation();setDayAddMenu(dayAddMenu===k?null:k)}} aria-label="Add to this day" style={{width:32,height:32,borderRadius:16,border:"none",background:dayAddMenu===k?C.dark:C.blushMed,color:dayAddMenu===k?"#fff":C.dark,fontSize:21,fontWeight:400,lineHeight:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s"}}>+</button>
+                  {dayAddMenu===k?<div style={{position:"absolute",top:38,right:0,background:"var(--surface)",borderRadius:12,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,minWidth:178,zIndex:50,overflow:"hidden"}}>
+                    <button onClick={function(){setRpick(k);setDayAddMenu(null)}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}}><Icon name="book" size={14} color={C.dark} strokeWidth={1.75}/>From Recipes</button>
+                    <button onClick={function(){openEdit(k);setDayAddMenu(null)}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}}><Icon name="plus" size={14} color={C.dark} strokeWidth={2}/>New Meal</button>
+                    <button onClick={function(){setShowPlaceholder(k);setDayAddMenu(null)}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",boxSizing:"border-box"}}><Icon name="tag" size={14} color={C.dark} strokeWidth={1.75}/>Add Placeholder</button>
                   </div>:null}
+                </div>:null}
+              </div>
+              {mlist.length===0?
+                <div style={{display:"flex",alignItems:"center",gap:7,padding:"3px 4px 5px"}}>
+                  <Icon name="calendar" size={14} color={C.light} strokeWidth={1.5}/>
+                  <span style={{fontSize:13,color:C.light,fontWeight:500}}>Nothing planned yet</span>
                 </div>
               :
                 <div>
@@ -6851,14 +6852,9 @@ function App(){
                       </div>
                     );
                   })}
-                  <div style={{display:"flex",gap:8,marginTop:6,alignItems:"center"}}>
-                    <button onClick={function(){setRpick(k)}} style={{fontSize:11,padding:"8px 14px",borderRadius:16,border:"none",background:C.blush,cursor:"pointer",color:C.dark,fontWeight:600}}>+ From Recipes</button>
-                    <button onClick={function(){openEdit(k)}} style={{fontSize:11,padding:"8px 14px",borderRadius:16,border:"none",background:C.blush,cursor:"pointer",color:C.dark,fontWeight:600}}>+ New Meal</button>
-                    <button onClick={function(){setShowPlaceholder(k)}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:14,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",color:C.dark,flexShrink:0}}><Icon name="tag" size={12} strokeWidth={2}/></button>
-                  </div>
                 </div>
               }
-              </div>
+              {dayAddMenu===k?<div onClick={function(){setDayAddMenu(null)}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:40}}/>:null}
             </div>
           )})}
         </div>}
