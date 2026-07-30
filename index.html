@@ -6746,20 +6746,18 @@ function App(){
             </div>;
           })():null}
           {wd.map(function(date,i){var k=dk(date),mlist=getMealsForDay(k),isT=k===todayK;return(
-            <div key={k} style={{marginBottom:16}}>
-              {/* Day header */}
-              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
-                <div style={{minWidth:50,textAlign:"center"}}>
-                  <div style={{fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:1,color:isT?C.dark:C.light}}>{DAYS_SHORT[i]}</div>
-                  <div style={{fontSize:21,fontWeight:700,color:isT?C.dark:C.light,lineHeight:1.1}}>{date.getDate()}</div>
-                </div>
-                <div style={{flex:1,height:1,background:C.bdr}}/>
-                {isT?<span style={{fontSize:10,fontWeight:700,color:"#fff",background:C.dark,padding:"4px 10px",borderRadius:10,textTransform:"uppercase",letterSpacing:1}}>Today</span>:null}
+            <div key={k} style={{display:"flex",gap:12,marginBottom:18,alignItems:"center"}}>
+              {/* Date column - day name + circled date, centered against the card
+                  like a real calendar agenda row. Today is a filled circle. */}
+              <div style={{width:44,flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center"}}>
+                <div style={{fontSize:10.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:isT?C.dark:C.light,marginBottom:5}}>{DAYS_SHORT[i]}</div>
+                <div style={{width:38,height:38,borderRadius:19,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:700,background:isT?C.dark:"transparent",border:isT?"none":"1.5px solid "+C.bdr,color:isT?"#fff":C.ink,boxShadow:isT?C.shadowSm:"none"}}>{date.getDate()}</div>
               </div>
-              
+              {/* Meals column */}
+              <div style={{flex:1,minWidth:0}}>
               {/* Meals styled like recipe cards */}
               {mlist.length===0?
-                <div style={{marginLeft:62,background:"var(--surface)",borderRadius:16,padding:"14px 16px",boxShadow:C.shadowMd}}>
+                <div style={{background:"var(--surface)",borderRadius:16,padding:"14px 16px",boxShadow:C.shadowMd}}>
                   <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:viewingOwnCalendar?10:0}}>
                     <Icon name="calendar" size={14} color={C.light} strokeWidth={1.5}/>
                     <span style={{fontSize:13,color:C.light,fontWeight:500}}>Nothing planned yet</span>
@@ -6771,7 +6769,7 @@ function App(){
                   </div>:null}
                 </div>
               :
-                <div style={{marginLeft:62}}>
+                <div>
                   {mlist.map(function(m,mi){
                     var mealType=m.recipeType||detectRecipeType(m);
                     var typeInfo=RECIPE_TYPES.find(function(t){return t.id===mealType})||RECIPE_TYPES[RECIPE_TYPES.length-1];
@@ -6860,6 +6858,7 @@ function App(){
                   </div>
                 </div>
               }
+              </div>
             </div>
           )})}
         </div>}
