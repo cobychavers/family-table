@@ -2773,13 +2773,29 @@ function GroceryTab(p){
     }
   },[generatedLoaded, p.pendingMeals]);
 
-  // Keep the calendar's per-meal grocery status current: for each meal that
-  // contributed items, is it still on the list ("added") or fully checked off
-  // ("purchased")? Read from the raw generated items (which carry meal sigs) plus
-  // the checked/hidden flags. A meal whose items are all gone (deleted/cleared)
-  // simply drops out. Persisted so the calendar has it on a cold load, and lifted
-  // so it updates live while the app stays open.
+  // Grow-only merge into the saved per-meal status: a meal that's ever been on
+  // the list stays flagged forever (it never drops back to nothing when the
+  // items are bought and cleared), and "added" only ever upgrades to "purchased",
+  // never back down. Using the functional updater form reads the freshest saved
+  // status, so remounting the Grocery tab can't clobber it with a stale/empty map.
+  function bumpMealStatus(updates){
+    if(!p.setMealStatus)return;
+    p.setMealStatus(function(prev){
+      var out=Object.assign({},prev||{});
+      Object.keys(updates).forEach(function(sig){
+        if(updates[sig]==="purchased")out[sig]="purchased";
+        else if(!out[sig])out[sig]="added";
+      });
+      if(p.userId&&p.userId!=="guest")window.storage.set("dm_mealstatus_"+p.userId.toLowerCase(),JSON.stringify(out),true).catch(function(){});
+      return out;
+    });
+  }
+  // Derive each meal's live state from the raw generated items (which carry meal
+  // sigs) + checked/hidden flags, then bump the sticky status. On the list =
+  // "added"; every item bought = "purchased". Waits for the saved list to load
+  // so an empty in-flight list can't be mistaken for "nothing added".
   useEffect(function(){
+    if(!generatedLoaded)return;
     var agg={};
     (generatedItems||[]).forEach(function(it){
       if(!it.meals||!it.meals.length||hiddenItems[it.id])return;
@@ -2789,11 +2805,10 @@ function GroceryTab(p){
         agg[sig].total++; if(isChecked)agg[sig].done++;
       });
     });
-    var out={};
-    Object.keys(agg).forEach(function(sig){out[sig]=(agg[sig].done===agg[sig].total)?"purchased":"added";});
-    if(p.setMealStatus)p.setMealStatus(out);
-    if(p.userId&&p.userId!=="guest")window.storage.set("dm_mealstatus_"+p.userId.toLowerCase(),JSON.stringify(out),true).catch(function(){});
-  },[generatedItems,checked,hiddenItems]);
+    var live={};
+    Object.keys(agg).forEach(function(sig){live[sig]=(agg[sig].done===agg[sig].total)?"purchased":"added";});
+    if(Object.keys(live).length)bumpMealStatus(live);
+  },[generatedLoaded,generatedItems,checked,hiddenItems]);
 
   function generateFromWeeks(weekStartDates, mode){
     // mode: "replace" (default) starts fresh, "append" adds to existing list
@@ -4171,6 +4186,9 @@ function App(){
   // my own meals come from `meals`, so my edits show instantly.
   var [otherMemberMeals,setOtherMemberMeals]=useState({});
   var [familyMealsLoading,setFamilyMealsLoading]=useState(false);
+  // Other members' meal-grocery status, reduced to one map, so the calendar can
+  // flag a meal that's on ANY family member's list - not only mine.
+  var [otherMemberStatus,setOtherMemberStatus]=useState({});
   var [swipedMeal,setSwipedMeal]=useState(null); // {dateKey, mealIndex} of swiped meal
   var [swipeStart,setSwipeStart]=useState(null); // {x, y, dateKey, mealIndex}
   var [swipeOffset,setSwipeOffset]=useState(0);
@@ -4569,18 +4587,33 @@ function App(){
   // household with someone else in it, and refetches when the membership changes.
   useEffect(function(){
     var others=householdMembers.filter(function(m){return (m.username||"").toLowerCase()!==(user||"").toLowerCase()});
-    if(!others.length){setOtherMemberMeals({});return}
+    if(!others.length){setOtherMemberMeals({});setOtherMemberStatus({});return}
     var cancelled=false;
     setFamilyMealsLoading(true);
     Promise.all(others.map(function(m){
-      return window.storage.get("dm_meals_"+(m.username||"").toLowerCase(),true).catch(function(){return null}).then(function(r){
-        return {username:m.username,meals:(r&&r.value)?(function(){try{return JSON.parse(r.value)}catch(e){return{}}})():{}};
+      var uname=(m.username||"").toLowerCase();
+      return Promise.all([
+        window.storage.get("dm_meals_"+uname,true).catch(function(){return null}),
+        window.storage.get("dm_mealstatus_"+uname,true).catch(function(){return null})
+      ]).then(function(rs){
+        function parse(r){return (r&&r.value)?(function(){try{return JSON.parse(r.value)}catch(e){return{}}})():{};}
+        return {username:m.username,meals:parse(rs[0]),status:parse(rs[1])};
       });
     })).then(function(results){
       if(cancelled)return;
-      var map={};
-      results.forEach(function(x){map[x.username]=x.meals});
+      var map={},statusCombined={};
+      results.forEach(function(x){
+        map[x.username]=x.meals;
+        // Reduce every other member's status into one map: a meal still to be
+        // bought on anyone's list ("added") wins over "purchased".
+        Object.keys(x.status||{}).forEach(function(sig){
+          var s=x.status[sig];
+          if(statusCombined[sig]==="added")return;
+          if(s==="added")statusCombined[sig]="added"; else if(!statusCombined[sig])statusCombined[sig]="purchased";
+        });
+      });
       setOtherMemberMeals(map);
+      setOtherMemberStatus(statusCombined);
       setFamilyMealsLoading(false);
     });
     return function(){cancelled=true};
@@ -6210,7 +6243,11 @@ function App(){
   // (no ingredients) or meals never sent to grocery.
   function mealStatusChip(dateKey,m){
     if(!m||m.isPlaceholder)return null;
-    var s=mealStatus[mealSig(dateKey,m.name)];
+    var sig=mealSig(dateKey,m.name);
+    // On ANY household member's list flags the meal; "added" (still to buy on
+    // someone's list) outranks "purchased".
+    var mineS=mealStatus[sig], otherS=otherMemberStatus[sig];
+    var s=(mineS==="added"||otherS==="added")?"added":((mineS||otherS)?"purchased":null);
     if(!s)return null;
     var bought=s==="purchased";
     return <span style={{display:"inline-flex",alignItems:"center",gap:4,marginTop:6,padding:"3px 9px 3px 7px",borderRadius:11,fontSize:10.5,fontWeight:700,letterSpacing:.2,background:bought?"rgba(46,125,50,0.12)":C.blush,color:bought?"#2e7d32":C.gold}}>
@@ -6800,15 +6837,8 @@ function App(){
                             </div>
                           :<React.Fragment>
                           {m.photo?
-                            <div style={{position:"relative"}}>
-                              <img src={m.photo} style={{width:"100%",height:120,objectFit:"cover",display:"block"}} alt=""/>
-                              <div style={{position:"absolute",top:10,right:10,background:"var(--overlay-chip)",border:"1px solid var(--overlay-chip-border)",boxShadow:"var(--overlay-chip-shadow)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderRadius:16,padding:"4px 12px",fontSize:11,fontWeight:600,color:"var(--overlay-chip-text)"}}><CatTag type={typeInfo}/></div>
-                            </div>
-                          :
-                            <div style={{position:"relative",height:50,background:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
-                              <div style={{position:"absolute",top:10,right:10,background:"var(--overlay-chip)",border:"1px solid var(--overlay-chip-border)",boxShadow:"var(--overlay-chip-shadow)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderRadius:16,padding:"4px 12px",fontSize:11,fontWeight:600,color:"var(--overlay-chip-text)"}}><CatTag type={typeInfo}/></div>
-                            </div>
-                          }
+                            <img src={m.photo} style={{width:"100%",height:120,objectFit:"cover",display:"block"}} alt=""/>
+                          :null}
                           <div style={{padding:"12px 16px"}}>
                             {ownerTag(m)}
                             <div style={{fontWeight:600,fontSize:16,color:C.dark}}>{m.name}</div>
@@ -6895,15 +6925,8 @@ function App(){
                   return(
                     <div key={mi} style={{background:"var(--surface)",borderRadius:16,marginBottom:12,overflow:"hidden",boxShadow:C.shadowMd,cursor:isMine(m)?"pointer":"default"}} onClick={function(){if(isMine(m))openEdit(selectedCalDate,ownIdx(m,mi))}}>
                       {m.photo?
-                        <div style={{position:"relative"}}>
-                          <img src={m.photo} style={{width:"100%",height:140,objectFit:"cover",display:"block"}} alt=""/>
-                          <div style={{position:"absolute",top:12,right:12,background:"var(--overlay-chip)",border:"1px solid var(--overlay-chip-border)",boxShadow:"var(--overlay-chip-shadow)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:600,color:"var(--overlay-chip-text)"}}><CatTag type={typeInfo}/></div>
-                        </div>
-                      :
-                        <div style={{position:"relative",height:60,background:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
-                          <div style={{position:"absolute",top:12,right:12,background:"var(--overlay-chip)",border:"1px solid var(--overlay-chip-border)",boxShadow:"var(--overlay-chip-shadow)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:600,color:"var(--overlay-chip-text)"}}><CatTag type={typeInfo}/></div>
-                        </div>
-                      }
+                        <img src={m.photo} style={{width:"100%",height:140,objectFit:"cover",display:"block"}} alt=""/>
+                      :null}
                       <div style={{padding:"14px 18px"}}>
                         {ownerTag(m)}
                         <div style={{fontWeight:600,fontSize:17,color:C.dark}}>{m.name}</div>
