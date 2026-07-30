@@ -6703,15 +6703,15 @@ function App(){
           var isCurrentWeek = dk(ws)===dk(todayMon);
           var isCurrentMonth = md.getMonth()===now.getMonth() && md.getFullYear()===now.getFullYear();
           var showJump = (calendarMode==="week" && !isCurrentWeek) || (calendarMode==="month" && !isCurrentMonth);
-          var calTab=function(mode,label){var on=calendarMode===mode;return <button onClick={function(){setCalendarMode(mode)}} style={{background:"none",border:"none",padding:"0 0 9px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:22,fontWeight:700,color:on?C.ink:C.light,borderBottom:on?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1,transition:"color .18s"}}>{label}</button>;};
-          return <div style={{display:"flex",alignItems:"flex-end",gap:24,marginBottom:16,borderBottom:"1px solid "+C.bdr}}>
+          var calTab=function(mode,label){var on=calendarMode===mode;return <button onClick={function(){setCalendarMode(mode)}} style={{background:"none",border:"none",padding:"0 0 8px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:on?C.ink:C.light,borderBottom:on?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1,transition:"color .18s"}}>{label}</button>;};
+          return <div style={{display:"flex",alignItems:"flex-end",gap:20,marginBottom:16,borderBottom:"1px solid "+C.bdr}}>
             {calTab("week","Week")}
             {calTab("month","Month")}
             <div style={{flex:1}}/>
             {showJump?<button onClick={function(){
               if(calendarMode==="week"){setWs(getMonday(new Date()))}
               else{setMd(new Date(now.getFullYear(),now.getMonth(),1))}
-            }} style={{background:"none",border:"none",padding:"0 0 11px",cursor:"pointer",fontSize:12.5,fontWeight:600,color:C.gold}}>{calendarMode==="week"?"This week":"This month"}</button>:null}
+            }} style={{background:"none",border:"none",padding:"0 0 9px",cursor:"pointer",fontSize:12,fontWeight:600,color:C.gold}}>{calendarMode==="week"?"This week":"This month"}</button>:null}
           </div>;
         })()}
         
@@ -6748,7 +6748,7 @@ function App(){
               <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
                 <div style={{minWidth:50,textAlign:"center"}}>
                   <div style={{fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:1,color:isT?C.dark:C.light}}>{DAYS_SHORT[i]}</div>
-                  <div style={{fontSize:26,fontWeight:700,color:isT?C.dark:C.light}}>{date.getDate()}</div>
+                  <div style={{fontSize:21,fontWeight:700,color:isT?C.dark:C.light,lineHeight:1.1}}>{date.getDate()}</div>
                 </div>
                 <div style={{flex:1,height:1,background:C.bdr}}/>
                 {isT?<span style={{fontSize:10,fontWeight:700,color:"#fff",background:C.dark,padding:"4px 10px",borderRadius:10,textTransform:"uppercase",letterSpacing:1}}>Today</span>:null}
@@ -6843,7 +6843,6 @@ function App(){
                           <div style={{padding:m.photo?"12px 16px":"12px 16px 12px 44px"}}>
                             {ownerTag(m)}
                             <div style={{fontWeight:600,fontSize:16,color:C.dark}}>{m.name}</div>
-                            {m.time?<div style={{display:"flex",alignItems:"center",gap:4,fontSize:12,color:C.light,marginTop:2}}><Icon name="clock" size={11} strokeWidth={1.75}/>{m.time}</div>:null}
                             <div>{mealStatusChip(k,m)}</div>
                           </div>
                           </React.Fragment>}
@@ -6931,7 +6930,6 @@ function App(){
                       <div style={{padding:"14px 18px"}}>
                         {ownerTag(m)}
                         <div style={{fontWeight:600,fontSize:17,color:C.dark}}>{m.name}</div>
-                        {m.time?<div style={{display:"flex",alignItems:"center",gap:4,fontSize:12,color:C.light,marginTop:3}}><Icon name="clock" size={11} strokeWidth={1.75}/>{m.time}</div>:null}
                         <div>{mealStatusChip(selectedCalDate,m)}</div>
                       </div>
                     </div>
