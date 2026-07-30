@@ -2686,6 +2686,10 @@ function GroceryTab(p){
       var note=it.note||groceryQualifier(rawName);
       var names=splitGroceryItemNames(cleanGroceryItemName(rawName)).map(normalizeGroceryPepperName);
       var incoming=groceryItemParts(it);
+      // Source meal signatures (which planned meals produced this item) must
+      // survive consolidation, or the calendar's "on grocery list" flag clears
+      // on every reload. Carry them onto new pieces and union them on a merge.
+      var srcMeals=it.meals||[];
       names.forEach(function(nm,i){
         var display=(nm||"").trim();
         if(!display||isCookingWaterByproduct(display))return;
@@ -2696,8 +2700,10 @@ function GroceryTab(p){
         if(ex){
           pieceParts.forEach(function(p){addQtyPart(ex.parts,p.qty,p.unit)});
           ex.note=resolveNote((ex.parts[0]||{}).qty,ex.note,n);
+          if(srcMeals.length){ex.meals=ex.meals||[];srcMeals.forEach(function(sig){if(ex.meals.indexOf(sig)<0)ex.meals.push(sig)});}
         }else{
           var ni={id:it.id+(i>0?("_"+i):""),name:display,parts:[],note:resolveNote((pieceParts[0]||{}).qty,n,"")};
+          if(srcMeals.length)ni.meals=srcMeals.slice();
           pieceParts.forEach(function(p){addQtyPart(ni.parts,p.qty,p.unit)});
           out.push(ni);seen[key]=ni;
         }
@@ -2776,30 +2782,23 @@ function GroceryTab(p){
     }
   },[generatedLoaded, p.pendingMeals]);
 
-  // The per-meal grocery status reflects what's CURRENTLY on the list, derived
-  // from the raw generated items (which carry meal sigs) + checked/hidden flags:
-  //   at least one item still on the list          -> "added" (on grocery list)
-  //   every item still on the list is ticked off   -> "purchased"
-  //   all of a meal's items cleared/removed         -> dropped, so the flag goes away
-  // Ticking an item off keeps it ON the list (flag stays); clearing/removing it
-  // (swipe-delete, Clear all) drops the item, so the flag clears. Guarded on
-  // generatedLoaded so an empty in-flight list can't wipe flags mid-load.
+  // The per-meal grocery status = simply "is this meal still on the list?".
+  // A meal is flagged as long as ANY item it produced is still on the list, no
+  // matter whether those items are ticked off or not. The ONLY thing that drops
+  // the flag is the item being cleared/removed (swipe-delete, Clear all) - that
+  // removes/hides it, so its sig stops appearing here. Checking (ticking off) an
+  // item leaves it on the list, so the flag stays. Guarded on generatedLoaded so
+  // an empty in-flight list can't wipe flags mid-load.
   useEffect(function(){
     if(!generatedLoaded)return;
-    var agg={};
+    var out={};
     (generatedItems||[]).forEach(function(it){
       if(!it.meals||!it.meals.length||hiddenItems[it.id])return;
-      var isChecked=!!checked[it.id];
-      it.meals.forEach(function(sig){
-        if(!agg[sig])agg[sig]={total:0,done:0};
-        agg[sig].total++; if(isChecked)agg[sig].done++;
-      });
+      it.meals.forEach(function(sig){out[sig]="added";});
     });
-    var out={};
-    Object.keys(agg).forEach(function(sig){out[sig]=(agg[sig].done===agg[sig].total)?"purchased":"added";});
     if(p.setMealStatus)p.setMealStatus(out);
     if(p.userId&&p.userId!=="guest")window.storage.set("dm_mealstatus_"+p.userId.toLowerCase(),JSON.stringify(out),true).catch(function(){});
-  },[generatedLoaded,generatedItems,checked,hiddenItems]);
+  },[generatedLoaded,generatedItems,hiddenItems]);
 
   function generateFromWeeks(weekStartDates, mode){
     // mode: "replace" (default) starts fresh, "append" adds to existing list
@@ -6238,23 +6237,17 @@ function App(){
       <span style={{fontSize:11,fontWeight:700,color:C.dark,letterSpacing:.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m._owner}</span>
     </div>;
   }
-  // Grocery status flag for a planned meal: gold cart while its ingredients are
-  // on the list, green check once they're all bought. Nothing for placeholders
-  // (no ingredients) or meals never sent to grocery.
+  // Grocery status flag for a planned meal: a green "On grocery list" while the
+  // meal is on ANY household member's list. It only clears when the item is
+  // cleared/removed from the list - ticking it off does not remove it. Nothing
+  // for placeholders (no ingredients) or meals never sent to grocery.
   function mealStatusChip(dateKey,m){
     if(!m||m.isPlaceholder)return null;
     var sig=mealSig(dateKey,m.name);
-    // On ANY household member's list flags the meal; "added" (still to buy on
-    // someone's list) outranks "purchased".
-    var mineS=mealStatus[sig], otherS=otherMemberStatus[sig];
-    var s=(mineS==="added"||otherS==="added")?"added":((mineS||otherS)?"purchased":null);
-    if(!s)return null;
-    var bought=s==="purchased";
-    // Both states are green so the flag stands out; purchased reads a touch
-    // stronger (filled check) than on-the-list (cart).
-    return <span style={{display:"inline-flex",alignItems:"center",gap:4,marginTop:6,padding:"3px 9px 3px 7px",borderRadius:11,fontSize:10.5,fontWeight:700,letterSpacing:.2,background:bought?"rgba(46,125,50,0.16)":"rgba(46,125,50,0.10)",color:"#2e7d32"}}>
-      <Icon name={bought?"check":"cart"} size={11} color="#2e7d32" strokeWidth={bought?3:2}/>
-      {bought?"Purchased":"On grocery list"}
+    if(!mealStatus[sig]&&!otherMemberStatus[sig])return null;
+    return <span style={{display:"inline-flex",alignItems:"center",gap:4,marginTop:6,padding:"3px 9px 3px 7px",borderRadius:11,fontSize:10.5,fontWeight:700,letterSpacing:.2,background:"rgba(46,125,50,0.10)",color:"#2e7d32"}}>
+      <Icon name="cart" size={11} color="#2e7d32" strokeWidth={2}/>
+      On grocery list
     </span>;
   }
   function openEdit(d,idx){setSelDate(d);var list=getOwnMealsForDay(d);if(typeof idx==="number"&&list[idx]){setEditIdx(idx);setEm(Object.assign({},list[idx],{ingredients:(list[idx].ingredients||[]).slice()}))}else{setEditIdx(null);setEm(emptyMeal())}setNi2("");setNqty2("");setNunit2("")}
