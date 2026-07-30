@@ -4297,9 +4297,8 @@ function App(){
   var [publicRecipesLoaded,setPublicRecipesLoaded]=useState(false);
   var [familyRecipes,setFamilyRecipes]=useState([]);
   var [familyRecipesLoaded,setFamilyRecipesLoaded]=useState(false);
-  // The Recipes tab holds both your own collection and your family's, since a
-  // family member's recipes are still recipes - that's where you'd look.
-  var [recipesSubTab,setRecipesSubTab]=useState("mine"); // "mine" | "family"
+  // The one Recipes tab shows your own collection first, then your family's below
+  // (a family member's recipes are still recipes - that's where you'd look).
   var [familySearch,setFamilySearch]=useState("");
   var [familyFilter,setFamilyFilter]=useState("all");   // recipeType id or "all"
   var [familySort,setFamilySort]=useState("newest");    // "newest" | "az" | "cook"
@@ -4627,6 +4626,13 @@ function App(){
     // Leaving the family removes the tab, so don't strand the user on it.
     if(!household&&exploreSubTab==="family")setExploreSubTab("recipes");
   },[household?household.id:null,householdMembers.length]);
+
+  // Load the family's recipes so they can be folded into the one Recipes list.
+  // familyRecipesLoaded in deps means a membership change (which resets it) or a
+  // pull-to-refresh reload triggers a fresh fetch.
+  useEffect(function(){
+    if(view==="recipes"&&household&&householdMembers.length>1&&!familyRecipesLoaded)loadFamilyRecipes();
+  },[view,household?household.id:null,householdMembers.length,familyRecipesLoaded]);
 
   // Load user data
   useEffect(function(){
@@ -5454,39 +5460,12 @@ function App(){
       var on=familySort===id;
       return <button onClick={function(){setFamilySort(id)}} style={{padding:"6px 12px",borderRadius:16,border:"none",background:on?C.dark:C.blushMed,color:on?"#fff":C.light,fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>{label}</button>;
     };
-    return <div>
-      <div style={{marginBottom:10}}>
-        <input value={familySearch} onChange={function(e){setFamilySearch(e.target.value)}} placeholder="Search family recipes..." style={{width:"100%",padding:12,borderRadius:10,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box",background:C.card,color:C.ink}}/>
-      </div>
-
-      {/* Category filter - collapsible, same pattern as My Recipes */}
-      <div style={{marginBottom:10}}>
-        <button onClick={function(){setShowFamilyCats(!showFamilyCats)}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"10px 14px",borderRadius:12,border:"1px solid "+C.bdr,background:C.blush,cursor:"pointer"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <Icon name="folder" size={14} color={C.dark} strokeWidth={1.75}/>
-            <span style={{fontWeight:600,fontSize:14,color:C.ink}}>
-              {familyFilter==="all"?"All Categories":<CatTag type={RECIPE_TYPES.find(function(t){return t.id===familyFilter})}/>}
-            </span>
-          </div>
-          <span style={{fontSize:12,color:C.light}}>{showFamilyCats?"▲":"▼"}</span>
-        </button>
-        {showFamilyCats?<div style={{background:"var(--surface)",borderRadius:12,border:"1px solid "+C.bdr,marginTop:8,padding:8,boxShadow:C.shadowMd}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-            {[{id:"all",label:"All"}].concat(famCatTypes).map(function(t){
-              var active=familyFilter===t.id;
-              var count=t.id==="all"?familyRecipes.length:familyRecipes.filter(function(r){return famCat(r)===t.id}).length;
-              return <button key={t.id} onClick={function(){setFamilyFilter(t.id);setShowFamilyCats(false)}} style={{padding:"10px 12px",borderRadius:10,border:active?"2px solid "+C.dark:"1px solid "+C.bdr,fontSize:13,fontWeight:active?700:500,cursor:"pointer",background:active?C.dark:"var(--surface)",color:active?"#fff":C.dark,textAlign:"left",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                <span>{t.id==="all"?"All":<CatTag type={t}/>}</span>
-                <span style={{fontSize:12,opacity:.7}}>({count})</span>
-              </button>;
-            })}
-          </div>
-        </div>:null}
-      </div>
-
-      {/* Sort + count */}
+    return <div style={{marginTop:26,paddingTop:22,borderTop:"1px solid "+C.bdr}}>
+      {/* Section heading + sort. No separate search / category filter here - My
+          Recipes above carries the heavy filtering, and the family list stays a
+          clean, sortable roll-up so the one tab doesn't get cluttered. */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:14,flexWrap:"wrap"}}>
-        <div style={{fontSize:12,color:C.light}}>{filtered.length} recipe{filtered.length!==1?"s":""}</div>
+        <div style={{fontWeight:700,fontSize:16,letterSpacing:.3,color:C.ink}}>Family Recipes ({filtered.length})</div>
         <div style={{display:"flex",gap:6,overflowX:"auto"}}>
           {sortBtn("newest","Newest")}
           {sortBtn("az","A–Z")}
@@ -6200,6 +6179,11 @@ function App(){
   // The index to use when editing/deleting a meal: its position in MY own doc
   // (_idx) for merged meals, or the plain render index when solo/untagged.
   function ownIdx(m,fallback){return (m&&m._idx!=null)?m._idx:fallback;}
+  // The Recipes tab shows ONE list: my recipes + the family's (when in a
+  // household). Family recipes carry ownerUsername (mine never do), which is how
+  // a card decides to show the owner avatar - the only thing that sets them apart.
+  var allRecipes = recipes.concat((household&&householdMembers.length>1)?familyRecipes:[]);
+  function recipeSortTime(r){return Number(r.createdAt)||Number(r.id)||Number(r.savedAt)||0;}
   function mealsForDayFrom(src,d){
     var v=src[d];
     if(!v)return[];
@@ -6327,8 +6311,8 @@ function App(){
 
   // Generic refresh function - reloads data based on what the user is currently viewing
   function refreshCurrentView(){
-    if(view==="recipes"&&recipesSubTab==="family"){
-      // Refetch the household cookbook.
+    if(view==="recipes"){
+      // Refetch the household cookbook shown below My Recipes.
       setFamilyRecipes([]);
       setFamilyRecipesLoaded(false);
     } else if(view==="calendar"){
@@ -6993,17 +6977,10 @@ function App(){
           {userInbox.length>3?<div style={{textAlign:"center",fontSize:12,color:C.light,paddingTop:10}}>+{userInbox.length-3} more</div>:null}
         </div>:null}
 
-        {/* Mine / Family. Only shown once there's a family to switch to -
-            a lone tab pointing at nothing is just noise. */}
-        {household?<div style={{display:"flex",gap:22,marginBottom:16,borderBottom:"1px solid "+C.bdr}}>
-          <button onClick={function(){setRecipesSubTab("mine")}} style={{background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:recipesSubTab==="mine"?C.ink:C.light,borderBottom:recipesSubTab==="mine"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>My Recipes</button>
-          <button onClick={function(){setRecipesSubTab("family")}} style={{background:"none",border:"none",padding:"0 0 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:recipesSubTab==="family"?C.ink:C.light,borderBottom:recipesSubTab==="family"?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1}}>Family</button>
-        </div>:null}
-
-        {household&&recipesSubTab==="family"?renderFamilyCookbook():<React.Fragment>
+        <React.Fragment>
 
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,position:"relative"}}>
-          <div style={{fontWeight:700,fontSize:16,letterSpacing:.3,color:C.ink}}>My Recipes ({recipes.length})</div>
+          <div style={{fontWeight:700,fontSize:16,letterSpacing:.3,color:C.ink}}>Recipes ({allRecipes.length})</div>
           <div style={{position:"relative"}}>
             <button onClick={function(){setShowRecipePlusMenu(!showRecipePlusMenu)}} style={{padding:"7px 14px",borderRadius:8,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>+ Add</button>
             {showRecipePlusMenu?<div style={{position:"absolute",top:40,right:0,background:"var(--surface)",borderRadius:10,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,minWidth:180,zIndex:50,overflow:"hidden"}}>
@@ -7014,6 +6991,10 @@ function App(){
           </div>
           {showRecipePlusMenu?<div onClick={function(){setShowRecipePlusMenu(false)}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:40}}/>:null}
         </div>
+        {/* Sort - applies across the whole (mine + family) list */}
+        <div style={{display:"flex",gap:6,marginBottom:12}}>
+          {[["newest","Newest"],["az","A–Z"]].map(function(o){var on=(familySort||"newest")===o[0];return <button key={o[0]} onClick={function(){setFamilySort(o[0])}} style={{padding:"6px 14px",borderRadius:16,border:"none",background:on?C.dark:C.blushMed,color:on?"#fff":C.light,fontSize:12,fontWeight:600,cursor:"pointer"}}>{o[1]}</button>})}
+        </div>
         {/* Categories - Collapsible */}
         <div style={{marginBottom:12}}>
           <button onClick={function(){setShowCategories(!showCategories)}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"10px 14px",borderRadius:12,border:"1px solid "+C.bdr,background:C.blush,cursor:"pointer"}}>
@@ -7022,22 +7003,22 @@ function App(){
               <span style={{fontWeight:600,fontSize:14,color:C.ink}}>
                 {recipeFilter==="all"?"All Recipes":<CatTag type={RECIPE_TYPES.find(function(t){return t.id===recipeFilter})}/>}
               </span>
-              {recipeFilter!=="all"?<span style={{fontSize:12,color:C.light}}>({recipes.filter(function(r){
+              {recipeFilter!=="all"?<span style={{fontSize:12,color:C.light}}>({allRecipes.filter(function(r){
                 if(recipeFilter==="favorites")return favorites.includes(r.id);
                 return(r.recipeType||detectRecipeType(r))===recipeFilter;
               }).length})</span>:null}
             </div>
             <span style={{fontSize:12,color:C.light}}>{showCategories?"▲":"▼"}</span>
           </button>
-          
+
           {showCategories?<div style={{background:"var(--surface)",borderRadius:12,border:"1px solid "+C.bdr,marginTop:8,padding:8,boxShadow:C.shadowMd}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
               {RECIPE_TYPES.filter(function(t){
                 if(t.id==="all"||t.id==="favorites")return true;
-                return recipes.some(function(r){return(r.recipeType||detectRecipeType(r))===t.id});
+                return allRecipes.some(function(r){return(r.recipeType||detectRecipeType(r))===t.id});
               }).map(function(t){
                 var active=recipeFilter===t.id;
-                var count=t.id==="all"?recipes.length:t.id==="favorites"?recipes.filter(function(r){return favorites.includes(r.id)}).length:recipes.filter(function(r){return(r.recipeType||detectRecipeType(r))===t.id}).length;
+                var count=t.id==="all"?allRecipes.length:t.id==="favorites"?allRecipes.filter(function(r){return favorites.includes(r.id)}).length:allRecipes.filter(function(r){return(r.recipeType||detectRecipeType(r))===t.id}).length;
                 return <button key={t.id} onClick={function(){setRecipeFilter(t.id);setShowCategories(false)}} style={{padding:"10px 12px",borderRadius:10,border:active?"2px solid "+C.dark:"1px solid "+C.bdr,fontSize:13,fontWeight:active?700:500,cursor:"pointer",background:active?C.dark:"var(--surface)",color:active?"#fff":C.dark,textAlign:"left",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span><CatTag type={t}/></span>
                   <span style={{fontSize:12,opacity:.7}}>({count})</span>
@@ -7047,26 +7028,36 @@ function App(){
           </div>:null}
         </div>
         
-        {recipes.length===0?<div style={{textAlign:"center",padding:"48px 20px"}}>
+        {allRecipes.length===0?<div style={{textAlign:"center",padding:"48px 20px"}}>
           <div style={{marginBottom:14,opacity:.35}}><Icon name="book" size={36} color={C.dark} strokeWidth={1.25}/></div>
           <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:4}}>No recipes yet</div>
           <div style={{fontSize:13,color:C.light}}>Add your first recipe above to get started</div>
         </div>:null}
-        {recipes.filter(function(r){
+        {allRecipes.filter(function(r){
           if(recipeFilter==="all")return true;
           if(recipeFilter==="favorites")return favorites.includes(r.id);
           return(r.recipeType||detectRecipeType(r))===recipeFilter;
-        }).map(function(r){var rtype=r.recipeType||detectRecipeType(r);var typeInfo=RECIPE_TYPES.find(function(t){return t.id===rtype})||RECIPE_TYPES[RECIPE_TYPES.length-1];var isFav=favorites.includes(r.id);var isPrivate=r.isPublic===false;return(
-          <div key={r.id} className="ft-card-tap" style={{background:"var(--surface)",borderRadius:20,border:"none",marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}}>
+        }).slice().sort(function(a,b){
+          if((familySort||"newest")==="az")return (a.name||"").localeCompare(b.name||"");
+          return recipeSortTime(b)-recipeSortTime(a);
+        }).map(function(r){var rtype=r.recipeType||detectRecipeType(r);var typeInfo=RECIPE_TYPES.find(function(t){return t.id===rtype})||RECIPE_TYPES[RECIPE_TYPES.length-1];var fromFamily=!!r.ownerUsername;var isPrivate=!fromFamily&&r.isPublic===false;return(
+          <div key={(fromFamily?r.ownerUsername:"me")+"_"+r.id} className="ft-card-tap" style={{background:"var(--surface)",borderRadius:20,border:"none",marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}}>
             {/* Hero image */}
             <div style={{position:"relative",width:"100%",aspectRatio:r.photo?"4 / 3":undefined,height:r.photo?undefined:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
               {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.3}}><Icon name="plate" size={28} color={C.dark} strokeWidth={1.25}/></div>}
               {/* Privacy badge - top left only if private */}
               {isPrivate?<div style={{position:"absolute",top:14,left:14,display:"flex",alignItems:"center",gap:5,background:"rgba(0,0,0,0.75)",borderRadius:20,padding:"6px 12px",fontSize:10,fontWeight:600,color:"#fff"}}><Icon name="lock" size={10} color="#fff" strokeWidth={2}/>Private</div>:null}
             </div>
-            
+
             {/* Content area */}
             <div style={{padding:"14px 20px 18px"}}>
+              {/* Owner avatar - only on a family member's recipe (the one thing that sets them apart). */}
+              {fromFamily?<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                <div style={{width:26,height:26,borderRadius:13,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
+                  {isImageSrc(r.ownerProfilePic)?<img src={r.ownerProfilePic} style={{width:26,height:26,objectFit:"cover"}}/>:r.ownerProfilePic?<span style={{fontSize:13}}>{r.ownerProfilePic}</span>:<Icon name="user" size={13} strokeWidth={1.75}/>}
+                </div>
+                <div style={{fontSize:13,color:C.light}}>@{r.ownerUsername}</div>
+              </div>:null}
               {/* Title */}
               {(function(){
                 var ct = shortTime(r.time);
@@ -7082,7 +7073,7 @@ function App(){
             </div>
           </div>
         )})}
-        </React.Fragment>}
+        </React.Fragment>
       </div>}
 
       {/* VIEW RECIPE MODAL */}
