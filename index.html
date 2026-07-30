@@ -6722,9 +6722,9 @@ function App(){
         {/* Week View - styled like recipe cards */}
         {calendarMode==="week"&&<div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-            <button onClick={function(){var d=new Date(ws);d.setDate(d.getDate()-7);setWs(d)}} aria-label="Previous week" style={{width:36,height:36,borderRadius:18,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:C.shadowSm,padding:0,flexShrink:0}}><Icon name="chevron-left" size={17} color={C.dark} strokeWidth={2}/></button>
+            <button onClick={function(){var d=new Date(ws);d.setDate(d.getDate()-7);setWs(d)}} aria-label="Previous week" style={{border:"none",background:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:"4px 8px",flexShrink:0}}><Icon name="chevron-left" size={26} color={C.dark} strokeWidth={2.75}/></button>
             <div style={{fontSize:16,fontWeight:600,textAlign:"center",color:C.dark}}>{wl}</div>
-            <button onClick={function(){var d=new Date(ws);d.setDate(d.getDate()+7);setWs(d)}} aria-label="Next week" style={{width:36,height:36,borderRadius:18,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:C.shadowSm,padding:0,flexShrink:0}}><Icon name="chevron-right" size={17} color={C.dark} strokeWidth={2}/></button>
+            <button onClick={function(){var d=new Date(ws);d.setDate(d.getDate()+7);setWs(d)}} aria-label="Next week" style={{border:"none",background:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:"4px 8px",flexShrink:0}}><Icon name="chevron-right" size={26} color={C.dark} strokeWidth={2.75}/></button>
           </div>
           {/* Select-all: checks every real meal in this week for the grocery push. */}
           {viewingOwnCalendar?(function(){
@@ -6732,7 +6732,7 @@ function App(){
             wd.forEach(function(date){var kk=dk(date);getMealsForDay(kk).forEach(function(m,mi){if(!m.isPlaceholder)weekMeals.push({key:kk+"|"+mi,meal:m})})});
             if(!weekMeals.length)return null;
             var allSel=weekMeals.every(function(w){return selectedCalMeals[w.key]});
-            return <div style={{display:"flex",justifyContent:"flex-end",marginTop:2,marginBottom:14}}>
+            return <div style={{display:"flex",justifyContent:"flex-start",marginTop:2,marginBottom:14}}>
               <button onClick={function(){
                 setSelectedCalMeals(function(prev){
                   var next=Object.assign({},prev);
@@ -6863,9 +6863,9 @@ function App(){
         {calendarMode==="month"&&<div>
           {/* Month navigation */}
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-            <button onClick={function(){setMd(new Date(md.getFullYear(),md.getMonth()-1,1))}} aria-label="Previous month" style={{width:36,height:36,borderRadius:18,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:C.shadowSm,padding:0,flexShrink:0}}><Icon name="chevron-left" size={17} color={C.dark} strokeWidth={2}/></button>
+            <button onClick={function(){setMd(new Date(md.getFullYear(),md.getMonth()-1,1))}} aria-label="Previous month" style={{border:"none",background:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:"4px 8px",flexShrink:0}}><Icon name="chevron-left" size={26} color={C.dark} strokeWidth={2.75}/></button>
             <div style={{fontSize:18,fontWeight:600,textAlign:"center",color:C.dark}}>{MONTHS[md.getMonth()]+" "+md.getFullYear()}</div>
-            <button onClick={function(){setMd(new Date(md.getFullYear(),md.getMonth()+1,1))}} aria-label="Next month" style={{width:36,height:36,borderRadius:18,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:C.shadowSm,padding:0,flexShrink:0}}><Icon name="chevron-right" size={17} color={C.dark} strokeWidth={2}/></button>
+            <button onClick={function(){setMd(new Date(md.getFullYear(),md.getMonth()+1,1))}} aria-label="Next month" style={{border:"none",background:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:"4px 8px",flexShrink:0}}><Icon name="chevron-right" size={26} color={C.dark} strokeWidth={2.75}/></button>
           </div>
           
           {/* Calendar grid */}
