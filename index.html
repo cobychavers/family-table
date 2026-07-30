@@ -4297,6 +4297,7 @@ function App(){
   var [publicRecipesLoaded,setPublicRecipesLoaded]=useState(false);
   var [familyRecipes,setFamilyRecipes]=useState([]);
   var [familyRecipesLoaded,setFamilyRecipesLoaded]=useState(false);
+  var [familyRefreshTick,setFamilyRefreshTick]=useState(0); // bump to force a family-recipes refetch
   // The one Recipes tab shows your own collection first, then your family's below
   // (a family member's recipes are still recipes - that's where you'd look).
   var [familySearch,setFamilySearch]=useState("");
@@ -4618,21 +4619,44 @@ function App(){
     return function(){cancelled=true};
   },[household?household.id:null,householdMembers.length]);
 
-  // Membership changed (joined, left, someone else joined) - drop the cached
-  // family cookbook so the tab refetches against the new member list.
+  // Load the family's recipes so they fold into the one Recipes list. Single
+  // cancellable fetch keyed on the household + member set (+ a manual refresh
+  // tick), so a membership change or refresh supersedes any in-flight load rather
+  // than racing it - the earlier "count jumps to 56 then snaps back to 17" bug
+  // was two effects (a reset + a guarded loader) clobbering each other.
   useEffect(function(){
-    setFamilyRecipesLoaded(false);
-    setFamilyRecipes([]);
-    // Leaving the family removes the tab, so don't strand the user on it.
+    // Leaving the family removes the Explore tab, so don't strand the user on it.
     if(!household&&exploreSubTab==="family")setExploreSubTab("recipes");
-  },[household?household.id:null,householdMembers.length]);
-
-  // Load the family's recipes so they can be folded into the one Recipes list.
-  // familyRecipesLoaded in deps means a membership change (which resets it) or a
-  // pull-to-refresh reload triggers a fresh fetch.
-  useEffect(function(){
-    if(view==="recipes"&&household&&householdMembers.length>1&&!familyRecipesLoaded)loadFamilyRecipes();
-  },[view,household?household.id:null,householdMembers.length,familyRecipesLoaded]);
+    var others=householdMembers.filter(function(m){return (m.username||"").toLowerCase()!==(userId||"").toLowerCase()});
+    if(!household||!others.length){setFamilyRecipes([]);return;}
+    var cancelled=false;
+    Promise.all(others.map(function(m){
+      var uname=(m.username||"").toLowerCase();
+      return window.storage.get("dm_recipe_index_"+uname,true).catch(function(){return null}).then(function(idx){
+        if(!idx||!idx.value)return[];
+        var ids;try{ids=JSON.parse(idx.value)}catch(e){return[]}
+        return Promise.all(ids.map(function(id){
+          return window.storage.get("dm_recipe_"+uname+"_"+id,true).catch(function(){return null}).then(function(r){
+            if(!r||!r.value)return null;
+            var rec;try{rec=migrateRecipe(JSON.parse(r.value),uname).recipe}catch(e){return null}
+            // Theirs only - not a copy they saved from another user.
+            if(!rec.originalOwner)return null;
+            if(rec.originalOwner.toLowerCase()!==uname)return null;
+            if((rec.savedBy||uname).toLowerCase()!==uname)return null;
+            rec.ownerUsername=m.username;
+            rec.ownerProfilePic=m.profilePic||null;
+            return rec;
+          });
+        }));
+      }).then(function(list){return list.filter(function(x){return x})});
+    })).then(function(results){
+      if(cancelled)return;
+      var all=[];results.forEach(function(rs){all=all.concat(rs)});
+      setFamilyRecipes(all);
+      setFamilyRecipesLoaded(true);
+    });
+    return function(){cancelled=true};
+  },[household?household.id:null,householdMembers.length,familyRefreshTick]);
 
   // Load user data
   useEffect(function(){
@@ -6312,9 +6336,9 @@ function App(){
   // Generic refresh function - reloads data based on what the user is currently viewing
   function refreshCurrentView(){
     if(view==="recipes"){
-      // Refetch the household cookbook shown below My Recipes.
-      setFamilyRecipes([]);
-      setFamilyRecipesLoaded(false);
+      // Refetch the family's recipes shown in the merged list (tick supersedes
+      // any in-flight load; no clearing, so the list never blinks empty).
+      setFamilyRefreshTick(function(t){return t+1});
     } else if(view==="calendar"){
       // Reload meals
       if(userId && userId!=="guest"){
