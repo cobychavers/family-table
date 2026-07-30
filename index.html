@@ -2773,27 +2773,14 @@ function GroceryTab(p){
     }
   },[generatedLoaded, p.pendingMeals]);
 
-  // Grow-only merge into the saved per-meal status: a meal that's ever been on
-  // the list stays flagged forever (it never drops back to nothing when the
-  // items are bought and cleared), and "added" only ever upgrades to "purchased",
-  // never back down. Using the functional updater form reads the freshest saved
-  // status, so remounting the Grocery tab can't clobber it with a stale/empty map.
-  function bumpMealStatus(updates){
-    if(!p.setMealStatus)return;
-    p.setMealStatus(function(prev){
-      var out=Object.assign({},prev||{});
-      Object.keys(updates).forEach(function(sig){
-        if(updates[sig]==="purchased")out[sig]="purchased";
-        else if(!out[sig])out[sig]="added";
-      });
-      if(p.userId&&p.userId!=="guest")window.storage.set("dm_mealstatus_"+p.userId.toLowerCase(),JSON.stringify(out),true).catch(function(){});
-      return out;
-    });
-  }
-  // Derive each meal's live state from the raw generated items (which carry meal
-  // sigs) + checked/hidden flags, then bump the sticky status. On the list =
-  // "added"; every item bought = "purchased". Waits for the saved list to load
-  // so an empty in-flight list can't be mistaken for "nothing added".
+  // The per-meal grocery status reflects what's CURRENTLY on the list, derived
+  // from the raw generated items (which carry meal sigs) + checked/hidden flags:
+  //   at least one item still on the list          -> "added" (on grocery list)
+  //   every item still on the list is ticked off   -> "purchased"
+  //   all of a meal's items cleared/removed         -> dropped, so the flag goes away
+  // Ticking an item off keeps it ON the list (flag stays); clearing/removing it
+  // (swipe-delete, Clear all) drops the item, so the flag clears. Guarded on
+  // generatedLoaded so an empty in-flight list can't wipe flags mid-load.
   useEffect(function(){
     if(!generatedLoaded)return;
     var agg={};
@@ -2805,9 +2792,10 @@ function GroceryTab(p){
         agg[sig].total++; if(isChecked)agg[sig].done++;
       });
     });
-    var live={};
-    Object.keys(agg).forEach(function(sig){live[sig]=(agg[sig].done===agg[sig].total)?"purchased":"added";});
-    if(Object.keys(live).length)bumpMealStatus(live);
+    var out={};
+    Object.keys(agg).forEach(function(sig){out[sig]=(agg[sig].done===agg[sig].total)?"purchased":"added";});
+    if(p.setMealStatus)p.setMealStatus(out);
+    if(p.userId&&p.userId!=="guest")window.storage.set("dm_mealstatus_"+p.userId.toLowerCase(),JSON.stringify(out),true).catch(function(){});
   },[generatedLoaded,generatedItems,checked,hiddenItems]);
 
   function generateFromWeeks(weekStartDates, mode){
@@ -6258,8 +6246,10 @@ function App(){
     var s=(mineS==="added"||otherS==="added")?"added":((mineS||otherS)?"purchased":null);
     if(!s)return null;
     var bought=s==="purchased";
-    return <span style={{display:"inline-flex",alignItems:"center",gap:4,marginTop:6,padding:"3px 9px 3px 7px",borderRadius:11,fontSize:10.5,fontWeight:700,letterSpacing:.2,background:bought?"rgba(46,125,50,0.12)":C.blush,color:bought?"#2e7d32":C.gold}}>
-      <Icon name={bought?"check":"cart"} size={11} color={bought?"#2e7d32":C.gold} strokeWidth={bought?3:2}/>
+    // Both states are green so the flag stands out; purchased reads a touch
+    // stronger (filled check) than on-the-list (cart).
+    return <span style={{display:"inline-flex",alignItems:"center",gap:4,marginTop:6,padding:"3px 9px 3px 7px",borderRadius:11,fontSize:10.5,fontWeight:700,letterSpacing:.2,background:bought?"rgba(46,125,50,0.16)":"rgba(46,125,50,0.10)",color:"#2e7d32"}}>
+      <Icon name={bought?"check":"cart"} size={11} color="#2e7d32" strokeWidth={bought?3:2}/>
       {bought?"Purchased":"On grocery list"}
     </span>;
   }
@@ -6713,15 +6703,15 @@ function App(){
           var isCurrentWeek = dk(ws)===dk(todayMon);
           var isCurrentMonth = md.getMonth()===now.getMonth() && md.getFullYear()===now.getFullYear();
           var showJump = (calendarMode==="week" && !isCurrentWeek) || (calendarMode==="month" && !isCurrentMonth);
-          return <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
-            <div style={{display:"inline-flex",background:C.blush,borderRadius:10,padding:4,gap:0}}>
-              <button onClick={function(){setCalendarMode("week")}} style={{padding:"8px 20px",borderRadius:8,border:"none",background:calendarMode==="week"?C.dark:"transparent",color:calendarMode==="week"?"#fff":C.dark,fontWeight:600,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>Week</button>
-              <button onClick={function(){setCalendarMode("month")}} style={{padding:"8px 20px",borderRadius:8,border:"none",background:calendarMode==="month"?C.dark:"transparent",color:calendarMode==="month"?"#fff":C.dark,fontWeight:600,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>Month</button>
-              {showJump?<button onClick={function(){
-                if(calendarMode==="week"){setWs(getMonday(new Date()))}
-                else{setMd(new Date(now.getFullYear(),now.getMonth(),1))}
-              }} style={{padding:"8px 16px",borderRadius:8,border:"none",background:"transparent",color:C.dark,fontWeight:600,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>{calendarMode==="week"?"This Week":"This Month"}</button>:null}
-            </div>
+          var calTab=function(mode,label){var on=calendarMode===mode;return <button onClick={function(){setCalendarMode(mode)}} style={{background:"none",border:"none",padding:"0 0 9px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:22,fontWeight:700,color:on?C.ink:C.light,borderBottom:on?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1,transition:"color .18s"}}>{label}</button>;};
+          return <div style={{display:"flex",alignItems:"flex-end",gap:24,marginBottom:16,borderBottom:"1px solid "+C.bdr}}>
+            {calTab("week","Week")}
+            {calTab("month","Month")}
+            <div style={{flex:1}}/>
+            {showJump?<button onClick={function(){
+              if(calendarMode==="week"){setWs(getMonday(new Date()))}
+              else{setMd(new Date(now.getFullYear(),now.getMonth(),1))}
+            }} style={{background:"none",border:"none",padding:"0 0 11px",cursor:"pointer",fontSize:12.5,fontWeight:600,color:C.gold}}>{calendarMode==="week"?"This week":"This month"}</button>:null}
           </div>;
         })()}
         
@@ -6738,16 +6728,16 @@ function App(){
             wd.forEach(function(date){var kk=dk(date);getMealsForDay(kk).forEach(function(m,mi){if(!m.isPlaceholder)weekMeals.push({key:kk+"|"+mi,meal:m})})});
             if(!weekMeals.length)return null;
             var allSel=weekMeals.every(function(w){return selectedCalMeals[w.key]});
-            return <div style={{display:"flex",justifyContent:"flex-end",marginTop:-4,marginBottom:12}}>
-              <button className="ft-card-tap" onClick={function(){
+            return <div style={{display:"flex",justifyContent:"flex-end",marginTop:2,marginBottom:14}}>
+              <button onClick={function(){
                 setSelectedCalMeals(function(prev){
                   var next=Object.assign({},prev);
                   if(allSel){weekMeals.forEach(function(w){delete next[w.key]})}
                   else{weekMeals.forEach(function(w){next[w.key]=w.meal})}
                   return next;
                 });
-              }} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 15px",borderRadius:20,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",fontSize:12.5,fontWeight:600,color:C.dark,boxShadow:C.shadowSm,letterSpacing:.2}}>
-                <span style={{display:"flex",alignItems:"center",justifyContent:"center",width:16,height:16,borderRadius:4,background:allSel?C.dark:"transparent",border:allSel?"none":"1.5px solid "+C.blushDeep}}>{allSel?<Icon name="check" size={11} color="#fff" strokeWidth={3}/>:null}</span>
+              }} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 2px",border:"none",background:"none",cursor:"pointer",fontSize:12.5,fontWeight:600,color:allSel?C.dark:C.light,letterSpacing:.3}}>
+                <span style={{display:"flex",alignItems:"center",justifyContent:"center",width:18,height:18,borderRadius:5,background:allSel?C.dark:"transparent",border:allSel?"none":"1.5px solid "+C.blushDeep,transition:"all .15s"}}>{allSel?<Icon name="check" size={12} color="#fff" strokeWidth={3}/>:null}</span>
                 {allSel?"Deselect all":"Select all"}
               </button>
             </div>;
