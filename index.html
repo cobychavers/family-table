@@ -344,6 +344,15 @@
     // listener. Keeping a separate reader would just duplicate the shape
     // handling below and invite the two copies to drift.
     window.flags = {
+      // One-shot read of a flags map (e.g. dm_ghidden_<user>), for callers that
+      // need the current set without setting up a live watch.
+      get: async (key) => {
+        if (!db || !key) return {};
+        try {
+          const doc = await db.collection("data").doc(key).get();
+          return (doc.exists && doc.data() && doc.data().flags) ? doc.data().flags : {};
+        } catch (e) { return {}; }
+      },
       // `ownerUid` names the list's owner, which is NOT the writer when a
       // family member is ticking items off your list. Defaulting to the writer
       // would transfer ownership and lock the owner out; omitting it entirely
@@ -4179,6 +4188,11 @@ function App(){
   // Other members' meal-grocery status, reduced to one map, so the calendar can
   // flag a meal that's on ANY family member's list - not only mine.
   var [otherMemberStatus,setOtherMemberStatus]=useState({});
+  // { mealSig: true } for every meal currently on ANY household member's grocery
+  // list. Computed straight from each member's grocery doc + hidden flags, so the
+  // calendar's "on grocery list" flag doesn't depend on the Grocery tab being
+  // open or on a separate synced status doc.
+  var [groceryFlagSigs,setGroceryFlagSigs]=useState({});
   var [swipedMeal,setSwipedMeal]=useState(null); // {dateKey, mealIndex} of swiped meal
   var [swipeStart,setSwipeStart]=useState(null); // {x, y, dateKey, mealIndex}
   var [swipeOffset,setSwipeOffset]=useState(0);
@@ -4609,6 +4623,43 @@ function App(){
     });
     return function(){cancelled=true};
   },[household?household.id:null,householdMembers.length]);
+
+  // Which planned meals are on ANY household member's grocery list. Read straight
+  // from each member's grocery doc (dm_generated) + hidden flags (dm_ghidden):
+  // a meal sig counts if any non-hidden grocery item still carries it. Refreshed
+  // on membership change and whenever the tab changes (so opening the calendar,
+  // or returning to it after editing the grocery list, reflects the latest).
+  useEffect(function(){
+    if(!userId||userId==="guest"){setGroceryFlagSigs({});return;}
+    // Grocery docs (dm_generated / dm_ghidden) are keyed by the RAW username the
+    // way GroceryTab writes them - NOT lowercased - so match that exactly or the
+    // read misses. Dedupe self against the household list case-insensitively.
+    var seen={},users=[];
+    [userId].concat(householdMembers.map(function(m){return m.username})).forEach(function(u){
+      if(!u)return;var lu=u.toLowerCase();if(seen[lu])return;seen[lu]=1;users.push(u);
+    });
+    var cancelled=false;
+    Promise.all(users.map(function(u){
+      return Promise.all([
+        window.storage.get("dm_generated_"+u,true).catch(function(){return null}),
+        window.flags.get("dm_ghidden_"+u).catch(function(){return {}})
+      ]).then(function(rs){
+        var items=[];if(rs[0]&&rs[0].value){try{items=(JSON.parse(rs[0].value).items)||[]}catch(e){}}
+        return {items:items,hidden:rs[1]||{}};
+      });
+    })).then(function(results){
+      if(cancelled)return;
+      var sigs={};
+      results.forEach(function(x){
+        x.items.forEach(function(it){
+          if(!it.meals||!it.meals.length||x.hidden[it.id])return;
+          it.meals.forEach(function(sig){sigs[sig]=true;});
+        });
+      });
+      setGroceryFlagSigs(sigs);
+    });
+    return function(){cancelled=true};
+  },[userId,household?household.id:null,householdMembers.length,view]);
 
   // Load the family's recipes so they fold into the one Recipes list. Single
   // cancellable fetch keyed on the household + member set (+ a manual refresh
@@ -6244,7 +6295,7 @@ function App(){
   function mealStatusChip(dateKey,m){
     if(!m||m.isPlaceholder)return null;
     var sig=mealSig(dateKey,m.name);
-    if(!mealStatus[sig]&&!otherMemberStatus[sig])return null;
+    if(!groceryFlagSigs[sig])return null;
     return <span style={{display:"inline-flex",alignItems:"center",gap:4,marginTop:6,padding:"3px 9px 3px 7px",borderRadius:11,fontSize:10.5,fontWeight:700,letterSpacing:.2,background:"rgba(46,125,50,0.10)",color:"#2e7d32"}}>
       <Icon name="cart" size={11} color="#2e7d32" strokeWidth={2}/>
       On grocery list
