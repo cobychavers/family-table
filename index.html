@@ -7783,31 +7783,12 @@ function App(){
                   var parsed = data.recipe;
                   setImportStatus("Recipe parsed!");
 
-                  // Too thin to trust - finish it in the editor.
-                  if (!(parsed.ingredients && parsed.ingredients.length)) {
-                    reviewImportedRecipe(parsed, parsed.credit || "", "parse_text");
-                    setImportPasteAll("");
-                    return;
-                  }
-
-                  var newRecipe = {
-                    id: Date.now(),
-                    name: parsed.name || "Imported Recipe",
-                    time: parsed.time || "",
-                    emoji: "🍽️",
-                    ingredients: (parsed.ingredients || []).map(sanitizeIng),
-                    notes: parsed.notes || "",
-                    recipeType: parsed.recipeType || "other",
-                    credit: parsed.credit || "",
-                    isPublic: true
-                  };
-
-                  svR(recipes.concat([newRecipe]));
-                  setShowImport(false);
+                  // Always open the parsed recipe in the editor so you can review
+                  // it, tweak anything, and add a photo before saving - same as the
+                  // URL and Scan imports. (Previously a clean parse saved straight
+                  // to the list with no chance to add a photo or edit.)
+                  reviewImportedRecipe(parsed, parsed.credit || "", "parse_text");
                   setImportPasteAll("");
-                  setImportLoading(false);
-                  setImportStatus("");
-                  setExpR(newRecipe.id);
                 })
                 .catch(function(err) {
                   setImportLoading(false);
