@@ -3546,7 +3546,7 @@ function GroceryTab(p){
         onClick:function(){if(isSwipedHere)setSwipedItem(null)},
         style:{display:"flex",alignItems:"center",gap:10,padding:"11px 2px",opacity:ic?.4:1,background:"var(--surface)",transform:"translateX("+translateX+"px)",transition:itemSwipeStart?"none":"transform 0.2s",position:"relative",zIndex:1}
       },
-        React.createElement("button",{onClick:function(){tog(it.id)},style:{width:24,height:24,borderRadius:"50%",border:ic?"none":"1.5px solid "+C.blushDeep,background:ic?C.dark:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"background 0.15s"}},ic?React.createElement(Icon,{name:"check",size:14,color:"#fff",strokeWidth:2.5}):null),
+        React.createElement("button",{onClick:function(){setHiddenItem(it.id,true)},"aria-label":"Got it - remove from list",style:{width:24,height:24,borderRadius:"50%",border:"1.5px solid "+C.blushDeep,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"background 0.15s"}}),
         React.createElement("button",{onClick:function(){setPickStore(pickStore===it.id?null:it.id)},style:{width:26,height:26,borderRadius:6,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}},renderStoreIcon(st,16)),
         React.createElement("div",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{flex:1,minWidth:0,cursor:"pointer",display:"flex",alignItems:"center",gap:9}},
           chipLabels.length?React.createElement("div",{style:{display:"flex",gap:4,flexShrink:0,flexWrap:"wrap"}},chipLabels.map(function(cl,ci){return React.createElement("span",{key:ci,style:{fontSize:12,fontWeight:700,color:C.dark,background:"var(--blush-med)",borderRadius:6,padding:"2px 8px",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",opacity:ic?.5:1}},cl)}))
@@ -3881,17 +3881,6 @@ function GroceryTab(p){
       ):null
     ),
 
-    all.length>0?React.createElement("div",{style:{marginBottom:16,padding:"12px 15px",background:"var(--surface)",borderRadius:14,boxShadow:C.shadowSm,border:"1px solid "+C.bdr}},
-      React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:9}},
-        React.createElement("span",{style:{fontSize:12,fontWeight:700,color:C.ink,letterSpacing:.3}},"Shopping Progress"),
-        React.createElement("span",{style:{fontSize:12,color:C.light,fontVariantNumeric:"tabular-nums"}},tc+" of "+all.length)
-      ),
-      React.createElement("div",{style:{height:6,background:"var(--blush-med)",borderRadius:3,overflow:"hidden"}},
-        React.createElement("div",{style:{height:"100%",background:tc===all.length?"#2e7d32":"linear-gradient(90deg,var(--gold),var(--dark))",borderRadius:3,width:(all.length?tc/all.length*100:0)+"%",transition:"width 0.35s cubic-bezier(0.16,1,0.3,1)"}})
-      ),
-      tc===all.length&&all.length>0?React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:10,fontSize:14,fontWeight:700,color:"#2e7d32"}},React.createElement(Icon,{name:"check",size:15,strokeWidth:2.5}),"All done!"):null
-    ):null,
-
     all.length===0?React.createElement("div",{style:{textAlign:"center",padding:"32px 20px"}},
       React.createElement("div",{style:{marginBottom:10,opacity:.35}},React.createElement(Icon,{name:"cart",size:32,color:C.dark,strokeWidth:1.25})),
       React.createElement("div",{style:{fontSize:14,fontWeight:600,color:C.dark,marginBottom:4}},"Your list is empty"),
@@ -3899,12 +3888,6 @@ function GroceryTab(p){
     ):null,
 
     grouped(unc),
-
-    chk.length>0?React.createElement("div",{onClick:function(){setShowDone(!showDone)},style:{display:"flex",alignItems:"center",gap:6,padding:"10px 0 4px",cursor:"pointer"}},
-      React.createElement("span",{style:{display:"flex",alignItems:"center",gap:5,fontSize:12,fontWeight:700,color:"var(--light)"}},React.createElement(Icon,{name:"check",size:12,strokeWidth:2.5}),"Purchased ("+chk.length+")"),
-      React.createElement("span",{style:{fontSize:10,opacity:.3}},showDone?"▼":"▶")
-    ):null,
-    showDone?chk.map(function(e){return item(e)}):null,
 
     pickStore?React.createElement("div",{onClick:function(){setPickStore(null)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,padding:16,animation:"ft-backdrop-fade .18s ease-out"}},
       React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",borderRadius:16,padding:20,width:"100%",maxWidth:360,maxHeight:"80vh",overflowY:"auto",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
@@ -4652,11 +4635,14 @@ function App(){
     return function(){cancelled=true};
   },[household?household.id:null,householdMembers.length]);
 
-  // Which planned meals are on ANY household member's grocery list. Read straight
-  // from each member's grocery doc (dm_generated) + hidden flags (dm_ghidden):
-  // a meal sig counts if any non-hidden grocery item still carries it. Refreshed
-  // on membership change and whenever the tab changes (so opening the calendar,
-  // or returning to it after editing the grocery list, reflects the latest).
+  // Per-meal grocery status across the whole household. Read straight from each
+  // member's grocery doc (dm_generated) + hidden flags (dm_ghidden). Ticking an
+  // item off HIDES it (it stays in the doc), so per meal signature:
+  //   some item still visible  -> "added"     (On grocery list)
+  //   every item hidden/bought -> "purchased" (all ticked off)
+  //   no items left at all      -> dropped     (list was cleared / rebuilt)
+  // Refreshed on membership change and tab change, so opening the calendar (or
+  // returning after shopping) reflects the latest.
   useEffect(function(){
     if(!userId||userId==="guest"){setGroceryFlagSigs({});return;}
     // Grocery docs (dm_generated / dm_ghidden) are keyed by the RAW username the
@@ -4677,14 +4663,20 @@ function App(){
       });
     })).then(function(results){
       if(cancelled)return;
-      var sigs={};
+      var agg={}; // sig -> {total, hidden}
       results.forEach(function(x){
         x.items.forEach(function(it){
-          if(!it.meals||!it.meals.length||x.hidden[it.id])return;
-          it.meals.forEach(function(sig){sigs[sig]=true;});
+          if(!it.meals||!it.meals.length)return;
+          var isHidden=!!x.hidden[it.id];
+          it.meals.forEach(function(sig){
+            if(!agg[sig])agg[sig]={total:0,hidden:0};
+            agg[sig].total++; if(isHidden)agg[sig].hidden++;
+          });
         });
       });
-      setGroceryFlagSigs(sigs);
+      var out={};
+      Object.keys(agg).forEach(function(sig){out[sig]=(agg[sig].hidden<agg[sig].total)?"added":"purchased";});
+      setGroceryFlagSigs(out);
     });
     return function(){cancelled=true};
   },[userId,household?household.id:null,householdMembers.length,view]);
@@ -6316,17 +6308,19 @@ function App(){
       <span style={{fontSize:11,fontWeight:700,color:C.dark,letterSpacing:.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m._owner}</span>
     </div>;
   }
-  // Grocery status flag for a planned meal: a green "On grocery list" while the
-  // meal is on ANY household member's list. It only clears when the item is
-  // cleared/removed from the list - ticking it off does not remove it. Nothing
-  // for placeholders (no ingredients) or meals never sent to grocery.
+  // Grocery status flag for a planned meal, green either way:
+  //   "On grocery list" (cart)  - it's on a household member's list, still to buy
+  //   "Purchased" (check)        - every item for it has been ticked off
+  // Drops entirely only when the list is cleared/rebuilt. Nothing for
+  // placeholders (no ingredients) or meals never sent to grocery.
   function mealStatusChip(dateKey,m){
     if(!m||m.isPlaceholder)return null;
-    var sig=mealSig(dateKey,m.name);
-    if(!groceryFlagSigs[sig])return null;
-    return <span style={{display:"inline-flex",alignItems:"center",gap:4,marginTop:6,padding:"3px 9px 3px 7px",borderRadius:11,fontSize:10.5,fontWeight:700,letterSpacing:.2,background:"rgba(46,125,50,0.10)",color:"#2e7d32"}}>
-      <Icon name="cart" size={11} color="#2e7d32" strokeWidth={2}/>
-      On grocery list
+    var s=groceryFlagSigs[mealSig(dateKey,m.name)];
+    if(!s)return null;
+    var bought=(s==="purchased");
+    return <span style={{display:"inline-flex",alignItems:"center",gap:4,marginTop:6,padding:"3px 9px 3px 7px",borderRadius:11,fontSize:10.5,fontWeight:700,letterSpacing:.2,background:bought?"rgba(46,125,50,0.16)":"rgba(46,125,50,0.10)",color:"#2e7d32"}}>
+      <Icon name={bought?"check":"cart"} size={11} color="#2e7d32" strokeWidth={bought?3:2}/>
+      {bought?"Purchased":"On grocery list"}
     </span>;
   }
   function openEdit(d,idx){setSelDate(d);var list=getOwnMealsForDay(d);if(typeof idx==="number"&&list[idx]){setEditIdx(idx);setEm(Object.assign({},list[idx],{ingredients:(list[idx].ingredients||[]).slice()}))}else{setEditIdx(null);setEm(emptyMeal())}setNi2("");setNqty2("");setNunit2("")}
