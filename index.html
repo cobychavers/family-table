@@ -1290,9 +1290,18 @@ function migrateRecipe(recipe, storageUser){
   }
   // If no signals at all, leave trueOwner as null - don't guess
   
-  if(!r.originalOwner && trueOwner){
-    r.originalOwner = trueOwner;
-    changed = true;
+  if(!r.originalOwner){
+    if(trueOwner){
+      r.originalOwner = trueOwner;
+      changed = true;
+    } else if(!isCopy){
+      // No copy signals at all (not shared, not credited from someone, no owner
+      // mismatch) => this is the storage user's own recipe. Older imports/creates
+      // saved without stamping an owner, which left them "ownerless" and made the
+      // Edit / add-photo button never show. Claim it for the person it lives with.
+      r.originalOwner = storageUser;
+      changed = true;
+    }
   }
   if(!r.recipeId && trueOwner){
     r.recipeId = genRecipeId(trueOwner);
