@@ -3295,6 +3295,23 @@ function GroceryTab(p){
     e.target.value="";
   }
 
+  // Same-name items merge into one row at display time, and the row takes the
+  // FIRST member's id for its checked state. So adding an item you'd already
+  // ticked off would merge into that checked row and vanish into "Purchased".
+  // Un-tick anything the new item will merge with, so it comes back to the
+  // active list - you added it because you need it again.
+  function reviveMatching(name){
+    var key=groceryMergeKey(displayGroceryName(name||""));
+    if(!key)return;
+    var ids=[];
+    generatedItems.concat(manual).forEach(function(x){
+      if(checked[x.id] && groceryMergeKey(displayGroceryName(x.name||""))===key)ids.push(x.id);
+    });
+    if(!ids.length)return;
+    var u=Object.assign({},checked);
+    ids.forEach(function(id){delete u[id];window.flags.set("dm_gcheck_"+p.userId,id,false,p.ownerUid).catch(function(){})});
+    setChecked(u);
+  }
   function addM(){
     if(!ni.trim())return;
     var item={name:ni.trim(),qty:nqty,unit:nunit,id:Date.now(),addedBy:p.me};
@@ -3303,6 +3320,7 @@ function GroceryTab(p){
     var u=manual.concat([item]);
     setManual(u);
     saveList("dm_gmanual_"+p.userId,JSON.stringify(u)).catch(function(){});
+    reviveMatching(item.name);
     setNi("");setNqty("");setNunit("");setNs(null);
   }
 
@@ -3312,6 +3330,7 @@ function GroceryTab(p){
     var u=manual.concat([item]);
     setManual(u);
     saveList("dm_gmanual_"+p.userId,JSON.stringify(u)).catch(function(){});
+    reviveMatching(item.name);
   }
   
   function remM(id){
