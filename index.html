@@ -7475,67 +7475,69 @@ function App(){
       </div></div>}
 
       {/* EDIT RECIPE */}
-      {editRecipe&&<div style={ovl} onClick={function(){setEditRecipe(null)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontWeight:700,fontSize:17}}>Edit Recipe</div><button onClick={function(){setEditRecipe(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button></div>
-        <div style={{marginBottom:12}}>{editRecipe.photo?<div style={{position:"relative"}}><img src={editRecipe.photo} style={{width:"100%",height:160,objectFit:"cover",background:C.blush,borderRadius:10}} alt=""/><button onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){compressPhoto(e.target.result,function(c){setEditRecipe(function(m){return Object.assign({},m,{photo:c})})})};rd.readAsDataURL(f)};inp.click()}} style={Object.assign({},btn("rgba(0,0,0,0.6)"),{position:"absolute",bottom:8,right:8,padding:"4px 10px",display:"flex",alignItems:"center"})}><Icon name="camera" size={13} color="#fff" strokeWidth={1.75}/></button></div>:<div onClick={function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){compressPhoto(e.target.result,function(c){setEditRecipe(function(m){return Object.assign({},m,{photo:c})})})};rd.readAsDataURL(f)};inp.click()}} style={{width:"100%",height:100,borderRadius:10,border:"2px dashed var(--border-strong)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon name="camera" size={26} color="var(--light)" strokeWidth={1.5}/></div>}</div>
-        <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Name *</label><input style={inp} value={editRecipe.name} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{name:e.target.value})})}}/></div>
-        <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Category <span style={{color:"var(--danger)"}}>*</span></label><div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=editRecipe.recipeType===t.id;return <button key={t.id} onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"4px 8px",borderRadius:8,border:active?"2px solid "+C.dark:"1px solid var(--border-strong)",background:active?C.blushMed:"var(--surface)",cursor:"pointer",fontSize:11,fontWeight:600}}><CatTag type={t}/></button>})}</div></div>
-        <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Time</label><input style={inp} value={editRecipe.time} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{time:e.target.value})})}}/></div>
-        <div style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Ingredients</label>
-          {editRecipe.ingredients.map(function(g,i){
-            return <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 0",fontSize:13,borderBottom:"1px solid var(--border-strong)"}}>
-              <button onClick={function(){
-                // Load ingredient into edit fields
-                setEditIngIdx(i);
-                setEditRecipeQty(g.qty||"");
-                setEditRecipeUnit(g.unit||"");
-                setEditRecipeIng(g.name||"");
-              }} style={{background:"none",border:"none",cursor:"pointer",opacity:.5,padding:"4px",display:"flex",alignItems:"center"}}><Icon name="pencil" size={12} strokeWidth={1.75}/></button>
-              <span style={{flex:1}}>{formatIng(g)}</span>
-              <button onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{ingredients:m.ingredients.filter(function(_,j){return j!==i})})})}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={12} strokeWidth={2}/></button>
-            </div>
-          })}
-          <div style={{display:"flex",gap:4,marginTop:8}}>
-            <input style={{width:50,padding:"8px 6px",borderRadius:8,border:"1px solid var(--border-strong)",fontSize:13,textAlign:"center",background:"var(--surface)",color:"var(--ink)"}} placeholder="Qty" value={editRecipeQty} onChange={function(e){setEditRecipeQty(e.target.value)}}/>
-            <select style={{padding:"8px 4px",borderRadius:8,border:"1px solid var(--border-strong)",fontSize:12,background:"var(--surface)",color:"var(--ink)"}} value={editRecipeUnit} onChange={function(e){setEditRecipeUnit(e.target.value)}}>{UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"unit")})}</select>
-            <input style={Object.assign({},inp,{flex:1})} placeholder="Ingredient name" value={editRecipeIng} onChange={function(e){setEditRecipeIng(e.target.value)}} onKeyDown={function(e){
-              if(e.key==="Enter"&&editRecipeIng.trim()){
-                if(editIngIdx>=0){
-                  // Update existing ingredient
-                  setEditRecipe(function(m){
-                    var newIngs=m.ingredients.slice();
-                    newIngs[editIngIdx]={name:editRecipeIng.trim(),qty:editRecipeQty,unit:editRecipeUnit};
-                    return Object.assign({},m,{ingredients:newIngs});
-                  });
-                  setEditIngIdx(-1);
-                } else {
-                  // Add new ingredient
-                  setEditRecipe(function(m){return Object.assign({},m,{ingredients:m.ingredients.concat([{name:editRecipeIng.trim(),qty:editRecipeQty,unit:editRecipeUnit}])})});
-                }
-                setEditRecipeIng("");setEditRecipeQty("");setEditRecipeUnit("");
-              }
-            }}/>
-            {editIngIdx>=0?
-              <button onClick={function(){
-                if(editRecipeIng.trim()){
-                  setEditRecipe(function(m){
-                    var newIngs=m.ingredients.slice();
-                    newIngs[editIngIdx]={name:editRecipeIng.trim(),qty:editRecipeQty,unit:editRecipeUnit};
-                    return Object.assign({},m,{ingredients:newIngs});
-                  });
-                }
-                setEditIngIdx(-1);setEditRecipeIng("");setEditRecipeQty("");setEditRecipeUnit("");
-              }} style={btn("#27ae60")}>Update</button>
-            :
-              <button onClick={function(){if(editRecipeIng.trim()){setEditRecipe(function(m){return Object.assign({},m,{ingredients:m.ingredients.concat([{name:editRecipeIng.trim(),qty:editRecipeQty,unit:editRecipeUnit}])})});setEditRecipeIng("");setEditRecipeQty("");setEditRecipeUnit("")}}} style={btn(C.dark)}>Add</button>
-            }
+      {editRecipe&&(function(){
+        var pickPhoto=function(){var inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){compressPhoto(e.target.result,function(c){setEditRecipe(function(m){return Object.assign({},m,{photo:c})})})};rd.readAsDataURL(f)};inp.click();};
+        var head={fontSize:12,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.7,marginBottom:10};
+        var addOrUpdate=function(){if(!editRecipeIng.trim())return;setEditRecipe(function(m){var ings=m.ingredients.slice();if(editIngIdx>=0){ings[editIngIdx]={name:editRecipeIng.trim(),qty:editRecipeQty,unit:editRecipeUnit}}else{ings=ings.concat([{name:editRecipeIng.trim(),qty:editRecipeQty,unit:editRecipeUnit}])}return Object.assign({},m,{ingredients:ings})});setEditIngIdx(-1);setEditRecipeIng("");setEditRecipeQty("");setEditRecipeUnit("");};
+        var exists=recipes.some(function(r){return r.id===editRecipe.id});
+        return <div style={ovl} onClick={function(){setEditRecipe(null)}}>
+        <div style={{background:"var(--surface)",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={function(e){e.stopPropagation()}}>
+          {/* Top bar */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"max(12px, env(safe-area-inset-top)) 16px 12px",flexShrink:0}}>
+            <span style={{fontSize:13,fontWeight:600,color:C.light,letterSpacing:.3}}>Edit recipe</span>
+            <button onClick={function(){setEditRecipe(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,padding:6,display:"flex"}}><Icon name="x" size={20} strokeWidth={2}/></button>
           </div>
-          {editIngIdx>=0?<div style={{fontSize:11,color:C.light,marginTop:4}}>Editing ingredient #{editIngIdx+1} - <button onClick={function(){setEditIngIdx(-1);setEditRecipeIng("");setEditRecipeQty("");setEditRecipeUnit("")}} style={{background:"none",border:"none",color:C.dark,textDecoration:"underline",cursor:"pointer",fontSize:11}}>Cancel</button></div>:null}
+          {/* Scrollable card body */}
+          <div style={{flex:1,overflowY:"auto"}}>
+            {editRecipe.photo?
+              <div style={{position:"relative"}}>
+                <img src={editRecipe.photo} style={{width:"100%",height:210,objectFit:"cover",display:"block",background:C.blush}} alt=""/>
+                <button onClick={pickPhoto} style={{position:"absolute",bottom:12,right:12,display:"flex",alignItems:"center",gap:5,padding:"7px 12px",borderRadius:20,border:"none",background:"rgba(0,0,0,0.6)",color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600,backdropFilter:"blur(6px)"}}><Icon name="camera" size={13} color="#fff" strokeWidth={2}/>Change</button>
+              </div>
+            :
+              <div onClick={pickPhoto} style={{margin:"0 16px",height:150,borderRadius:16,border:"2px dashed var(--border-strong)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",background:"var(--blush)"}}><Icon name="camera" size={28} color="var(--light)" strokeWidth={1.5}/><span style={{fontSize:13,color:C.light,fontWeight:600,marginTop:6}}>Add a photo</span></div>
+            }
+            <div style={{padding:"16px 18px 18px"}}>
+              {/* Name - big serif title */}
+              <input value={editRecipe.name} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{name:e.target.value})})}} placeholder="Recipe name" style={{width:"100%",boxSizing:"border-box",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:26,fontWeight:700,color:C.ink,border:"none",borderBottom:"1px solid "+C.bdr,background:"transparent",padding:"4px 0 8px",outline:"none",lineHeight:1.2}}/>
+              {/* Time */}
+              <div style={{display:"flex",alignItems:"center",gap:7,marginTop:12,marginBottom:22}}>
+                <Icon name="clock" size={14} color={C.light} strokeWidth={1.75}/>
+                <input value={editRecipe.time} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{time:e.target.value})})}} placeholder="Add cook time (e.g. 45 min)" style={{flex:1,minWidth:0,border:"none",background:"transparent",outline:"none",fontSize:14,color:C.ink}}/>
+              </div>
+              {/* Category */}
+              <div style={head}>Category</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:22}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=editRecipe.recipeType===t.id;return <button key={t.id} onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"6px 10px",borderRadius:9,border:active?"2px solid "+C.dark:"1px solid var(--border-strong)",background:active?C.blushMed:"var(--surface)",cursor:"pointer",fontSize:12,fontWeight:600}}><CatTag type={t}/></button>})}</div>
+              {/* Ingredients */}
+              <div style={head}>Ingredients</div>
+              {editRecipe.ingredients.map(function(g,i){
+                return <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 0",fontSize:14.5,color:C.ink,borderBottom:"1px solid "+C.bdr,background:editIngIdx===i?C.blush:"transparent"}}>
+                  <span style={{flex:1,minWidth:0}}>{formatIng(g)}</span>
+                  <button onClick={function(){setEditIngIdx(i);setEditRecipeQty(g.qty||"");setEditRecipeUnit(g.unit||"");setEditRecipeIng(g.name||"")}} style={{background:"none",border:"none",cursor:"pointer",opacity:.5,padding:4,display:"flex",flexShrink:0}}><Icon name="pencil" size={13} strokeWidth={1.75}/></button>
+                  <button onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{ingredients:m.ingredients.filter(function(_,j){return j!==i})})})}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex",flexShrink:0}}><Icon name="x" size={13} strokeWidth={2}/></button>
+                </div>
+              })}
+              <div style={{display:"flex",gap:6,marginTop:12}}>
+                <input style={{width:52,padding:"10px 6px",borderRadius:10,border:"1px solid var(--border-strong)",fontSize:14,textAlign:"center",background:"var(--surface)",color:"var(--ink)",boxSizing:"border-box"}} placeholder="Qty" value={editRecipeQty} onChange={function(e){setEditRecipeQty(e.target.value)}}/>
+                <select style={{padding:"10px 6px",borderRadius:10,border:"1px solid var(--border-strong)",fontSize:13,background:"var(--surface)",color:"var(--ink)"}} value={editRecipeUnit} onChange={function(e){setEditRecipeUnit(e.target.value)}}>{UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"unit")})}</select>
+                <input style={Object.assign({},inp,{flex:1,padding:"10px 12px",borderRadius:10})} placeholder={editIngIdx>=0?"Edit ingredient":"Add an ingredient"} value={editRecipeIng} onChange={function(e){setEditRecipeIng(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter")addOrUpdate()}}/>
+                <button onClick={addOrUpdate} style={Object.assign({},btn(editIngIdx>=0?"#27ae60":C.dark),{borderRadius:10})}>{editIngIdx>=0?"Update":"Add"}</button>
+              </div>
+              {editIngIdx>=0?<div style={{fontSize:11.5,color:C.light,marginTop:6}}>Editing ingredient #{editIngIdx+1} · <button onClick={function(){setEditIngIdx(-1);setEditRecipeIng("");setEditRecipeQty("");setEditRecipeUnit("")}} style={{background:"none",border:"none",color:C.dark,textDecoration:"underline",cursor:"pointer",fontSize:11.5}}>Cancel</button></div>:null}
+              {/* Instructions */}
+              <div style={Object.assign({},head,{marginTop:22})}>Instructions</div>
+              <textarea style={Object.assign({},inp,{minHeight:90,resize:"vertical",borderRadius:12,padding:"12px 14px",lineHeight:1.5,marginBottom:22})} placeholder="Cooking steps..." value={editRecipe.notes} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{notes:e.target.value})})}}/>
+              {/* Credit */}
+              <div style={head}>Source / Credit</div>
+              <input style={Object.assign({},inp,{borderRadius:10,padding:"11px 13px"})} placeholder="e.g. Grandma's recipe, @foodblogger" value={editRecipe.credit||""} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{credit:e.target.value})})}}/>
+            </div>
+          </div>
+          {/* Sticky save bar */}
+          <div style={{padding:"12px 16px",paddingBottom:"max(12px, env(safe-area-inset-bottom))",borderTop:"1px solid "+C.bdr,flexShrink:0,background:"var(--surface)"}}>
+            <button onClick={function(){if(!editRecipe.name.trim()){appAlert("Please enter a recipe name.");return;}if(!editRecipe.recipeType||editRecipe.recipeType==""){appAlert("Please choose a category for this recipe.");return;}var stamped=exists?editRecipe:stampNewRecipe(editRecipe,userId,"manual");if(exists){svR(recipes.map(function(r){return r.id===editRecipe.id?stamped:r}))}else{svR(recipes.concat([stamped]))}setEditRecipe(null);setEditRecipeQty("");setEditRecipeUnit("")}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:7,height:48,borderRadius:12,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontSize:15,fontWeight:700}}><Icon name="check" size={16} color="#fff" strokeWidth={2.5}/>{exists?"Save Changes":"Save Recipe"}</button>
+          </div>
         </div>
-        <div style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Notes</label><textarea style={Object.assign({},inp,{minHeight:50,resize:"vertical"})} value={editRecipe.notes} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{notes:e.target.value})})}}/></div>
-        <div style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:600,opacity:.6}}>Recipe Credit / Source</label><input style={inp} placeholder="e.g. Grandma's recipe, NYT Cooking, @foodblogger" value={editRecipe.credit||""} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{credit:e.target.value})})}}/></div>
-        <button className="ft-card-tap" onClick={function(){if(!editRecipe.name.trim()){appAlert("Please enter a recipe name.");return;}if(!editRecipe.recipeType||editRecipe.recipeType==""){appAlert("Please choose a category for this recipe.");return;}var exists=recipes.some(function(r){return r.id===editRecipe.id});var stamped=exists?editRecipe:stampNewRecipe(editRecipe,userId,"manual");if(exists){svR(recipes.map(function(r){return r.id===editRecipe.id?stamped:r}))}else{svR(recipes.concat([stamped]))}setEditRecipe(null);setEditRecipeQty("");setEditRecipeUnit("")}} style={Object.assign({},btn(C.dark),{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:7})}>{recipes.some(function(r){return r.id===editRecipe.id})?<React.Fragment><Icon name="check" size={14} strokeWidth={2}/>Save Changes</React.Fragment>:<React.Fragment><Icon name="book" size={14} strokeWidth={1.75}/>Save Recipe</React.Fragment>}</button>
-      </div></div>}
+      </div>;})()}
 
       {/* RECIPE TO CALENDAR */}
       {r2cal&&<div style={ovl} onClick={function(){setR2cal(null)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
