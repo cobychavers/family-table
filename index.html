@@ -3785,7 +3785,7 @@ function GroceryTab(p){
           /* Body */
           React.createElement("div",{style:{flex:1,overflowY:"auto",padding:"8px 18px 18px"}},
             /* Name - big prominent input */
-            React.createElement("input",{autoFocus:true,value:ni,onChange:function(e){setNi(e.target.value)},onKeyDown:function(e){if(e.key==="Enter"&&ni.trim())addM()},placeholder:"What do you need?",style:{width:"100%",boxSizing:"border-box",fontSize:22,fontWeight:600,color:C.ink,border:"none",borderBottom:"1px solid "+C.bdr,background:"transparent",padding:"10px 0",outline:"none"}}),
+            React.createElement("input",{value:ni,onChange:function(e){setNi(e.target.value)},onKeyDown:function(e){if(e.key==="Enter"&&ni.trim())addM()},placeholder:"What do you need?",style:{width:"100%",boxSizing:"border-box",fontSize:22,fontWeight:600,color:C.ink,border:"none",borderBottom:"1px solid "+C.bdr,background:"transparent",padding:"10px 0",outline:"none"}}),
             /* Qty + unit */
             React.createElement("div",{style:{display:"flex",gap:8,marginTop:18,marginBottom:26}},
               React.createElement("input",{value:nqty,onChange:function(e){setNqty(e.target.value)},placeholder:"Qty",inputMode:"decimal",style:Object.assign({},fieldBox,{flex:"0 0 88px",textAlign:"center"})}),
