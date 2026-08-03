@@ -3769,101 +3769,61 @@ function GroceryTab(p){
       );
     })():null,
 
-    showAdd?React.createElement("div",{onClick:function(){setShowAdd(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0,animation:"ft-backdrop-fade .18s ease-out"}},
-      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:480,maxHeight:"85vh",overflowY:"auto",padding:16,paddingBottom:"calc(16px + env(safe-area-inset-bottom))",boxShadow:"0 -4px 20px rgba(0,0,0,0.15)",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
-        /* Modal header */
-        React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,paddingBottom:10,borderBottom:"1px solid "+C.bdr}},
-          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16,color:C.dark}},React.createElement(Icon,{name:"plus",size:16,strokeWidth:2}),"Add Item"),
-          React.createElement("button",{onClick:function(){setShowAdd(false)},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,padding:0,lineHeight:1,display:"flex"}},React.createElement(Icon,{name:"x",size:20,strokeWidth:2}))
-        ),
-        /* Default store row - only shown in modal */
-        React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:12,padding:"8px 10px",background:C.blush,borderRadius:8}},
-          React.createElement("span",{style:{fontSize:11,color:"var(--light)",fontWeight:500}},"Default store:"),
-          React.createElement("button",{onClick:function(){setShowDefStorePicker(!showDefStorePicker)},style:{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:6,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer"}},
-            renderStoreIcon(defStoreObj,16),
-            React.createElement("span",{style:{fontWeight:600,fontSize:12,color:C.ink}},defStoreObj.name),
-            React.createElement("span",{style:{fontSize:9,opacity:.5,color:C.light}},"▼")
-          )
-        ),
-        showDefStorePicker?React.createElement("div",{style:{marginBottom:12,padding:10,background:"var(--surface)",borderRadius:8,border:"1px solid "+C.bdr}},
-          React.createElement("div",{style:{fontSize:11,fontWeight:700,color:C.light,marginBottom:6}},"SELECT DEFAULT STORE"),
-          React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:6}},
-            p.stores.map(function(s){
-              var isActive=s.id===p.defStore;
-              return React.createElement("button",{key:s.id,onClick:function(){p.setDefStore(s.id);setShowDefStorePicker(false)},style:{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",borderRadius:7,border:isActive?"1.5px solid "+C.dark:"1px solid "+C.bdr,background:isActive?C.blush:"var(--surface)",cursor:"pointer"}},
-                renderStoreIcon(s,16),
-                React.createElement("span",{style:{fontWeight:600,fontSize:12,color:C.ink}},s.name)
+    showAdd?(function(){
+      var head={fontSize:12,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.7,marginBottom:10};
+      var fieldBox={padding:"12px 14px",borderRadius:12,border:"1px solid var(--border-strong)",fontSize:15,boxSizing:"border-box",outline:"none",background:"var(--surface)",color:"var(--ink)"};
+      var chip=function(active,dashed){return{display:"flex",alignItems:"center",gap:6,padding:"8px 13px",borderRadius:20,border:dashed?"1px dashed var(--border-strong)":(active?"1.5px solid "+C.dark:"1px solid "+C.bdr),background:active?C.blush:"var(--surface)",cursor:"pointer",fontSize:13,fontWeight:600,color:active?C.ink:(dashed?C.light:C.dark)};};
+      var typedMatches=[];
+      if(ni.trim()){var cur={};manual.forEach(function(x){cur[(x.name||"").toLowerCase()]=true});var sH={};typedMatches=groceryHistory.filter(function(h){var nn=(h.name||"").toLowerCase().trim();if(!nn||sH[nn])return false;sH[nn]=true;return nn.indexOf(ni.toLowerCase())>=0&&!cur[nn];}).slice(0,6);}
+      return React.createElement("div",{onClick:function(){setShowAdd(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",zIndex:1000,animation:"ft-backdrop-fade .18s ease-out"}},
+        React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden",animation:"ft-fs-slide-up .25s cubic-bezier(0.16,1,0.3,1)"}},
+          /* Top bar */
+          React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"max(12px, env(safe-area-inset-top)) 16px 12px",flexShrink:0}},
+            React.createElement("div",{style:{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}},"Add item"),
+            React.createElement("button",{onClick:function(){setShowAdd(false)},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,padding:6,display:"flex"}},React.createElement(Icon,{name:"x",size:20,strokeWidth:2}))
+          ),
+          /* Body */
+          React.createElement("div",{style:{flex:1,overflowY:"auto",padding:"8px 18px 18px"}},
+            /* Name - big prominent input */
+            React.createElement("input",{autoFocus:true,value:ni,onChange:function(e){setNi(e.target.value)},onKeyDown:function(e){if(e.key==="Enter"&&ni.trim())addM()},placeholder:"What do you need?",style:{width:"100%",boxSizing:"border-box",fontSize:22,fontWeight:600,color:C.ink,border:"none",borderBottom:"1px solid "+C.bdr,background:"transparent",padding:"10px 0",outline:"none"}}),
+            /* Qty + unit */
+            React.createElement("div",{style:{display:"flex",gap:8,marginTop:18,marginBottom:26}},
+              React.createElement("input",{value:nqty,onChange:function(e){setNqty(e.target.value)},placeholder:"Qty",inputMode:"decimal",style:Object.assign({},fieldBox,{flex:"0 0 88px",textAlign:"center"})}),
+              React.createElement("select",{value:nunit,onChange:function(e){setNunit(e.target.value)},style:Object.assign({},fieldBox,{flex:1})},UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"unit")}))
+            ),
+            /* Quick add while typing */
+            typedMatches.length>0?React.createElement("div",{style:{marginBottom:26}},
+              React.createElement("div",{style:head},"Quick add"),
+              React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:8}},typedMatches.map(function(h){return React.createElement("button",{key:h.name,onClick:function(){addFromHistory(h.name);setNi("")},style:chip(false,false)},h.name)}))
+            ):null,
+            /* Store for this item */
+            React.createElement("div",{style:{marginBottom:26}},
+              React.createElement("div",{style:head},"Store (optional)"),
+              React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:8}},
+                p.stores.map(function(s){var on=ns===s.id;return React.createElement("button",{key:s.id,onClick:function(){setNs(on?null:s.id)},style:chip(on,false)},renderStoreIcon(s,15),s.name)}),
+                React.createElement("button",{onClick:function(){setShowAddStore(true)},style:chip(false,true)},"+ Add store")
               )
-            })
+            ),
+            /* Browse past items when the field is empty */
+            (!ni.trim()&&groceryHistory.length>0)?React.createElement("div",null,
+              React.createElement("button",{onClick:function(){setShowHistory(!showHistory)},style:Object.assign({},head,{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",marginBottom:showHistory?12:0})},React.createElement(Icon,{name:"clipboard",size:13,color:C.light,strokeWidth:2}),showHistory?"Hide past items":"Browse past items"),
+              showHistory?React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:8}},
+                (function(){var seen={};return groceryHistory.filter(function(h){var n=(h.name||"").toLowerCase().trim();if(!n||seen[n])return false;seen[n]=true;return true;}).sort(function(a,b){return(a.name||"").localeCompare(b.name||"")});})().map(function(h){
+                  return React.createElement("div",{key:h.name,style:{display:"flex",alignItems:"center",gap:2}},
+                    React.createElement("button",{onClick:function(){addFromHistory(h.name)},style:chip(false,false)},h.name),
+                    React.createElement("button",{onClick:function(){removeFromHistory(h.name)},style:{background:"none",border:"none",cursor:"pointer",opacity:.3,padding:3,display:"flex"}},React.createElement(Icon,{name:"x",size:11,strokeWidth:2.5}))
+                  );
+                })
+              ):null
+            ):null
+          ),
+          /* Sticky footer */
+          React.createElement("div",{style:{padding:"12px 16px",paddingBottom:"max(12px, env(safe-area-inset-bottom))",borderTop:"1px solid "+C.bdr,flexShrink:0,background:"var(--surface)"}},
+            React.createElement("button",{onClick:addM,disabled:!ni.trim(),style:{width:"100%",height:48,borderRadius:12,border:"none",background:ni.trim()?C.dark:"var(--disabled)",color:"#fff",fontWeight:700,fontSize:15,cursor:ni.trim()?"pointer":"not-allowed",display:"flex",alignItems:"center",justifyContent:"center",gap:7}},React.createElement(Icon,{name:"plus",size:16,color:"#fff",strokeWidth:2.5}),"Add to list")
           )
-        ):null,
-      /* Inline form content begins */
-      React.createElement("div",{style:{padding:0,marginBottom:0}},
-      /* Item name (full width) */
-      React.createElement("input",{style:{width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid var(--border-strong)",fontSize:15,boxSizing:"border-box",outline:"none",marginBottom:10,background:"var(--surface)",color:"var(--ink)"},placeholder:"Item name...",value:ni,onChange:function(e){setNi(e.target.value)},onKeyDown:function(e){if(e.key==="Enter")addM()},autoFocus:true}),
-      /* Qty + unit row */
-      React.createElement("div",{style:{display:"flex",gap:8,marginBottom:12}},
-        React.createElement("input",{style:{flex:"0 0 80px",padding:"10px 12px",borderRadius:10,border:"1px solid var(--border-strong)",fontSize:14,textAlign:"center",boxSizing:"border-box",background:"var(--surface)",color:"var(--ink)"},placeholder:"Qty",value:nqty,onChange:function(e){setNqty(e.target.value)}}),
-        React.createElement("select",{style:{flex:1,padding:"10px 12px",borderRadius:10,border:"1px solid var(--border-strong)",fontSize:14,background:"var(--surface)",color:"var(--ink)",boxSizing:"border-box"},value:nunit,onChange:function(e){setNunit(e.target.value)}},
-          UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"unit")})
         )
-      ),
-      /* Add button (full width) */
-      React.createElement("button",{onClick:addM,disabled:!ni.trim(),style:{width:"100%",padding:"13px",borderRadius:10,border:"none",background:ni.trim()?"var(--dark)":"var(--disabled)",color:"#fff",fontWeight:600,fontSize:15,cursor:ni.trim()?"pointer":"not-allowed",marginBottom:14}},"Add to List"),
-      
-      ni.trim().length>0?(function(){
-        var currentItems={};
-        manual.forEach(function(x){currentItems[(x.name||"").toLowerCase()]=true});
-        var seenH={};
-        var filtered=groceryHistory.filter(function(h){
-          var nn=(h.name||"").toLowerCase().trim();
-          if(!nn||seenH[nn])return false;
-          seenH[nn]=true;
-          return nn.includes(ni.toLowerCase()) && !currentItems[nn];
-        }).slice(0,5);
-        return filtered.length>0?React.createElement("div",{style:{marginTop:4}},
-          React.createElement("div",{style:{fontSize:11,fontWeight:600,opacity:.5,marginBottom:4}},"Quick add from history"),
-          React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:4}},
-            filtered.map(function(h){return React.createElement("button",{key:h.name,onClick:function(){addFromHistory(h.name)},style:{padding:"4px 10px",borderRadius:6,border:"1px solid var(--border-strong)",background:"var(--surface)",cursor:"pointer",fontSize:12,fontWeight:500}},h.name)})
-          )
-        ):null;
-      })():null,
-      
-      ni.trim()?React.createElement("div",{style:{marginTop:8}},
-        React.createElement("div",{style:{fontSize:11,fontWeight:600,opacity:.5,marginBottom:4}},"Pick a store (optional)"),
-        React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:4}},
-          p.stores.map(function(s){return React.createElement("button",{key:s.id,onClick:function(){setNs(ns===s.id?null:s.id)},style:{padding:"4px 8px",borderRadius:6,border:ns===s.id?"2px solid "+s.color:"1px solid var(--border-strong)",background:ns===s.id?s.color+"15":"var(--surface)",cursor:"pointer",fontSize:11,fontWeight:600,display:"flex",alignItems:"center",gap:4}},
-            renderStoreIcon(s,14),
-            s.name
-          )}),
-          React.createElement("button",{onClick:function(){setShowAddStore(true)},style:{padding:"4px 8px",borderRadius:6,border:"1px dashed var(--disabled)",background:"var(--surface)",cursor:"pointer",fontSize:11,color:"var(--light)"}},"+  Add Store")
-        )
-      ):null,
-      
-      groceryHistory.length>0&&!ni.trim()?React.createElement("div",{style:{marginTop:10}},
-        React.createElement("button",{onClick:function(){setShowHistory(!showHistory)},style:{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"var(--light)",background:"none",border:"none",cursor:"pointer",fontWeight:600}},showHistory?"▼ Hide past items":React.createElement(React.Fragment,null,React.createElement(Icon,{name:"clipboard",size:12,strokeWidth:2}),"Browse past items ("+(function(){var s={};var c=0;groceryHistory.forEach(function(h){var n=(h.name||"").toLowerCase().trim();if(n&&!s[n]){s[n]=true;c++;}});return c;})()+")")),
-        showHistory?React.createElement("div",{style:{marginTop:8,maxHeight:200,overflowY:"auto",border:"1px solid var(--border-strong)",borderRadius:8,padding:8,background:"var(--surface)"}},
-          React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:4}},
-            (function(){
-              var seen={};
-              return groceryHistory.filter(function(h){
-                var n=(h.name||"").toLowerCase().trim();
-                if(!n||seen[n])return false;
-                seen[n]=true;
-                return true;
-              }).sort(function(a,b){return(a.name||"").localeCompare(b.name||"")});
-            })().map(function(h){
-              return React.createElement("div",{key:h.name,style:{display:"flex",alignItems:"center",gap:2}},
-                React.createElement("button",{onClick:function(){addFromHistory(h.name)},style:{padding:"4px 8px",borderRadius:6,border:"1px solid var(--border-strong)",background:"var(--surface)",cursor:"pointer",fontSize:11,fontWeight:500}},h.name),
-                React.createElement("button",{onClick:function(){removeFromHistory(h.name)},style:{background:"none",border:"none",cursor:"pointer",opacity:.3,padding:2,display:"flex"}},React.createElement(Icon,{name:"x",size:10,strokeWidth:2.5}))
-              );
-            })
-          )
-        ):null
-      ):null
-      ) /* end inner form */
-      ) /* end modal content */
-    ):null,
+      );
+    })():null,
 
     React.createElement("div",{style:{marginBottom:10}},
       React.createElement("button",{onClick:function(){setShowGroceryFilters(!showGroceryFilters)},style:{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"10px 14px",borderRadius:12,border:"1px solid rgba(139,115,85,0.2)",background:"var(--blush)",cursor:"pointer"}},
