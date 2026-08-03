@@ -3992,48 +3992,48 @@ function GroceryTab(p){
       )
     ):null,
     
-    showLoadList?React.createElement("div",{onClick:function(){setShowLoadList(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:1000,animation:"ft-backdrop-fade .18s ease-out"}},
-      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",borderRadius:16,padding:20,width:"100%",maxWidth:400,maxHeight:"80vh",overflow:"auto",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
-        React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
-          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16}},React.createElement(Icon,{name:"folder",size:16,strokeWidth:1.75}),"Load Saved List"),
-          React.createElement("button",{onClick:function(){setShowLoadList(false)},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}},React.createElement(Icon,{name:"x",size:18,strokeWidth:2}))
+    showLoadList?React.createElement("div",{onClick:function(){setShowLoadList(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",zIndex:1000,animation:"ft-backdrop-fade .18s ease-out"}},
+      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden",animation:"ft-fs-slide-up .25s cubic-bezier(0.16,1,0.3,1)"}},
+        React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"max(12px, env(safe-area-inset-top)) 16px 12px",flexShrink:0}},
+          React.createElement("div",{style:{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}},"Saved lists"),
+          React.createElement("button",{onClick:function(){setShowLoadList(false)},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,padding:6,display:"flex"}},React.createElement(Icon,{name:"x",size:20,strokeWidth:2}))
         ),
-        React.createElement("div",{style:{fontSize:12,opacity:.6,marginBottom:12}},"Items will be added to your current grocery list"),
-        savedLists.length===0?React.createElement("div",{style:{textAlign:"center",padding:"28px 20px"}},
-          React.createElement("div",{style:{marginBottom:10,opacity:.35}},React.createElement(Icon,{name:"bookmark",size:30,color:C.dark,strokeWidth:1.25})),
-          React.createElement("div",{style:{fontSize:14,fontWeight:600,color:C.dark,marginBottom:4}},"No saved lists yet"),
-          React.createElement("div",{style:{fontSize:12,color:C.light}},"Save your current list to reuse it later.")
-        ):
-        savedLists.map(function(list){return React.createElement("div",{key:list.id,style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:12,borderRadius:10,border:"1px solid var(--border-strong)",marginBottom:8,cursor:"pointer",background:"var(--surface)"},onClick:function(){loadSavedList(list)}},
-          React.createElement("div",{style:{flex:1}},
-            React.createElement("div",{style:{fontWeight:600,fontSize:14}},list.name),
-            React.createElement("div",{style:{fontSize:11,opacity:.5}},list.items.length+" items"),
-            React.createElement("div",{style:{fontSize:10,opacity:.4,marginTop:2}},list.items.slice(0,3).map(function(i){return i.name}).join(", ")+(list.items.length>3?"...":""))
-          ),
-          React.createElement("span",{style:{fontSize:20,opacity:.3}},"→")
-        )})
+        React.createElement("div",{style:{flex:1,overflowY:"auto",padding:"4px 18px 18px"}},
+          React.createElement("div",{style:{fontSize:12.5,color:C.light,marginBottom:16}},"Tap a list to add its items to your current grocery list."),
+          savedLists.length===0?React.createElement("div",{style:{textAlign:"center",padding:"48px 20px"}},
+            React.createElement("div",{style:{marginBottom:12,opacity:.3}},React.createElement(Icon,{name:"bookmark",size:34,color:C.dark,strokeWidth:1.25})),
+            React.createElement("div",{style:{fontSize:14,fontWeight:600,color:C.dark,marginBottom:5}},"No saved lists yet"),
+            React.createElement("div",{style:{fontSize:12.5,color:C.light}},"Save your current list to reuse it later.")
+          ):savedLists.map(function(list){return React.createElement("div",{key:list.id,style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"15px 16px",borderRadius:14,border:"1px solid "+C.bdr,marginBottom:10,cursor:"pointer",background:"var(--surface)",boxShadow:C.shadowSm},onClick:function(){loadSavedList(list)}},
+            React.createElement("div",{style:{flex:1,minWidth:0}},
+              React.createElement("div",{style:{fontWeight:600,fontSize:15,color:C.ink}},list.name),
+              React.createElement("div",{style:{fontSize:11.5,color:C.light,marginTop:2}},list.items.length+" items"),
+              React.createElement("div",{style:{fontSize:11,color:C.light,opacity:.7,marginTop:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},list.items.slice(0,3).map(function(i){return i.name}).join(", ")+(list.items.length>3?"...":""))
+            ),
+            React.createElement("span",{style:{fontSize:18,color:C.light,opacity:.5,flexShrink:0}},"→")
+          )})
+        )
       )
     ):null,
     
-    // Import Grocery List Modal
-    showImportGrocery?React.createElement("div",{onClick:function(){setShowImportGrocery(false);setImportGroceryText("")},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:1000,animation:"ft-backdrop-fade .18s ease-out"}},
-      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",borderRadius:16,padding:20,width:"100%",maxWidth:420,animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
-        React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
-          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16}},React.createElement(Icon,{name:"list",size:16,color:"var(--ink)",strokeWidth:1.75}),"Create Grocery List"),
-          React.createElement("button",{onClick:function(){setShowImportGrocery(false);setImportGroceryText("")},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}},React.createElement(Icon,{name:"x",size:18,strokeWidth:2}))
+    // Create/Import Grocery List (full-screen)
+    showImportGrocery?React.createElement("div",{onClick:function(){setShowImportGrocery(false);setImportGroceryText("")},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",zIndex:1000,animation:"ft-backdrop-fade .18s ease-out"}},
+      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden",animation:"ft-fs-slide-up .25s cubic-bezier(0.16,1,0.3,1)"}},
+        React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"max(12px, env(safe-area-inset-top)) 16px 12px",flexShrink:0}},
+          React.createElement("div",{style:{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}},"Create list"),
+          React.createElement("button",{onClick:function(){setShowImportGrocery(false);setImportGroceryText("")},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,padding:6,display:"flex"}},React.createElement(Icon,{name:"x",size:20,strokeWidth:2}))
         ),
-        
-        importGroceryLoading?React.createElement("div",{style:{textAlign:"center",padding:40}},
-          React.createElement("div",{style:{marginBottom:12}},React.createElement(Icon,{name:"refresh",size:28,color:"var(--dark)",strokeWidth:1.75})),
+        importGroceryLoading?React.createElement("div",{style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12}},
+          React.createElement(Icon,{name:"refresh",size:30,color:"var(--dark)",strokeWidth:1.75}),
           React.createElement("div",{style:{fontSize:14,color:"var(--light)"}},"Processing...")
-        ):React.createElement("div",null,
-          // Text input only
-          React.createElement("div",{style:{marginBottom:16}},
-            React.createElement("textarea",{value:importGroceryText,onChange:function(e){setImportGroceryText(e.target.value)},placeholder:"Paste your grocery list here...\n\nExample:\n- Milk\n- 2 lbs chicken\n- Eggs",style:{width:"100%",height:180,padding:12,borderRadius:10,border:"1px solid var(--border-strong)",fontSize:14,resize:"none",fontFamily:"inherit",boxSizing:"border-box",background:"var(--surface)",color:"var(--ink)"}})
+        ):React.createElement(React.Fragment,null,
+          React.createElement("div",{style:{flex:1,overflowY:"auto",padding:"4px 18px 18px",display:"flex",flexDirection:"column"}},
+            React.createElement("div",{style:{fontSize:12.5,color:C.light,marginBottom:12}},"Paste a grocery list and we'll turn it into checkable items."),
+            React.createElement("textarea",{value:importGroceryText,onChange:function(e){setImportGroceryText(e.target.value)},placeholder:"Paste your grocery list here...\n\nExample:\n- Milk\n- 2 lbs chicken\n- Eggs",style:{flex:1,minHeight:220,width:"100%",padding:14,borderRadius:14,border:"1px solid "+C.bdr,fontSize:15,resize:"none",fontFamily:"inherit",boxSizing:"border-box",background:C.card,color:C.ink,outline:"none"}})
           ),
-          
-          // Import button
-          React.createElement("button",{onClick:handleImportFromText,disabled:!importGroceryText.trim(),style:{width:"100%",padding:"14px",borderRadius:10,border:"none",background:importGroceryText.trim()?"var(--dark)":"var(--disabled)",color:"#fff",fontWeight:600,fontSize:14,cursor:importGroceryText.trim()?"pointer":"not-allowed"}},"Import Items")
+          React.createElement("div",{style:{padding:"12px 16px",paddingBottom:"max(12px, env(safe-area-inset-bottom))",borderTop:"1px solid "+C.bdr,flexShrink:0,background:"var(--surface)"}},
+            React.createElement("button",{onClick:handleImportFromText,disabled:!importGroceryText.trim(),style:{width:"100%",height:48,borderRadius:12,border:"none",background:importGroceryText.trim()?C.dark:"var(--disabled)",color:"#fff",fontWeight:700,fontSize:15,cursor:importGroceryText.trim()?"pointer":"not-allowed"}},"Import Items")
+          )
         )
       )
     ):null
