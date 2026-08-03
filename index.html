@@ -7138,7 +7138,10 @@ function App(){
             {/* Credit/Source - shows who originally added it + how */}
             {(function(){
               // With the new data model, originalOwner is immutable and always correct
-              var addedBy = viewRecipe.originalOwner || userId;
+              // Fall back to the recipe's real owner (family recipes carry
+              // ownerUsername), NOT the person currently viewing it - otherwise a
+              // family member's ownerless recipe gets miscredited to the viewer.
+              var addedBy = viewRecipe.originalOwner || viewRecipe.ownerUsername || userId;
               var addedByText = "@"+addedBy;
               // Strip out chained "From @user" parts from credit
               var method = viewRecipe.credit || "";
