@@ -4173,6 +4173,7 @@ function App(){
   var [recipeFilter,setRecipeFilter]=useState("all");
   var [showCategories,setShowCategories]=useState(false);
   var [rpick,setRpick]=useState(null);
+  var [pickCat,setPickCat]=useState("all"); // category filter for the calendar "From Recipes" picker
   var [shareR,setShareR]=useState(null);
   var [shareExpandIng,setShareExpandIng]=useState(true);
   var [shareExpandInst,setShareExpandInst]=useState(false);
@@ -7309,7 +7310,11 @@ function App(){
       {/* RECIPE PICKER */}
       {rpick&&(function(){
         var addR=function(r){var u=Object.assign({},meals);var list=getOwnMealsForDay(rpick).slice();list.push(Object.assign({},r));u[rpick]=list;svM(u);setRpick(null)};
-        var sorted=allRecipes.slice().sort(function(a,b){
+        var sorted=allRecipes.filter(function(r){
+          if(pickCat==="all")return true;
+          if(pickCat==="favorites")return favorites.includes(r.id);
+          return (r.recipeType||detectRecipeType(r))===pickCat;
+        }).sort(function(a,b){
           if((familySort||"newest")==="az")return (a.name||"").localeCompare(b.name||"");
           return recipeSortTime(b)-recipeSortTime(a);
         });
@@ -7327,6 +7332,13 @@ function App(){
               <span style={{fontSize:12,color:C.light,marginRight:2,fontWeight:600}}>Sort</span>
               {[["newest","Newest"],["az","A–Z"]].map(function(o){var on=(familySort||"newest")===o[0];return <button key={o[0]} onClick={function(){setFamilySort(o[0])}} style={{padding:"6px 14px",borderRadius:16,border:"none",background:on?C.dark:C.blushMed,color:on?"#fff":C.light,fontSize:12,fontWeight:600,cursor:"pointer"}}>{o[1]}</button>})}
             </div>:null}
+            {allRecipes.length>0?<div style={{display:"flex",gap:7,overflowX:"auto",marginTop:10,paddingBottom:2,WebkitOverflowScrolling:"touch"}}>
+              {RECIPE_TYPES.filter(function(t){
+                if(t.id==="all")return true;
+                if(t.id==="favorites")return favorites.length>0;
+                return allRecipes.some(function(r){return(r.recipeType||detectRecipeType(r))===t.id});
+              }).map(function(t){var on=pickCat===t.id;return <button key={t.id} onClick={function(){setPickCat(t.id)}} style={{flexShrink:0,padding:"6px 12px",borderRadius:16,border:on?"none":"1px solid "+C.bdr,background:on?C.dark:"var(--surface)",color:on?"#fff":C.dark,fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"inline-flex",alignItems:"center"}}>{t.id==="all"?"All":<CatTag type={t}/>}</button>})}
+            </div>:null}
           </div>
           {/* Scrollable card list */}
           <div style={{flex:1,overflowY:"auto",padding:"6px 16px 20px"}}>
@@ -7335,6 +7347,7 @@ function App(){
               <div style={{fontSize:14,fontWeight:600,color:C.dark,marginBottom:5}}>No saved recipes yet</div>
               <div style={{fontSize:12.5,color:C.light}}>Create one in the Recipes tab to add it here.</div>
             </div>:null}
+            {allRecipes.length>0&&sorted.length===0?<div style={{textAlign:"center",padding:"40px 20px",fontSize:13,color:C.light}}>No recipes in this category.</div>:null}
             {sorted.map(function(r){
               var rtype=r.recipeType||detectRecipeType(r);var typeInfo=RECIPE_TYPES.find(function(t){return t.id===rtype})||RECIPE_TYPES[RECIPE_TYPES.length-1];
               var fromFamily=!!r.ownerUsername;var ct=shortTime(r.time);
