@@ -7307,18 +7307,58 @@ function App(){
       </div>}
 
       {/* RECIPE PICKER */}
-      {rpick&&<div style={ovl} onClick={function(){setRpick(null)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontWeight:700,fontSize:17}}>Add Meal for {new Date(rpick+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div><button onClick={function(){setRpick(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button></div>
-        <button onClick={function(){openEdit(rpick);setRpick(null)}} style={{width:"100%",padding:12,marginBottom:14,borderRadius:10,border:"1px dashed "+C.bdr,background:"transparent",cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark}}>+ Create New Meal</button>
-        {favorites.length>0?<div style={{marginBottom:12}}><div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:700,color:C.blushDark,marginBottom:6}}><Icon name="heart" size={12} color={C.blushDark} filled={true} strokeWidth={2}/>Favorites</div>{recipes.filter(function(r){return favorites.includes(r.id)}).map(function(r){return <div key={r.id} onClick={function(){var u=Object.assign({},meals);var list=getOwnMealsForDay(rpick).slice();list.push(Object.assign({},r));u[rpick]=list;svM(u);setRpick(null)}} style={{display:"flex",alignItems:"center",gap:10,padding:10,borderRadius:10,border:"1px solid var(--border-strong)",marginBottom:6,cursor:"pointer",background:"var(--blush)"}}><div><div style={{fontWeight:600,fontSize:14}}>{r.name}</div>{r.time?<div style={{fontSize:11,opacity:.5}}>{r.time}</div>:null}</div></div>})}</div>:null}
-        {allRecipes.length===0?<div style={{textAlign:"center",padding:"24px 20px"}}>
-          <div style={{marginBottom:8,opacity:.35}}><Icon name="book" size={28} color={C.dark} strokeWidth={1.25}/></div>
-          <div style={{fontSize:13,fontWeight:600,color:C.dark,marginBottom:4}}>No saved recipes yet</div>
-          <div style={{fontSize:11,color:C.light}}>Create one in the Recipes tab to add it here.</div>
-        </div>:null}
-        {allRecipes.length>0?<div style={{fontSize:12,fontWeight:700,color:C.light,marginBottom:6}}>All Recipes</div>:null}
-        {allRecipes.filter(function(r){return!favorites.includes(r.id)}).map(function(r){return <div key={(r.ownerUsername||"me")+"_"+r.id} onClick={function(){var u=Object.assign({},meals);var list=getOwnMealsForDay(rpick).slice();list.push(Object.assign({},r));u[rpick]=list;svM(u);setRpick(null)}} style={{display:"flex",alignItems:"center",gap:10,padding:10,borderRadius:10,border:"1px solid var(--border-strong)",marginBottom:6,cursor:"pointer",background:"var(--surface)"}}><div><div style={{fontWeight:600,fontSize:14}}>{r.name}</div>{r.ownerUsername?<div style={{fontSize:11,color:C.gold,fontWeight:600}}>@{r.ownerUsername}</div>:(r.time?<div style={{fontSize:11,opacity:.5}}>{r.time}</div>:null)}</div></div>})}
-      </div></div>}
+      {rpick&&(function(){
+        var addR=function(r){var u=Object.assign({},meals);var list=getOwnMealsForDay(rpick).slice();list.push(Object.assign({},r));u[rpick]=list;svM(u);setRpick(null)};
+        var sorted=allRecipes.slice().sort(function(a,b){
+          if((familySort||"newest")==="az")return (a.name||"").localeCompare(b.name||"");
+          return recipeSortTime(b)-recipeSortTime(a);
+        });
+        return <div style={ovl} onClick={function(){setRpick(null)}}>
+        <div style={{background:"var(--surface)",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={function(e){e.stopPropagation()}}>
+          {/* Top bar */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"max(12px, env(safe-area-inset-top)) 16px 12px",flexShrink:0}}>
+            <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}}>Add meal · {new Date(rpick+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>
+            <button onClick={function(){setRpick(null)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,padding:6,display:"flex"}}><Icon name="x" size={20} strokeWidth={2}/></button>
+          </div>
+          {/* Create + sort */}
+          <div style={{padding:"0 16px 10px",flexShrink:0}}>
+            <button onClick={function(){openEdit(rpick);setRpick(null)}} style={{width:"100%",padding:13,borderRadius:12,border:"1px dashed var(--border-strong)",background:"transparent",cursor:"pointer",fontSize:14,fontWeight:600,color:C.dark,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}><Icon name="plus" size={15} color={C.dark} strokeWidth={2}/>Create New Meal</button>
+            {allRecipes.length>0?<div style={{display:"flex",gap:8,marginTop:14,alignItems:"center"}}>
+              <span style={{fontSize:12,color:C.light,marginRight:2,fontWeight:600}}>Sort</span>
+              {[["newest","Newest"],["az","A–Z"]].map(function(o){var on=(familySort||"newest")===o[0];return <button key={o[0]} onClick={function(){setFamilySort(o[0])}} style={{padding:"6px 14px",borderRadius:16,border:"none",background:on?C.dark:C.blushMed,color:on?"#fff":C.light,fontSize:12,fontWeight:600,cursor:"pointer"}}>{o[1]}</button>})}
+            </div>:null}
+          </div>
+          {/* Scrollable card list */}
+          <div style={{flex:1,overflowY:"auto",padding:"6px 16px 20px"}}>
+            {allRecipes.length===0?<div style={{textAlign:"center",padding:"48px 20px"}}>
+              <div style={{marginBottom:10,opacity:.3}}><Icon name="book" size={32} color={C.dark} strokeWidth={1.25}/></div>
+              <div style={{fontSize:14,fontWeight:600,color:C.dark,marginBottom:5}}>No saved recipes yet</div>
+              <div style={{fontSize:12.5,color:C.light}}>Create one in the Recipes tab to add it here.</div>
+            </div>:null}
+            {sorted.map(function(r){
+              var rtype=r.recipeType||detectRecipeType(r);var typeInfo=RECIPE_TYPES.find(function(t){return t.id===rtype})||RECIPE_TYPES[RECIPE_TYPES.length-1];
+              var fromFamily=!!r.ownerUsername;var ct=shortTime(r.time);
+              return <div key={(fromFamily?r.ownerUsername:"me")+"_"+r.id} className="ft-card-tap" style={{background:"var(--surface)",borderRadius:18,marginBottom:14,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){addR(r)}}>
+                <div style={{position:"relative",width:"100%",height:r.photo?150:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
+                  {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.3}}><Icon name="plate" size={26} color={C.dark} strokeWidth={1.25}/></div>}
+                </div>
+                <div style={{padding:"12px 16px 14px"}}>
+                  {fromFamily?<div style={{display:"flex",alignItems:"center",gap:7,marginBottom:8}}>
+                    <div style={{width:22,height:22,borderRadius:11,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>{isImageSrc(r.ownerProfilePic)?<img src={r.ownerProfilePic} style={{width:22,height:22,objectFit:"cover"}}/>:r.ownerProfilePic?<span style={{fontSize:12}}>{r.ownerProfilePic}</span>:<Icon name="user" size={12} strokeWidth={1.75}/>}</div>
+                    <div style={{fontSize:12,color:C.light}}>@{r.ownerUsername}</div>
+                  </div>:null}
+                  <h3 style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:19,color:C.ink,lineHeight:1.25,margin:0,marginBottom:(ct||typeInfo)?7:0}}>{r.name}</h3>
+                  {(ct||typeInfo)?<div style={{display:"flex",alignItems:"center",gap:9,fontSize:12.5,color:C.light}}>
+                    {ct?<span style={{display:"inline-flex",alignItems:"center",gap:4}}><Icon name="clock" size={11} strokeWidth={1.75}/>{ct}</span>:null}
+                    {ct&&typeInfo?<span style={{opacity:.4}}>|</span>:null}
+                    {typeInfo?<span><CatTag type={typeInfo}/></span>:null}
+                  </div>:null}
+                </div>
+              </div>;
+            })}
+          </div>
+        </div>
+      </div>;})()}
 
       {/* ADD RECIPE - full-screen card, mirrors Edit Recipe */}
       {showRF&&(function(){
