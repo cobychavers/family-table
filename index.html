@@ -1768,6 +1768,14 @@ function formatScaledIng(ing,scale){
   var u=ing.unit?ing.unit+" ":"";
   return(q?q+" ":"")+u+cleanIngredientName(ing.name);
 }
+// Scale just a quantity string by a multiplier (for pushing scaled meal
+// ingredients to the grocery list). Non-numeric amounts ("to taste") pass through.
+function scaleQtyStr(qty,scale){
+  if(!scale||scale===1)return qty==null?"":String(qty);
+  var n=parseQtyNum(qty);
+  if(n===null)return qty==null?"":String(qty);
+  return formatQtyNum(n*scale);
+}
 
 // Splits an instructions blob into individual steps, tolerating whatever
 // numbering/bullet style the source used (AI-generated "1. 2. 3.", manual
@@ -2751,6 +2759,9 @@ function GroceryTab(p){
         // can later tell which meals are on the list / bought. Only when we know
         // the meal's day (pushes from the calendar carry _calDate).
         var sig=m._calDate?mealSig(m._calDate,m.name):null;
+        // A calendar meal can carry a saved scale (½×/2×/3×). Scale its ingredient
+        // amounts on the way to the grocery list so the list reflects that batch.
+        var mScale=(m.scale&&m.scale!==1)?m.scale:1;
         function tagSig(it){if(!sig)return;it.meals=it.meals||[];if(it.meals.indexOf(sig)<0)it.meals.push(sig);}
         m.ingredients.forEach(function(g){
           var ing=typeof g==="string"?parseIng(g):g;
@@ -2761,7 +2772,7 @@ function GroceryTab(p){
             var name=groceryMergeKey(itemName);
             if(GROCERY_EXCLUDE.some(function(ex){return name===ex||name.replace(/\s+/g," ")===ex})||isCookingWaterByproduct(name)) return;
             if(pantryHasKey(name)){skippedPantry++;return;}
-            var iqty=ni===0?(ing.qty||""):"",iunit=ni===0?(ing.unit||""):"",inote=ni===0?note:"";
+            var iqty=ni===0?scaleQtyStr(ing.qty,mScale):"",iunit=ni===0?(ing.unit||""):"",inote=ni===0?note:"";
             var ex=seenNames[name];
             if(ex){
               if(!ex.parts)ex.parts=groceryItemParts(ex);
@@ -4375,8 +4386,9 @@ function App(){
   var [loadingProfileRecipes,setLoadingProfileRecipes]=useState(false);
   var [viewFriendRecipe,setViewFriendRecipe]=useState(null); // Recipe from following to view
   // Reset the scale multiplier whenever a different recipe is opened, so it
-  // doesn't silently carry over from the last recipe someone scaled.
-  useEffect(function(){setRecipeScale(1)},[viewRecipe,viewFriendRecipe]);
+  // doesn't silently carry over from the last recipe someone scaled. A calendar
+  // meal remembers its scale, so open at the saved value.
+  useEffect(function(){setRecipeScale((viewRecipe&&viewRecipe.scale)?viewRecipe.scale:1)},[viewRecipe,viewFriendRecipe]);
   // Ephemeral ingredient swap: clears when the modal closes, or when a
   // different recipe is opened without an active matching swap. Left alone
   // when viewRecipe changes TO the recipe a just-applied swap targets (the
@@ -7200,7 +7212,15 @@ function App(){
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
                   <span style={{fontSize:12,fontWeight:600,color:C.light}}>Scale:</span>
                   <div style={{display:"flex",gap:6}}>
-                    {[0.5,1,2,3].map(function(s){return <button key={s} className="ft-card-tap" onClick={function(){setRecipeScale(s)}} style={tab(recipeScale===s)}>{s===0.5?"½×":s+"×"}</button>})}
+                    {[0.5,1,2,3].map(function(s){return <button key={s} className="ft-card-tap" onClick={function(){
+                      setRecipeScale(s);
+                      // On a calendar meal of mine, remember the scale so it's used
+                      // when this meal is pushed to the grocery list.
+                      if(viewRecipe._calMeal&&viewRecipe._calMine){
+                        var d=viewRecipe._calDate,i=viewRecipe._calIdx,list=(getOwnMealsForDay(d)||[]).slice();
+                        if(list[i]){var u=Object.assign({},meals);list[i]=Object.assign({},list[i],{scale:s});u[d]=list;svM(u);}
+                      }
+                    }} style={tab(recipeScale===s)}>{s===0.5?"½×":s+"×"}</button>})}
                   </div>
                 </div>
                 <div style={{background:C.blush,borderRadius:12,padding:14}}>
