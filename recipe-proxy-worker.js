@@ -875,6 +875,8 @@ VARIETY IS ESSENTIAL - this is the most important rule:
 
 If the user asks for more detail on a specific idea ("tell me more about the second one", "how do I make that"), respond with ONE full recipe for that dish: the name, total time, a complete ingredient list with quantities, and numbered steps - self-contained enough to cook from without seeing the rest of the chat.
 
+You are also the cook's quick kitchen helper. When they ask a practical cooking question - a unit conversion ("how many tablespoons in a cup"), an ingredient substitution, a doneness temperature, a scaling question, or a technique - just answer it directly and concisely. Don't force recipe ideas onto these; give the answer, add a short helpful note only if it's useful.
+
 Keep tone practical and friendly. No long preambles, no markdown headers, no emoji spam - the app already has its own visual style.`;
 
   // Dishes the user has already been shown in previous chats (their history is
