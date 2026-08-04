@@ -4175,16 +4175,9 @@ function App(){
   var [categoryStores,setCategoryStores]=useState({}); // {category: storeId}
   var [customStores,setCustomStores]=useState([]);
   var [region,setRegion]=useState(function(){return detectRegion()});
-  var [view,setView]=useState(function(){
-    // "pantry" is no longer a top-level tab (it moved inside Grocery); send any
-    // saved "pantry" tab to grocery so nobody lands on a blank screen.
-    try{var v=localStorage.getItem("dm_currenttab")||"calendar";return v==="pantry"?"grocery":v}catch(e){return "calendar"}
-  });
-  
-  // Save current tab when it changes
-  useEffect(function(){
-    try{localStorage.setItem("dm_currenttab",view)}catch(e){}
-  },[view]);
+  // Always open on the calendar - the home base for planning - rather than
+  // restoring whatever tab was last used.
+  var [view,setView]=useState("calendar");
   var [calendarMode,setCalendarMode]=useState("week"); // "week" or "month"
   var [selectedCalDate,setSelectedCalDate]=useState(null); // Selected date on mini calendar
   var [ws,setWs]=useState(function(){return getMonday(new Date())});
