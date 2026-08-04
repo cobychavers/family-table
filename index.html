@@ -4175,18 +4175,11 @@ function App(){
   var [categoryStores,setCategoryStores]=useState({}); // {category: storeId}
   var [customStores,setCustomStores]=useState([]);
   var [region,setRegion]=useState(function(){return detectRegion()});
-  // Always open on the calendar - the home base for planning - rather than
-  // restoring whatever tab was last used.
+  // Always open on the calendar for a fresh launch (swipe-to-close then reopen
+  // clears memory and remounts, so this runs). Switching to another app just
+  // backgrounds this one - React keeps its state, so you return to the tab you
+  // left, which is what we want.
   var [view,setView]=useState("calendar");
-  // Coming back from the background (minimize / app-switch) keeps the in-memory
-  // tab, so returning to the app would land on wherever you left off. Reset to
-  // the calendar on foreground too, so "reopen" always means the calendar -
-  // matching a cold launch.
-  useEffect(function(){
-    function onVisible(){ if(document.visibilityState==="visible") setView("calendar"); }
-    document.addEventListener("visibilitychange",onVisible);
-    return function(){ document.removeEventListener("visibilitychange",onVisible); };
-  },[]);
   var [calendarMode,setCalendarMode]=useState("week"); // "week" or "month"
   var [selectedCalDate,setSelectedCalDate]=useState(null); // Selected date on mini calendar
   var [ws,setWs]=useState(function(){return getMonday(new Date())});
