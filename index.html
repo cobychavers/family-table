@@ -2580,13 +2580,16 @@ function GroceryTab(p){
   // from the merge key (only when something precedes them, so the spice "cloves"
   // or a bare "leaves" is left alone). Merge-key only - never changes the label.
   var GROCERY_FORM_NOUN={leaf:1,leaves:1,clove:1,cloves:1,sprig:1,sprigs:1,stalk:1,stalks:1,stem:1,stems:1,rib:1,ribs:1};
+  // Hyphens/dashes read as spaces for keying, so "all-purpose flour" and "all
+  // purpose flour" (and "extra-virgin" vs "extra virgin") are the same item.
+  function dehyphen(s){return (s||"").replace(/[-–—]/g," ").replace(/\s+/g," ").trim();}
   function groceryMergeKey(name){
-    var n=grocerySynonymKey((name||"").trim().toLowerCase());
+    var n=dehyphen(grocerySynonymKey(dehyphen((name||"").toLowerCase())));
     var words=n.split(" ");
     while(words.length>1&&(GROCERY_SAFE_DESCRIPTOR[words[0]]||GROCERY_PREP_LEADING[words[0]]))words.shift();
     while(words.length>1&&GROCERY_FORM_NOUN[words[words.length-1]])words.pop();
     n=grocerySingularLast(words.join(" "));
-    return grocerySynonymKey(n);
+    return dehyphen(grocerySynonymKey(n));
   }
   // Display-time cleaning, so an item reads clean no matter how it entered the
   // list - generated from meals, pasted, imported, or saved before these rules
