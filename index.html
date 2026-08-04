@@ -2931,7 +2931,6 @@ function GroceryTab(p){
     setChecked(u);
     window.flags.set("dm_gcheck_"+p.userId,id,on,p.ownerUid).catch(function(){});
   }
-  function clr(){setChecked({});window.flags.replace("dm_gcheck_"+p.userId,{},p.ownerUid).catch(function(){})}
   
   function saveCurrentList(name){
     if(!name.trim())return;
@@ -3396,10 +3395,15 @@ function GroceryTab(p){
   var vis=all;
   if(fCat)vis=vis.filter(function(e){return getGCatLocal(e.name)===fCat});
   if(fStore)vis=vis.filter(function(e){var cat=getGCatLocal(e.name);return p.gSFI(e.name,cat)===fStore});
-  vis.sort(function(a,b){var ca=getGCatLocal(a.name),cb=getGCatLocal(b.name);return ca<cb?-1:ca>cb?1:a.name<b.name?-1:a.name>b.name?1:0});
-
-  var unc=vis.filter(function(e){return!checked[e.id]});
-  var chk=vis.filter(function(e){return checked[e.id]});
+  // Purchased (checked) items stay on the list but sink to the bottom of their
+  // category, greyed out, so the still-to-buy items stay grouped up top.
+  vis.sort(function(a,b){
+    var ca=getGCatLocal(a.name),cb=getGCatLocal(b.name);
+    if(ca!==cb)return ca<cb?-1:1;
+    var ka=checked[a.id]?1:0,kb=checked[b.id]?1:0;
+    if(ka!==kb)return ka-kb;
+    return a.name<b.name?-1:a.name>b.name?1:0;
+  });
 
   function item(it,cat){
     var ic=checked[it.id],st=p.gSI(it.name,cat);
@@ -3446,7 +3450,7 @@ function GroceryTab(p){
         onClick:function(){if(isSwipedHere)setSwipedItem(null)},
         style:{display:"flex",alignItems:"center",gap:10,padding:"11px 2px",opacity:ic?.4:1,background:"var(--surface)",transform:"translateX("+translateX+"px)",transition:itemSwipeStart?"none":"transform 0.2s",position:"relative",zIndex:1}
       },
-        React.createElement("button",{onClick:function(){setHiddenItem(it.id,true)},"aria-label":"Got it - remove from list",style:{width:24,height:24,borderRadius:"50%",border:"1.5px solid "+C.blushDeep,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"background 0.15s"}}),
+        React.createElement("button",{onClick:function(){tog(it.id)},"aria-label":ic?"Purchased - tap to undo":"Mark as purchased",style:{width:24,height:24,borderRadius:"50%",border:ic?"none":"1.5px solid "+C.blushDeep,background:ic?C.dark:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"background 0.15s,border 0.15s"}},ic?React.createElement(Icon,{name:"check",size:14,color:"#fff",strokeWidth:3}):null),
         React.createElement("button",{onClick:function(){setPickStore(pickStore===it.id?null:it.id)},style:{width:26,height:26,borderRadius:6,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}},renderStoreIcon(st,16)),
         React.createElement("div",{onClick:function(){openEditQty(Object.assign({},it,{qty:qty,unit:unit}))},style:{flex:1,minWidth:0,cursor:"pointer",display:"flex",alignItems:"center",gap:9}},
           chipLabels.length?React.createElement("div",{style:{display:"flex",gap:4,flexShrink:0,flexWrap:"wrap"}},chipLabels.map(function(cl,ci){return React.createElement("span",{key:ci,style:{fontSize:12,fontWeight:700,color:C.dark,background:"var(--blush-med)",borderRadius:6,padding:"2px 8px",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",opacity:ic?.5:1}},cl)}))
@@ -3613,13 +3617,12 @@ function GroceryTab(p){
       // set - same height, radius, weight - rather than a jumble of sizes.
       var act={display:"flex",alignItems:"center",gap:6,height:36,fontSize:12.5,padding:"0 14px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm};
       return React.createElement("div",{style:{marginBottom:12}},
-        React.createElement("div",{style:{fontSize:12,color:C.light,marginBottom:all.length>0||hiddenCount>0?9:0}},all.length+" items · "+tc+" checked"+(hiddenCount>0?" · "+hiddenCount+" hidden":"")),
+        React.createElement("div",{style:{fontSize:12,color:C.light,marginBottom:all.length>0||hiddenCount>0?9:0}},all.length+" items · "+tc+" purchased"+(hiddenCount>0?" · "+hiddenCount+" removed":"")),
         React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
           // Primary action first: save the current list.
           all.length>0?React.createElement("button",{onClick:function(){setShowSaveLists(true)},style:Object.assign({},act,{border:"none",background:C.dark,color:"#fff"})},React.createElement(Icon,{name:"bookmark",size:13,strokeWidth:2}),"Save"):null,
           // Push items to a household member's own list (only when there's someone to send to).
           (sendRecipients.length>0&&all.length>0)?React.createElement("button",{onClick:openSend,style:Object.assign({},act,{color:C.gold,borderColor:C.gold})},React.createElement(Icon,{name:"send",size:13,color:C.gold,strokeWidth:2}),"Send"):null,
-          tc>0?React.createElement("button",{onClick:clr,style:act},React.createElement(Icon,{name:"check",size:13,strokeWidth:2.25}),"Uncheck all"):null,
           hiddenCount>0?React.createElement("button",{onClick:unhideAllItems,style:act},React.createElement(Icon,{name:"refresh",size:13,strokeWidth:2}),"Restore "+hiddenCount):null,
           // Destructive, so it's set apart by a muted danger tint on the icon
           // and label rather than a loud red fill; the confirm dialog is the
@@ -3775,7 +3778,7 @@ function GroceryTab(p){
       React.createElement("div",{style:{fontSize:12,color:C.light}},"Add meals or items to build your grocery list.")
     ):null,
 
-    grouped(unc),
+    grouped(vis),
 
     pickStore?React.createElement("div",{onClick:function(){setPickStore(null)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,padding:16,animation:"ft-backdrop-fade .18s ease-out"}},
       React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",borderRadius:16,padding:20,width:"100%",maxWidth:360,maxHeight:"80vh",overflowY:"auto",animation:"ft-fade-in .22s cubic-bezier(0.16,1,0.3,1)"}},
