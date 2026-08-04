@@ -4178,6 +4178,15 @@ function App(){
   // Always open on the calendar - the home base for planning - rather than
   // restoring whatever tab was last used.
   var [view,setView]=useState("calendar");
+  // Coming back from the background (minimize / app-switch) keeps the in-memory
+  // tab, so returning to the app would land on wherever you left off. Reset to
+  // the calendar on foreground too, so "reopen" always means the calendar -
+  // matching a cold launch.
+  useEffect(function(){
+    function onVisible(){ if(document.visibilityState==="visible") setView("calendar"); }
+    document.addEventListener("visibilitychange",onVisible);
+    return function(){ document.removeEventListener("visibilitychange",onVisible); };
+  },[]);
   var [calendarMode,setCalendarMode]=useState("week"); // "week" or "month"
   var [selectedCalDate,setSelectedCalDate]=useState(null); // Selected date on mini calendar
   var [ws,setWs]=useState(function(){return getMonday(new Date())});
