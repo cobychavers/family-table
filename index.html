@@ -1333,6 +1333,11 @@ function migrateRecipe(recipe, storageUser){
     var repairedAny = false;
     var repairedIngredients = r.ingredients.map(function(ing){
       if(!ing || typeof ing !== "object") return ing;
+      // Heal a fraction split across fields ({qty:"2", name:"/3 cup ..."}) -
+      // this one has a non-empty qty, so it must run before the bullet check
+      // below (which only touches empty-qty rows).
+      var fr = repairIngObject(ing);
+      if(fr !== ing){ repairedAny = true; return fr; }
       if((ing.qty||"").trim()) return ing;
       var name = ing.name || "";
       if(!/^[•●▪▸]/.test(name)) return ing;
@@ -1387,7 +1392,7 @@ function cleanIngredientName(name){
   s=out.replace(/\s+([),.])/g,"$1").replace(/\s{2,}/g," ").trim();
   return s;
 }
-function formatIng(ing){if(typeof ing==="string")return cleanIngredientName(ing);var q=ing.qty?ing.qty+" ":"";var u=ing.unit?ing.unit+" ":"";return q+u+cleanIngredientName(ing.name)}
+function formatIng(ing){if(typeof ing==="string")return cleanIngredientName(ing);ing=repairIngObject(ing);var q=ing.qty?ing.qty+" ":"";var u=ing.unit?ing.unit+" ":"";return q+u+cleanIngredientName(ing.name)}
 // Parses an ingredient line into {qty, unit, name}. Handles the shapes real
 // recipes actually use: whole numbers, decimals, fractions ("1/2"), mixed
 // numbers ("1 1/2"), unicode fractions ("½", "1½"), and RANGES ("1-2",
@@ -1437,6 +1442,23 @@ function sanitizeIng(i){
     unit:i.unit==null?"":String(i.unit),
     name:i.name==null?"":String(i.name)
   };
+}
+// Older recipe imports occasionally split a fraction across fields, storing the
+// whole-number part as the quantity and leaving the "/denominator" stuck to the
+// front of the name: {qty:"2", name:"/3 cup amber beer"}. Detect that "/<digit>"
+// head on the name, re-join it to the quantity, and re-parse the whole line so
+// the fraction, unit and name land back in the right places. A no-op for any
+// ingredient that isn't malformed this way.
+function repairIngObject(ing){
+  if(!ing||typeof ing!=="object")return ing;
+  var nm=(ing.name==null?"":String(ing.name)).replace(/^\s+/,"");
+  var q=(ing.qty==null?"":String(ing.qty)).trim();
+  if(!q && ing.parts && ing.parts[0]) q=(ing.parts[0].qty==null?"":String(ing.parts[0].qty)).trim();
+  if(/^\/\d/.test(nm) && /^\d+$/.test(q)){
+    var fixed=parseIng(q+nm); // "2" + "/3 cup amber beer" -> "2/3 cup amber beer"
+    return Object.assign({},ing,{qty:fixed.qty,unit:fixed.unit||"",name:fixed.name,parts:undefined});
+  }
+  return ing;
 }
 
 // --- Ingredient consolidation helpers (grocery list merge) ---
@@ -1760,7 +1782,7 @@ function groceryItemParts(it){
 // the plain unscaled display for ingredients with no parseable quantity
 // (e.g. "salt to taste") rather than showing a broken/blank amount.
 function formatScaledIng(ing,scale){
-  if(typeof ing==="string")ing=parseIng(ing);
+  if(typeof ing==="string")ing=parseIng(ing);else ing=repairIngObject(ing);
   if(!scale||scale===1)return formatIng(ing);
   var num=parseQtyNum(ing.qty);
   if(num===null)return formatIng(ing);
@@ -2397,6 +2419,16 @@ function GroceryTab(p){
   // "celery, chopped" are both just "celery" on a shopping list, and merging
   // on the cleaned name lets those two recipes' celery consolidate together.
   var GROCERY_PREP_WORD=/^(diced|minced|chopped|sliced|shredded|grated|crushed|julienned|cubed|peeled|seeded|deveined|halved|quartered|trimmed|rinsed|drained|softened|melted|packed|divided|separated|cored|stemmed|zested|juiced|toasted|beaten|whisked|smashed|pitted|browned|cooled|warmed|chilled|thawed|cooked|grilled|roasted|baked|boiled|steamed|sauteed|sautéed|seared|poached|blanched|mashed|whipped|shaved|crumbled|torn|sifted|boneless|skinless|deboned|unpeeled|freshly|lightly|gently|evenly|well|extra|very|fine|coarse|half|quarter|third|and|into|to|at|the|small|large|thin|thinly|finely|roughly|coarsely|pieces|piece|cubes|cube|cut|size|sized|bite|wedges|wedge|strips|strip|chunks|chunk|room|temp|temperature)$/i;
+  // Leading words that describe what's DONE to an ingredient (cooking, cutting,
+  // prepping) rather than the form it's sold in - clutter on a shopping line.
+  // Stripped from the front of a grocery name for both display and merging, so
+  // "toasted ground cumin" reads "ground cumin" and "finely chopped white onion"
+  // reads "white onion". Deliberately OMITS words that denote how a product is
+  // actually sold - "ground", "dried", "smoked", "roasted", "crushed", "diced",
+  // "sliced", "shredded", "grated", "cubed", "canned", "frozen", "whole" - so
+  // "ground beef", "crushed tomatoes", "sliced almonds" and "dried oregano" keep
+  // their meaning.
+  var GROCERY_PREP_LEADING={toasted:1,cooked:1,grilled:1,boiled:1,steamed:1,sauteed:1,"sautéed":1,seared:1,poached:1,blanched:1,browned:1,mashed:1,whipped:1,smashed:1,beaten:1,whisked:1,melted:1,softened:1,warmed:1,cooled:1,chilled:1,thawed:1,shaved:1,chopped:1,minced:1,julienned:1,halved:1,quartered:1,peeled:1,seeded:1,deveined:1,trimmed:1,rinsed:1,drained:1,cored:1,stemmed:1,zested:1,juiced:1,pitted:1,divided:1,separated:1,packed:1,sifted:1,freshly:1,lightly:1,gently:1,evenly:1,roughly:1,coarsely:1,finely:1,thinly:1};
   // Matches size tokens like "1-inch", "2-inches", "1/2-inch", "inch" on their own
   function isNumericSizeToken(w){
     return /^[\d.\/]*-?(inch(es)?|in|cm|mm|centimeters?)$/i.test(w);
@@ -2460,6 +2492,13 @@ function GroceryTab(p){
       var tail=name.slice(commaIdx+1).trim();
       if(head&&isGroceryPrepClause(tail))name=head;
     }
+    // Drop leading prep / cooking-method words ("toasted ground cumin" ->
+    // "ground cumin", "finely chopped white onion" -> "white onion"). Keeps at
+    // least the final word so an all-prep phrase never empties out.
+    var pw=name.split(/\s+/).filter(Boolean);
+    var pwBefore=pw.length;
+    while(pw.length>1&&GROCERY_PREP_LEADING[pw[0].toLowerCase()])pw.shift();
+    if(pw.length!==pwBefore)name=pw.join(" ");
     // Tidy dangling separators left by the strips above ("cilantro," -> "cilantro").
     name=name.replace(/^[\s,;:]+/,"").replace(/[\s,;:]+$/,"");
     return name.trim();
@@ -2543,7 +2582,7 @@ function GroceryTab(p){
   function groceryMergeKey(name){
     var n=grocerySynonymKey((name||"").trim().toLowerCase());
     var words=n.split(" ");
-    while(words.length>1&&GROCERY_SAFE_DESCRIPTOR[words[0]])words.shift();
+    while(words.length>1&&(GROCERY_SAFE_DESCRIPTOR[words[0]]||GROCERY_PREP_LEADING[words[0]]))words.shift();
     while(words.length>1&&GROCERY_FORM_NOUN[words[words.length-1]])words.pop();
     n=grocerySingularLast(words.join(" "));
     return grocerySynonymKey(n);
@@ -2597,6 +2636,7 @@ function GroceryTab(p){
   function consolidateGrocery(items){
     var out=[],seen={};
     items.forEach(function(it){
+      it=repairIngObject(it); // heal any split-fraction rows saved before the fix
       var rawName=it.name||"";
       var note=it.note||groceryQualifier(rawName);
       var names=splitGroceryItemNames(cleanGroceryItemName(rawName)).map(normalizeGroceryPepperName);
@@ -2653,7 +2693,7 @@ function GroceryTab(p){
         var mScale=(m.scale&&m.scale!==1)?m.scale:1;
         function tagSig(it){if(!sig)return;it.meals=it.meals||[];if(it.meals.indexOf(sig)<0)it.meals.push(sig);}
         m.ingredients.forEach(function(g){
-          var ing=typeof g==="string"?parseIng(g):g;
+          var ing=typeof g==="string"?parseIng(g):repairIngObject(g);
           var note=groceryQualifier(ing.name||"");
           var itemNames=splitGroceryItemNames(cleanGroceryItemName(ing.name||"")).map(normalizeGroceryPepperName);
           itemNames.forEach(function(itemName,ni){
@@ -2748,7 +2788,7 @@ function GroceryTab(p){
         list.forEach(function(m){
           if(m&&m.ingredients){
             m.ingredients.forEach(function(g){
-              var ing=typeof g==="string"?parseIng(g):g;
+              var ing=typeof g==="string"?parseIng(g):repairIngObject(g);
               var note=groceryQualifier(ing.name||"");
               var cleanedName=cleanGroceryItemName(ing.name||"");
               // "Salt and pepper" is shorthand for two items, not one line
