@@ -1873,6 +1873,15 @@ var RECIPE_TYPES = [
   {id:"other",label:"Other"},
 ];
 
+// Resolve a recipe's stored recipeType to a {id,label} for CatTag. Built-in
+// types match by id; a custom category is stored as its own label string, so
+// synthesize a type object from it; an empty/missing type falls back to "Other".
+function recipeTypeInfo(rtype){
+  if(!rtype) return RECIPE_TYPES[RECIPE_TYPES.length-1];
+  var found=RECIPE_TYPES.filter(function(t){return t.id===rtype;})[0];
+  return found || {id:rtype,label:String(rtype)};
+}
+
 var RECIPE_TYPE_KEYWORDS = {
   chicken:["chicken","poultry","wing","thigh","breast","drumstick"],
   beef:["beef","steak","burger","meatloaf","ground beef","roast beef","brisket"],
@@ -4194,6 +4203,20 @@ function App(){
   var [editRecipeQty,setEditRecipeQty]=useState("");
   var [editRecipeUnit,setEditRecipeUnit]=useState("");
   var [editIngIdx,setEditIngIdx]=useState(-1); // Index of ingredient being edited, -1 means adding new
+  var [newCatOpen,setNewCatOpen]=useState(false); // "create new category" inline input showing
+  var [newCatName,setNewCatName]=useState("");
+  // When the Edit modal opens on a recipe whose instructions are one run-on
+  // paragraph, split them into newline-separated steps once so the bulleted
+  // editor has real steps to work with. Keyed on the recipe id so it runs a
+  // single time per open, never fighting the user's typing afterward.
+  useEffect(function(){
+    if(!editRecipe)return;
+    var n=editRecipe.notes||"";
+    if(n.indexOf("\n")===-1){
+      var parsed=parseInstructionSteps(n);
+      if(parsed.length>1)setEditRecipe(function(m){return m?Object.assign({},m,{notes:parsed.join("\n")}):m});
+    }
+  },[editRecipe&&editRecipe.id]);
   var [showRF,setShowRF]=useState(false);
   var [aiScanLoading,setAiScanLoading]=useState(false);
   var [aiScanStatus,setAiScanStatus]=useState("");
@@ -5501,7 +5524,7 @@ function App(){
         {familyRecipes.length===0&&familyRecipesLoaded?<div style={{fontSize:12,color:C.light}}>Recipes your family saves will show up here</div>:null}
       </div>:
       filtered.map(function(r){
-        var typeInfo = r.recipeType && r.recipeType!=="other" ? (RECIPE_TYPES.find(function(t){return t.id===r.recipeType})) : null;
+        var typeInfo = r.recipeType && r.recipeType!=="other" ? recipeTypeInfo(r.recipeType) : null;
         var cookTime = shortTime(r.time);
         return <div key={r.ownerUsername+"_"+r.id} className="ft-card-tap" onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}} style={{background:"var(--surface)",borderRadius:20,marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}}>
           <div style={{position:"relative",width:"100%",aspectRatio:r.photo?"4 / 3":undefined,height:r.photo?undefined:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
@@ -7051,7 +7074,7 @@ function App(){
         }).slice().sort(function(a,b){
           if((familySort||"newest")==="az")return (a.name||"").localeCompare(b.name||"");
           return recipeSortTime(b)-recipeSortTime(a);
-        }).map(function(r){var rtype=r.recipeType||detectRecipeType(r);var typeInfo=RECIPE_TYPES.find(function(t){return t.id===rtype})||RECIPE_TYPES[RECIPE_TYPES.length-1];var fromFamily=!!r.ownerUsername;var isPrivate=!fromFamily&&r.isPublic===false;return(
+        }).map(function(r){var rtype=r.recipeType||detectRecipeType(r);var typeInfo=recipeTypeInfo(rtype);var fromFamily=!!r.ownerUsername;var isPrivate=!fromFamily&&r.isPublic===false;return(
           <div key={(fromFamily?r.ownerUsername:"me")+"_"+r.id} className="ft-card-tap" style={{background:"var(--surface)",borderRadius:20,border:"none",marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}}>
             {/* Hero image */}
             <div style={{position:"relative",width:"100%",aspectRatio:r.photo?"4 / 3":undefined,height:r.photo?undefined:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
@@ -7407,7 +7430,7 @@ function App(){
             </div>:null}
             {allRecipes.length>0&&sorted.length===0?<div style={{textAlign:"center",padding:"40px 20px",fontSize:13,color:C.light}}>No recipes in this category.</div>:null}
             {sorted.map(function(r){
-              var rtype=r.recipeType||detectRecipeType(r);var typeInfo=RECIPE_TYPES.find(function(t){return t.id===rtype})||RECIPE_TYPES[RECIPE_TYPES.length-1];
+              var rtype=r.recipeType||detectRecipeType(r);var typeInfo=recipeTypeInfo(rtype);
               var fromFamily=!!r.ownerUsername;var ct=shortTime(r.time);
               return <div key={(fromFamily?r.ownerUsername:"me")+"_"+r.id} className="ft-card-tap" style={{background:"var(--surface)",borderRadius:18,marginBottom:14,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){addR(r)}}>
                 <div style={{position:"relative",width:"100%",height:r.photo?150:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
@@ -7499,6 +7522,23 @@ function App(){
         var head={fontSize:12,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.7,marginBottom:10};
         var addOrUpdate=function(){if(!editRecipeIng.trim())return;setEditRecipe(function(m){var ings=m.ingredients.slice();if(editIngIdx>=0){ings[editIngIdx]={name:editRecipeIng.trim(),qty:editRecipeQty,unit:editRecipeUnit}}else{ings=ings.concat([{name:editRecipeIng.trim(),qty:editRecipeQty,unit:editRecipeUnit}])}return Object.assign({},m,{ingredients:ings})});setEditIngIdx(-1);setEditRecipeIng("");setEditRecipeQty("");setEditRecipeUnit("");};
         var exists=recipes.some(function(r){return r.id===editRecipe.id});
+        // One consistent field + body font, so every row reads as one system.
+        var FSANS="'Inter',-apple-system,BlinkMacSystemFont,sans-serif";
+        var field={width:"100%",boxSizing:"border-box",padding:"11px 13px",borderRadius:10,border:"1px solid var(--border-strong)",fontSize:15,fontFamily:FSANS,background:"var(--surface)",color:C.ink,outline:"none"};
+        // Category options: the built-in list plus any custom categories already
+        // in use on the user's recipes (a custom category is stored as its own
+        // label string in recipeType).
+        var builtinCat={}; RECIPE_TYPES.forEach(function(t){builtinCat[t.id]=1;});
+        var pickTypes=RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites";});
+        var customCats=[],seenCat={};
+        recipes.forEach(function(r){var rt=r.recipeType;if(rt&&!builtinCat[rt]&&!seenCat[(""+rt).toLowerCase()]){seenCat[(""+rt).toLowerCase()]=1;customCats.push(rt);}});
+        if(editRecipe.recipeType&&!builtinCat[editRecipe.recipeType]&&!seenCat[(""+editRecipe.recipeType).toLowerCase()])customCats.push(editRecipe.recipeType);
+        function commitNewCat(){var nm=newCatName.trim();if(!nm)return;var match=pickTypes.filter(function(t){return t.label.toLowerCase()===nm.toLowerCase();})[0];var val=match?match.id:nm;setEditRecipe(function(m){return Object.assign({},m,{recipeType:val});});setNewCatOpen(false);setNewCatName("");}
+        // Instructions edited as individual steps (one per line of notes).
+        var steps=(editRecipe.notes||"").split("\n");
+        function setStep(i,val){setEditRecipe(function(m){var l=(m.notes||"").split("\n");l[i]=val;return Object.assign({},m,{notes:l.join("\n")});});}
+        function addStep(){setEditRecipe(function(m){var n=(m.notes||"");var l=n===""?[]:n.split("\n");l.push("");return Object.assign({},m,{notes:l.join("\n")});});}
+        function removeStep(i){setEditRecipe(function(m){var l=(m.notes||"").split("\n");l.splice(i,1);return Object.assign({},m,{notes:l.join("\n")});});}
         return <div style={ovl} onClick={function(){setEditRecipe(null)}}>
         <div style={{background:"var(--surface)",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={function(e){e.stopPropagation()}}>
           {/* Top bar */}
@@ -7516,44 +7556,67 @@ function App(){
             :
               <div onClick={pickPhoto} style={{margin:"0 16px",height:150,borderRadius:16,border:"2px dashed var(--border-strong)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",background:"var(--blush)"}}><Icon name="camera" size={28} color="var(--light)" strokeWidth={1.5}/><span style={{fontSize:13,color:C.light,fontWeight:600,marginTop:6}}>Add a photo</span></div>
             }
-            <div style={{padding:"16px 18px 18px"}}>
+            <div style={{padding:"16px 18px 18px",fontFamily:FSANS}}>
               {/* Name - big serif title */}
               <input value={editRecipe.name} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{name:e.target.value})})}} placeholder="Recipe name" style={{width:"100%",boxSizing:"border-box",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:26,fontWeight:700,color:C.ink,border:"none",borderBottom:"1px solid "+C.bdr,background:"transparent",padding:"4px 0 8px",outline:"none",lineHeight:1.2}}/>
               {/* Time */}
               <div style={{display:"flex",alignItems:"center",gap:7,marginTop:12,marginBottom:22}}>
                 <Icon name="clock" size={14} color={C.light} strokeWidth={1.75}/>
-                <input value={editRecipe.time} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{time:e.target.value})})}} placeholder="Add cook time (e.g. 45 min)" style={{flex:1,minWidth:0,border:"none",background:"transparent",outline:"none",fontSize:14,color:C.ink}}/>
+                <input value={editRecipe.time} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{time:e.target.value})})}} placeholder="Add cook time (e.g. 45 min)" style={{flex:1,minWidth:0,border:"none",background:"transparent",outline:"none",fontSize:15,fontFamily:FSANS,color:C.ink}}/>
               </div>
-              {/* Category */}
+              {/* Category - dropdown with a create-new option */}
               <div style={head}>Category</div>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:22}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=editRecipe.recipeType===t.id;return <button key={t.id} onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"6px 10px",borderRadius:9,border:active?"2px solid "+C.dark:"1px solid var(--border-strong)",background:active?C.blushMed:"var(--surface)",cursor:"pointer",fontSize:12,fontWeight:600}}><CatTag type={t}/></button>})}</div>
+              <div style={{marginBottom:22}}>
+                <div style={{position:"relative"}}>
+                  <select value={editRecipe.recipeType||""} onChange={function(e){var v=e.target.value;if(v==="__new__"){setNewCatOpen(true);}else{setNewCatOpen(false);setEditRecipe(function(m){return Object.assign({},m,{recipeType:v})});}}} style={Object.assign({},field,{appearance:"none",WebkitAppearance:"none",MozAppearance:"none",paddingRight:34,cursor:"pointer",fontWeight:600})}>
+                    <option value="" disabled>Choose a category…</option>
+                    {pickTypes.map(function(t){return <option key={t.id} value={t.id}>{t.label}</option>})}
+                    {customCats.length?<option value="" disabled>──────────</option>:null}
+                    {customCats.map(function(c){return <option key={c} value={c}>{c}</option>})}
+                    <option value="__new__">＋ Create new category…</option>
+                  </select>
+                  <span style={{position:"absolute",right:13,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",fontSize:9,color:C.light}}>▼</span>
+                </div>
+                {newCatOpen?<div style={{display:"flex",gap:6,marginTop:8}}>
+                  <input autoFocus value={newCatName} onChange={function(e){setNewCatName(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter")commitNewCat();if(e.key==="Escape"){setNewCatOpen(false);setNewCatName("");}}} placeholder="New category name" style={Object.assign({},field,{flex:1})}/>
+                  <button onClick={commitNewCat} style={Object.assign({},btn(C.dark),{borderRadius:10,flexShrink:0})}>Add</button>
+                  <button onClick={function(){setNewCatOpen(false);setNewCatName("");}} style={{background:"none",border:"1px solid var(--border-strong)",borderRadius:10,padding:"0 14px",cursor:"pointer",color:C.light,fontSize:13,fontFamily:FSANS,flexShrink:0}}>Cancel</button>
+                </div>:null}
+              </div>
               {/* Ingredients */}
               <div style={head}>Ingredients</div>
               {editRecipe.ingredients.map(function(g,i){
-                return <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 0",fontSize:14.5,color:C.ink,borderBottom:"1px solid "+C.bdr,background:editIngIdx===i?C.blush:"transparent"}}>
-                  <span style={{flex:1,minWidth:0}}>{formatIng(g)}</span>
+                return <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",borderBottom:"1px solid "+C.bdr,background:editIngIdx===i?C.blush:"transparent"}}>
+                  <span style={{flex:1,minWidth:0,fontSize:15,fontFamily:FSANS,color:C.ink}}>{formatIng(g)}</span>
                   <button onClick={function(){setEditIngIdx(i);setEditRecipeQty(g.qty||"");setEditRecipeUnit(g.unit||"");setEditRecipeIng(g.name||"")}} style={{background:"none",border:"none",cursor:"pointer",opacity:.5,padding:4,display:"flex",flexShrink:0}}><Icon name="pencil" size={13} strokeWidth={1.75}/></button>
                   <button onClick={function(){setEditRecipe(function(m){return Object.assign({},m,{ingredients:m.ingredients.filter(function(_,j){return j!==i})})})}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex",flexShrink:0}}><Icon name="x" size={13} strokeWidth={2}/></button>
                 </div>
               })}
-              <div style={{display:"flex",gap:6,marginTop:12}}>
-                <input style={{width:52,padding:"10px 6px",borderRadius:10,border:"1px solid var(--border-strong)",fontSize:14,textAlign:"center",background:"var(--surface)",color:"var(--ink)",boxSizing:"border-box"}} placeholder="Qty" value={editRecipeQty} onChange={function(e){setEditRecipeQty(e.target.value)}}/>
-                <select style={{padding:"10px 6px",borderRadius:10,border:"1px solid var(--border-strong)",fontSize:13,background:"var(--surface)",color:"var(--ink)"}} value={editRecipeUnit} onChange={function(e){setEditRecipeUnit(e.target.value)}}>{UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"unit")})}</select>
-                <input style={Object.assign({},inp,{flex:1,padding:"10px 12px",borderRadius:10})} placeholder={editIngIdx>=0?"Edit ingredient":"Add an ingredient"} value={editRecipeIng} onChange={function(e){setEditRecipeIng(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter")addOrUpdate()}}/>
-                <button onClick={addOrUpdate} style={Object.assign({},btn(editIngIdx>=0?"#27ae60":C.dark),{borderRadius:10})}>{editIngIdx>=0?"Update":"Add"}</button>
+              <div style={{display:"flex",gap:6,marginTop:12,alignItems:"stretch"}}>
+                <input style={Object.assign({},field,{width:56,padding:"11px 6px",textAlign:"center",flexShrink:0})} placeholder="Qty" value={editRecipeQty} onChange={function(e){setEditRecipeQty(e.target.value)}}/>
+                <select style={Object.assign({},field,{width:"auto",padding:"11px 8px",cursor:"pointer",flexShrink:0})} value={editRecipeUnit} onChange={function(e){setEditRecipeUnit(e.target.value)}}>{UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"unit")})}</select>
+                <input style={Object.assign({},field,{flex:1,minWidth:0})} placeholder={editIngIdx>=0?"Edit ingredient":"Add an ingredient"} value={editRecipeIng} onChange={function(e){setEditRecipeIng(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter")addOrUpdate()}}/>
+                <button onClick={addOrUpdate} style={Object.assign({},btn(editIngIdx>=0?"#27ae60":C.dark),{borderRadius:10,flexShrink:0})}>{editIngIdx>=0?"Update":"Add"}</button>
               </div>
               {editIngIdx>=0?<div style={{fontSize:11.5,color:C.light,marginTop:6}}>Editing ingredient #{editIngIdx+1} · <button onClick={function(){setEditIngIdx(-1);setEditRecipeIng("");setEditRecipeQty("");setEditRecipeUnit("")}} style={{background:"none",border:"none",color:C.dark,textDecoration:"underline",cursor:"pointer",fontSize:11.5}}>Cancel</button></div>:null}
-              {/* Instructions */}
-              <div style={Object.assign({},head,{marginTop:22})}>Instructions</div>
-              <textarea style={Object.assign({},inp,{minHeight:90,resize:"vertical",borderRadius:12,padding:"12px 14px",lineHeight:1.5,marginBottom:22})} placeholder="Cooking steps..." value={editRecipe.notes} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{notes:e.target.value})})}}/>
+              {/* Instructions - one editable step per bullet */}
+              <div style={Object.assign({},head,{marginTop:24})}>Instructions</div>
+              {steps.map(function(s,i){
+                return <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:8}}>
+                  <div style={{flexShrink:0,width:24,height:24,borderRadius:"50%",background:C.blushMed,color:C.dark,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,marginTop:7,fontFamily:FSANS}}>{i+1}</div>
+                  <textarea rows={1} value={s} onChange={function(e){setStep(i,e.target.value)}} placeholder={"Step "+(i+1)} style={Object.assign({},field,{flex:1,resize:"vertical",minHeight:44,lineHeight:1.5,padding:"11px 13px"})}/>
+                  {steps.length>1?<button onClick={function(){removeStep(i)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,padding:6,display:"flex",flexShrink:0,marginTop:8}}><Icon name="x" size={14} strokeWidth={2}/></button>:null}
+                </div>;
+              })}
+              <button onClick={addStep} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:4,marginBottom:22,background:"none",border:"1px dashed var(--border-strong)",borderRadius:10,padding:"11px 12px",width:"100%",cursor:"pointer",color:C.dark,fontSize:13,fontWeight:600,fontFamily:FSANS}}><Icon name="plus" size={13} strokeWidth={2}/>Add step</button>
               {/* Credit */}
               <div style={head}>Source / Credit</div>
-              <input style={Object.assign({},inp,{borderRadius:10,padding:"11px 13px"})} placeholder="e.g. Grandma's recipe, @foodblogger" value={editRecipe.credit||""} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{credit:e.target.value})})}}/>
+              <input style={field} placeholder="e.g. Grandma's recipe, @foodblogger" value={editRecipe.credit||""} onChange={function(e){setEditRecipe(function(m){return Object.assign({},m,{credit:e.target.value})})}}/>
             </div>
           </div>
           {/* Sticky save bar */}
           <div style={{padding:"12px 16px",paddingBottom:"max(12px, env(safe-area-inset-bottom))",borderTop:"1px solid "+C.bdr,flexShrink:0,background:"var(--surface)"}}>
-            <button onClick={function(){if(!editRecipe.name.trim()){appAlert("Please enter a recipe name.");return;}if(!editRecipe.recipeType||editRecipe.recipeType==""){appAlert("Please choose a category for this recipe.");return;}var stamped=exists?editRecipe:stampNewRecipe(editRecipe,userId,"manual");if(exists){svR(recipes.map(function(r){return r.id===editRecipe.id?stamped:r}))}else{svR(recipes.concat([stamped]))}setEditRecipe(null);setEditRecipeQty("");setEditRecipeUnit("")}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:7,height:48,borderRadius:12,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontSize:15,fontWeight:700}}><Icon name="check" size={16} color="#fff" strokeWidth={2.5}/>{exists?"Save Changes":"Save Recipe"}</button>
+            <button onClick={function(){if(!editRecipe.name.trim()){appAlert("Please enter a recipe name.");return;}if(!editRecipe.recipeType||editRecipe.recipeType==""){appAlert("Please choose a category for this recipe.");return;}var cleanNotes=(editRecipe.notes||"").split("\n").map(function(s){return s.trim()}).filter(Boolean).join("\n");var toSave=Object.assign({},editRecipe,{notes:cleanNotes});var stamped=exists?toSave:stampNewRecipe(toSave,userId,"manual");if(exists){svR(recipes.map(function(r){return r.id===editRecipe.id?stamped:r}))}else{svR(recipes.concat([stamped]))}setEditRecipe(null);setEditRecipeQty("");setEditRecipeUnit("")}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:7,height:48,borderRadius:12,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontSize:15,fontWeight:700}}><Icon name="check" size={16} color="#fff" strokeWidth={2.5}/>{exists?"Save Changes":"Save Recipe"}</button>
           </div>
         </div>
       </div>;})()}
