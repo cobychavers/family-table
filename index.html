@@ -1454,8 +1454,9 @@ function repairIngObject(ing){
   var nm=(ing.name==null?"":String(ing.name)).replace(/^\s+/,"");
   var q=(ing.qty==null?"":String(ing.qty)).trim();
   if(!q && ing.parts && ing.parts[0]) q=(ing.parts[0].qty==null?"":String(ing.parts[0].qty)).trim();
-  if(/^\/\d/.test(nm) && /^\d+$/.test(q)){
-    var fixed=parseIng(q+nm); // "2" + "/3 cup amber beer" -> "2/3 cup amber beer"
+  // "/3 cup ..." or the unicode fraction-slash "⁄3 cup ..." left on the name.
+  if(/^[\/⁄]\d/.test(nm) && /^\d+$/.test(q)){
+    var fixed=parseIng((q+nm).replace(/⁄/g,"/")); // "2"+"/3 cup amber beer" -> "2/3 cup amber beer"
     return Object.assign({},ing,{qty:fixed.qty,unit:fixed.unit||"",name:fixed.name,parts:undefined});
   }
   return ing;
@@ -3378,10 +3379,12 @@ function GroceryTab(p){
   // Build items list from generated items + manual items
   var all=[];
   generatedItems.forEach(function(x){
-    all.push({id:x.id,name:x.name,qty:x.qty||"",unit:x.unit||"",note:x.note||"",source:"generated"});
+    var rx=repairIngObject(x); // heal any split-fraction row at display time
+    all.push({id:rx.id||x.id,name:rx.name,qty:rx.qty||"",unit:rx.unit||"",note:rx.note||"",source:"generated"});
   });
   manual.forEach(function(x){
-    all.push({id:x.id,name:x.name,qty:x.qty||"",unit:x.unit||"",note:x.note||"",source:"manual"});
+    var rx=repairIngObject(x);
+    all.push({id:rx.id||x.id,name:rx.name,qty:rx.qty||"",unit:rx.unit||"",note:rx.note||"",source:"manual"});
   });
 
   // Cooking-water byproducts should never appear, even if an older generated
@@ -3646,16 +3649,7 @@ function GroceryTab(p){
     React.createElement("div",{style:{marginBottom:generatedWeekLabel?12:0}},
       generatedWeekLabel?React.createElement("div",{style:{textAlign:"center",fontSize:11,color:"var(--blush-dark)",marginTop:6}},
         "Last generated from: "+generatedWeekLabel
-      ):null,
-      /* Say what the pantry took out, rather than silently shrinking the list -
-         but as a calm, tappable chip, not an error-looking underlined link. */
-      pantrySkipped>0?React.createElement("div",{style:{display:"flex",justifyContent:"center",marginTop:8}},
-        React.createElement("button",{onClick:function(){setGrocerySub("pantry")},style:{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px 5px 10px",borderRadius:999,border:"1px solid "+C.bdr,background:"var(--blush)",cursor:"pointer",fontSize:11.5,color:C.light,fontWeight:600,boxShadow:C.shadowSm,lineHeight:1}},
-          React.createElement(Icon,{name:"clipboard",size:12,color:C.light,strokeWidth:2}),
-          React.createElement("span",null,pantrySkipped+" already in your pantry"),
-          React.createElement("span",{style:{fontSize:12,opacity:.5,marginLeft:1}},"›")
-        )
-      ):null,
+      ):null
     ),
     
     
@@ -3664,7 +3658,7 @@ function GroceryTab(p){
       // set - same height, radius, weight - rather than a jumble of sizes.
       var act={display:"flex",alignItems:"center",gap:6,height:36,fontSize:12.5,padding:"0 14px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",fontWeight:600,color:C.ink,boxShadow:C.shadowSm};
       return React.createElement("div",{style:{marginBottom:12}},
-        React.createElement("div",{style:{fontSize:12,color:C.light,marginBottom:all.length>0||hiddenCount>0?9:0}},all.length+" items · "+tc+" purchased"+(hiddenCount>0?" · "+hiddenCount+" removed":"")),
+        React.createElement("div",{style:{fontSize:12,color:C.light,marginBottom:all.length>0||hiddenCount>0?9:0}},all.length+" items · "+tc+" purchased"+(pantrySkipped>0?" · "+pantrySkipped+" in pantry":"")+(hiddenCount>0?" · "+hiddenCount+" removed":"")),
         React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
           // Primary action first: save the current list.
           all.length>0?React.createElement("button",{onClick:function(){setShowSaveLists(true)},style:Object.assign({},act,{border:"none",background:C.dark,color:"#fff"})},React.createElement(Icon,{name:"bookmark",size:13,strokeWidth:2}),"Save"):null,
