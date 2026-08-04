@@ -11,7 +11,7 @@
 // Bump CACHE_VERSION whenever the precache list or this file's logic
 // changes meaningfully - there's no build step, so this is a manual
 // convention.
-var CACHE_VERSION = "v7";
+var CACHE_VERSION = "v8";
 var CACHE_NAME = "family-table-shell-" + CACHE_VERSION;
 
 var SAME_ORIGIN_PRECACHE = [

@@ -2582,7 +2582,7 @@ function GroceryTab(p){
   var GROCERY_FORM_NOUN={leaf:1,leaves:1,clove:1,cloves:1,sprig:1,sprigs:1,stalk:1,stalks:1,stem:1,stems:1,rib:1,ribs:1};
   // Hyphens/dashes read as spaces for keying, so "all-purpose flour" and "all
   // purpose flour" (and "extra-virgin" vs "extra virgin") are the same item.
-  function dehyphen(s){return (s||"").replace(/[-–—]/g," ").replace(/\s+/g," ").trim();}
+  function dehyphen(s){return (s||"").replace(/[-­‐-―−]+/g," ").replace(/\s+/g," ").trim();}
   function groceryMergeKey(name){
     var n=dehyphen(grocerySynonymKey(dehyphen((name||"").toLowerCase())));
     var words=n.split(" ");
