@@ -4174,6 +4174,7 @@ function App(){
   var [showCategories,setShowCategories]=useState(false);
   var [rpick,setRpick]=useState(null);
   var [pickCat,setPickCat]=useState("all"); // category filter for the calendar "From Recipes" picker
+  var [pickCatOpen,setPickCatOpen]=useState(false); // whether the picker's category dropdown is open
   var [shareR,setShareR]=useState(null);
   var [shareExpandIng,setShareExpandIng]=useState(true);
   var [shareExpandInst,setShareExpandInst]=useState(false);
@@ -7332,13 +7333,28 @@ function App(){
               <span style={{fontSize:12,color:C.light,marginRight:2,fontWeight:600}}>Sort</span>
               {[["newest","Newest"],["az","A–Z"]].map(function(o){var on=(familySort||"newest")===o[0];return <button key={o[0]} onClick={function(){setFamilySort(o[0])}} style={{padding:"6px 14px",borderRadius:16,border:"none",background:on?C.dark:C.blushMed,color:on?"#fff":C.light,fontSize:12,fontWeight:600,cursor:"pointer"}}>{o[1]}</button>})}
             </div>:null}
-            {allRecipes.length>0?<div style={{display:"flex",gap:7,overflowX:"auto",marginTop:10,paddingBottom:2,WebkitOverflowScrolling:"touch"}}>
-              {RECIPE_TYPES.filter(function(t){
+            {allRecipes.length>0?(function(){
+              var catOf=RECIPE_TYPES.find(function(t){return t.id===pickCat})||RECIPE_TYPES[0];
+              var opts=RECIPE_TYPES.filter(function(t){
                 if(t.id==="all")return true;
                 if(t.id==="favorites")return favorites.length>0;
                 return allRecipes.some(function(r){return(r.recipeType||detectRecipeType(r))===t.id});
-              }).map(function(t){var on=pickCat===t.id;return <button key={t.id} onClick={function(){setPickCat(t.id)}} style={{flexShrink:0,padding:"6px 12px",borderRadius:16,border:on?"none":"1px solid "+C.bdr,background:on?C.dark:"var(--surface)",color:on?"#fff":C.dark,fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"inline-flex",alignItems:"center"}}>{t.id==="all"?"All":<CatTag type={t}/>}</button>})}
-            </div>:null}
+              });
+              var countOf=function(t){return t.id==="all"?allRecipes.length:t.id==="favorites"?allRecipes.filter(function(r){return favorites.includes(r.id)}).length:allRecipes.filter(function(r){return(r.recipeType||detectRecipeType(r))===t.id}).length;};
+              return <div style={{position:"relative",marginTop:12}}>
+                <button onClick={function(){setPickCatOpen(!pickCatOpen)}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,width:"100%",padding:"12px 14px",borderRadius:12,border:"1px solid "+C.bdr,background:"var(--surface)",cursor:"pointer",fontSize:14,color:C.ink,fontWeight:600,boxShadow:C.shadowSm}}>
+                  <span style={{display:"inline-flex",alignItems:"center"}}>{pickCat==="all"?"All Categories":<CatTag type={catOf}/>}</span>
+                  <span style={{display:"inline-flex",alignItems:"center",gap:8}}><span style={{fontSize:12,color:C.light,fontWeight:600}}>{countOf(catOf)}</span><span style={{fontSize:10,color:C.light,transform:pickCatOpen?"rotate(180deg)":"none",transition:"transform .18s"}}>▼</span></span>
+                </button>
+                {pickCatOpen?<div onClick={function(){setPickCatOpen(false)}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:55}}/>:null}
+                {pickCatOpen?<div style={{position:"absolute",top:"calc(100% + 6px)",left:0,right:0,background:"var(--surface)",borderRadius:12,border:"1px solid "+C.bdr,boxShadow:C.shadowLg,zIndex:60,overflow:"hidden",maxHeight:300,overflowY:"auto"}}>
+                  {opts.map(function(t,i){var on=pickCat===t.id;return <button key={t.id} onClick={function(){setPickCat(t.id);setPickCatOpen(false)}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,width:"100%",padding:"12px 14px",border:"none",borderTop:i?"1px solid "+C.bdr:"none",background:on?C.blush:"var(--surface)",cursor:"pointer",fontSize:14,color:C.ink,fontWeight:on?700:500,textAlign:"left"}}>
+                    <span style={{display:"inline-flex",alignItems:"center"}}>{t.id==="all"?"All Categories":<CatTag type={t}/>}</span>
+                    <span style={{fontSize:12,color:C.light}}>{countOf(t)}</span>
+                  </button>})}
+                </div>:null}
+              </div>;
+            })():null}
           </div>
           {/* Scrollable card list */}
           <div style={{flex:1,overflowY:"auto",padding:"6px 16px 20px"}}>
