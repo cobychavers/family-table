@@ -7018,7 +7018,7 @@ function App(){
           <div style={{position:"relative"}}>
             <button onClick={function(){setShowRecipePlusMenu(!showRecipePlusMenu)}} style={{padding:"7px 14px",borderRadius:8,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>+ Add</button>
             {showRecipePlusMenu?<div style={{position:"absolute",top:40,right:0,background:"var(--surface)",borderRadius:10,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,minWidth:180,zIndex:50,overflow:"hidden"}}>
-              <button onClick={function(){setRf(emptyMeal());setShowRF(true);setShowRecipePlusMenu(false)}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}}><Icon name="pencil" size={14} strokeWidth={1.75}/>Add Manually</button>
+              <button onClick={function(){setRf(emptyMeal());setShowRF(true);setShowRecipePlusMenu(false);setNewCatOpen(false);setNewCatName("")}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}}><Icon name="pencil" size={14} strokeWidth={1.75}/>Add Manually</button>
               <button onClick={function(){setShowScanModal(true);setScanPhotos([]);setShowRecipePlusMenu(false)}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}}><Icon name="camera" size={14} strokeWidth={1.75}/>Photo</button>
               <button onClick={function(){setShowImport(true);setShowRecipePlusMenu(false)}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",boxSizing:"border-box"}}><Icon name="inbox" size={14} strokeWidth={1.75}/>Import</button>
             </div>:null}
@@ -7458,6 +7458,18 @@ function App(){
       {showRF&&(function(){
         var head={fontSize:12,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.7,marginBottom:10};
         var addIng=function(){if(rni.trim()){setRf(function(m){return Object.assign({},m,{ingredients:m.ingredients.concat([{name:rni.trim(),qty:rqty,unit:runit}])})});setRni("");setRqty("");setRunit("")}};
+        var FSANS="'Inter',-apple-system,BlinkMacSystemFont,sans-serif";
+        var field={width:"100%",boxSizing:"border-box",padding:"11px 13px",borderRadius:10,border:"1px solid var(--border-strong)",fontSize:15,fontFamily:FSANS,background:"var(--surface)",color:C.ink,outline:"none"};
+        var builtinCat={}; RECIPE_TYPES.forEach(function(t){builtinCat[t.id]=1;});
+        var pickTypes=RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites";});
+        var customCats=[],seenCat={};
+        recipes.forEach(function(r){var rt=r.recipeType;if(rt&&!builtinCat[rt]&&!seenCat[(""+rt).toLowerCase()]){seenCat[(""+rt).toLowerCase()]=1;customCats.push(rt);}});
+        if(rf.recipeType&&!builtinCat[rf.recipeType]&&!seenCat[(""+rf.recipeType).toLowerCase()])customCats.push(rf.recipeType);
+        function commitNewCat(){var nm=newCatName.trim();if(!nm)return;var match=pickTypes.filter(function(t){return t.label.toLowerCase()===nm.toLowerCase();})[0];var val=match?match.id:nm;setRf(function(m){return Object.assign({},m,{recipeType:val});});setNewCatOpen(false);setNewCatName("");}
+        var steps=(rf.notes||"").split("\n");
+        function setStep(i,val){setRf(function(m){var l=(m.notes||"").split("\n");l[i]=val;return Object.assign({},m,{notes:l.join("\n")});});}
+        function addStep(){setRf(function(m){var n=(m.notes||"");var l=n===""?[]:n.split("\n");l.push("");return Object.assign({},m,{notes:l.join("\n")});});}
+        function removeStep(i){setRf(function(m){var l=(m.notes||"").split("\n");l.splice(i,1);return Object.assign({},m,{notes:l.join("\n")});});}
         return <div style={ovl} onClick={function(){setShowRF(false)}}>
         <div style={{background:"var(--surface)",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={function(e){e.stopPropagation()}}>
           {/* Top bar */}
@@ -7476,42 +7488,65 @@ function App(){
               <div onClick={function(){rfRef.current&&rfRef.current.click()}} style={{margin:"0 16px",height:150,borderRadius:16,border:"2px dashed var(--border-strong)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",background:"var(--blush)"}}><Icon name="camera" size={28} color="var(--light)" strokeWidth={1.5}/><span style={{fontSize:13,color:C.light,fontWeight:600,marginTop:6}}>Add a photo</span></div>
             }
             <input ref={rfRef} type="file" accept="image/*" style={{display:"none"}} onChange={function(e){handlePhoto(e,setRf)}}/>
-            <div style={{padding:"16px 18px 18px"}}>
+            <div style={{padding:"16px 18px 18px",fontFamily:FSANS}}>
               {/* Name - big serif title */}
               <input value={rf.name} onChange={function(e){setRf(function(m){return Object.assign({},m,{name:e.target.value})})}} placeholder="Recipe name" style={{width:"100%",boxSizing:"border-box",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:26,fontWeight:700,color:C.ink,border:"none",borderBottom:"1px solid "+C.bdr,background:"transparent",padding:"4px 0 8px",outline:"none",lineHeight:1.2}}/>
               {/* Time */}
               <div style={{display:"flex",alignItems:"center",gap:7,marginTop:12,marginBottom:22}}>
                 <Icon name="clock" size={14} color={C.light} strokeWidth={1.75}/>
-                <input value={rf.time} onChange={function(e){setRf(function(m){return Object.assign({},m,{time:e.target.value})})}} placeholder="Add cook time (e.g. 45 min)" style={{flex:1,minWidth:0,border:"none",background:"transparent",outline:"none",fontSize:14,color:C.ink}}/>
+                <input value={rf.time} onChange={function(e){setRf(function(m){return Object.assign({},m,{time:e.target.value})})}} placeholder="Add cook time (e.g. 45 min)" style={{flex:1,minWidth:0,border:"none",background:"transparent",outline:"none",fontSize:15,fontFamily:FSANS,color:C.ink}}/>
               </div>
-              {/* Category */}
+              {/* Category - dropdown with a create-new option */}
               <div style={head}>Category</div>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:22}}>{RECIPE_TYPES.filter(function(t){return t.id!=="all"&&t.id!=="favorites"}).map(function(t){var active=rf.recipeType===t.id;return <button key={t.id} onClick={function(){setRf(function(m){return Object.assign({},m,{recipeType:t.id})})}} style={{padding:"6px 10px",borderRadius:9,border:active?"2px solid "+C.dark:"1px solid var(--border-strong)",background:active?C.blushMed:"var(--surface)",cursor:"pointer",fontSize:12,fontWeight:600}}><CatTag type={t}/></button>})}</div>
+              <div style={{marginBottom:22}}>
+                <div style={{position:"relative"}}>
+                  <select value={rf.recipeType||""} onChange={function(e){var v=e.target.value;if(v==="__new__"){setNewCatOpen(true);}else{setNewCatOpen(false);setRf(function(m){return Object.assign({},m,{recipeType:v})});}}} style={Object.assign({},field,{appearance:"none",WebkitAppearance:"none",MozAppearance:"none",paddingRight:34,cursor:"pointer",fontWeight:600})}>
+                    <option value="" disabled>Choose a category…</option>
+                    {pickTypes.map(function(t){return <option key={t.id} value={t.id}>{t.label}</option>})}
+                    {customCats.length?<option value="" disabled>──────────</option>:null}
+                    {customCats.map(function(c){return <option key={c} value={c}>{c}</option>})}
+                    <option value="__new__">＋ Create new category…</option>
+                  </select>
+                  <span style={{position:"absolute",right:13,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",fontSize:9,color:C.light}}>▼</span>
+                </div>
+                {newCatOpen?<div style={{display:"flex",gap:6,marginTop:8}}>
+                  <input autoFocus value={newCatName} onChange={function(e){setNewCatName(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter")commitNewCat();if(e.key==="Escape"){setNewCatOpen(false);setNewCatName("");}}} placeholder="New category name" style={Object.assign({},field,{flex:1})}/>
+                  <button onClick={commitNewCat} style={Object.assign({},btn(C.dark),{borderRadius:10,flexShrink:0})}>Add</button>
+                  <button onClick={function(){setNewCatOpen(false);setNewCatName("");}} style={{background:"none",border:"1px solid var(--border-strong)",borderRadius:10,padding:"0 14px",cursor:"pointer",color:C.light,fontSize:13,fontFamily:FSANS,flexShrink:0}}>Cancel</button>
+                </div>:null}
+              </div>
               {/* Ingredients */}
               <div style={head}>Ingredients</div>
               {rf.ingredients.map(function(g,i){
-                return <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 0",fontSize:14.5,color:C.ink,borderBottom:"1px solid "+C.bdr}}>
-                  <span style={{flex:1,minWidth:0}}>{formatIng(g)}</span>
+                return <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",borderBottom:"1px solid "+C.bdr}}>
+                  <span style={{flex:1,minWidth:0,fontSize:15,fontFamily:FSANS,color:C.ink}}>{formatIng(g)}</span>
                   <button onClick={function(){setRf(function(m){return Object.assign({},m,{ingredients:m.ingredients.filter(function(_,j){return j!==i})})})}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex",flexShrink:0}}><Icon name="x" size={13} strokeWidth={2}/></button>
                 </div>
               })}
-              <div style={{display:"flex",gap:6,marginTop:12}}>
-                <input style={{width:52,padding:"10px 6px",borderRadius:10,border:"1px solid var(--border-strong)",fontSize:14,textAlign:"center",background:"var(--surface)",color:"var(--ink)",boxSizing:"border-box"}} placeholder="Qty" value={rqty} onChange={function(e){setRqty(e.target.value)}}/>
-                <select style={{padding:"10px 6px",borderRadius:10,border:"1px solid var(--border-strong)",fontSize:13,background:"var(--surface)",color:"var(--ink)"}} value={runit} onChange={function(e){setRunit(e.target.value)}}>{UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"unit")})}</select>
-                <input style={Object.assign({},inp,{flex:1,padding:"10px 12px",borderRadius:10})} placeholder="Add an ingredient" value={rni} onChange={function(e){setRni(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter")addIng()}}/>
-                <button onClick={addIng} style={Object.assign({},btn(C.dark),{borderRadius:10})}>Add</button>
+              <div style={{display:"flex",gap:6,marginTop:12,alignItems:"stretch"}}>
+                <input style={Object.assign({},field,{width:56,padding:"11px 6px",textAlign:"center",flexShrink:0})} placeholder="Qty" value={rqty} onChange={function(e){setRqty(e.target.value)}}/>
+                <select style={Object.assign({},field,{width:"auto",padding:"11px 8px",cursor:"pointer",flexShrink:0})} value={runit} onChange={function(e){setRunit(e.target.value)}}>{UNITS.map(function(u){return React.createElement("option",{key:u,value:u},u||"unit")})}</select>
+                <input style={Object.assign({},field,{flex:1,minWidth:0})} placeholder="Add an ingredient" value={rni} onChange={function(e){setRni(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter")addIng()}}/>
+                <button onClick={addIng} style={Object.assign({},btn(C.dark),{borderRadius:10,flexShrink:0})}>Add</button>
               </div>
-              {/* Instructions */}
-              <div style={Object.assign({},head,{marginTop:22})}>Instructions</div>
-              <textarea style={Object.assign({},inp,{minHeight:90,resize:"vertical",borderRadius:12,padding:"12px 14px",lineHeight:1.5,marginBottom:22})} placeholder="Cooking steps..." value={rf.notes} onChange={function(e){setRf(function(m){return Object.assign({},m,{notes:e.target.value})})}}/>
+              {/* Instructions - one editable step per bullet */}
+              <div style={Object.assign({},head,{marginTop:24})}>Instructions</div>
+              {steps.map(function(s,i){
+                return <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:8}}>
+                  <div style={{flexShrink:0,width:24,height:24,borderRadius:"50%",background:C.blushMed,color:C.dark,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,marginTop:7,fontFamily:FSANS}}>{i+1}</div>
+                  <textarea rows={1} value={s} onChange={function(e){setStep(i,e.target.value)}} placeholder={"Step "+(i+1)} style={Object.assign({},field,{flex:1,resize:"vertical",minHeight:44,lineHeight:1.5,padding:"11px 13px"})}/>
+                  {steps.length>1?<button onClick={function(){removeStep(i)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,padding:6,display:"flex",flexShrink:0,marginTop:8}}><Icon name="x" size={14} strokeWidth={2}/></button>:null}
+                </div>;
+              })}
+              <button onClick={addStep} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:4,marginBottom:22,background:"none",border:"1px dashed var(--border-strong)",borderRadius:10,padding:"11px 12px",width:"100%",cursor:"pointer",color:C.dark,fontSize:13,fontWeight:600,fontFamily:FSANS}}><Icon name="plus" size={13} strokeWidth={2}/>Add step</button>
               {/* Credit */}
               <div style={head}>Source / Credit</div>
-              <input style={Object.assign({},inp,{borderRadius:10,padding:"11px 13px"})} placeholder="e.g. Grandma's recipe, @foodblogger" value={rf.credit||""} onChange={function(e){setRf(function(m){return Object.assign({},m,{credit:e.target.value})})}}/>
+              <input style={field} placeholder="e.g. Grandma's recipe, @foodblogger" value={rf.credit||""} onChange={function(e){setRf(function(m){return Object.assign({},m,{credit:e.target.value})})}}/>
             </div>
           </div>
           {/* Sticky save bar */}
           <div style={{padding:"12px 16px",paddingBottom:"max(12px, env(safe-area-inset-bottom))",borderTop:"1px solid "+C.bdr,flexShrink:0,background:"var(--surface)"}}>
-            <button onClick={function(){if(!rf.name.trim()){appAlert("Please enter a recipe name.");return;}if(!rf.recipeType||rf.recipeType==""){appAlert("Please choose a category for this recipe.");return;}svR(recipes.concat([stampNewRecipe(rf, userId, "manual")]));setRf(emptyMeal());setShowRF(false);setRni("");setRqty("");setRunit("")}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:7,height:48,borderRadius:12,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontSize:15,fontWeight:700}}><Icon name="check" size={16} color="#fff" strokeWidth={2.5}/>Save Recipe</button>
+            <button onClick={function(){if(!rf.name.trim()){appAlert("Please enter a recipe name.");return;}if(!rf.recipeType||rf.recipeType==""){appAlert("Please choose a category for this recipe.");return;}var cleanNotes=(rf.notes||"").split("\n").map(function(s){return s.trim()}).filter(Boolean).join("\n");svR(recipes.concat([stampNewRecipe(Object.assign({},rf,{notes:cleanNotes}), userId, "manual")]));setRf(emptyMeal());setShowRF(false);setNewCatOpen(false);setNewCatName("");setRni("");setRqty("");setRunit("")}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:7,height:48,borderRadius:12,border:"none",background:C.dark,color:"#fff",cursor:"pointer",fontSize:15,fontWeight:700}}><Icon name="check" size={16} color="#fff" strokeWidth={2.5}/>Save Recipe</button>
           </div>
         </div>
       </div>;})()}
