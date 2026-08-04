@@ -3645,9 +3645,14 @@ function GroceryTab(p){
       generatedWeekLabel?React.createElement("div",{style:{textAlign:"center",fontSize:11,color:"var(--blush-dark)",marginTop:6}},
         "Last generated from: "+generatedWeekLabel
       ):null,
-      /* Say what the pantry took out, rather than silently shrinking the list. */
-      pantrySkipped>0?React.createElement("button",{onClick:function(){setGrocerySub("pantry")},style:{display:"block",width:"100%",textAlign:"center",fontSize:11,color:C.light,marginTop:4,background:"none",border:"none",cursor:"pointer",textDecoration:"underline",textUnderlineOffset:2}},
-        pantrySkipped+" item"+(pantrySkipped===1?"":"s")+" skipped - already in your pantry"
+      /* Say what the pantry took out, rather than silently shrinking the list -
+         but as a calm, tappable chip, not an error-looking underlined link. */
+      pantrySkipped>0?React.createElement("div",{style:{display:"flex",justifyContent:"center",marginTop:8}},
+        React.createElement("button",{onClick:function(){setGrocerySub("pantry")},style:{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px 5px 10px",borderRadius:999,border:"1px solid "+C.bdr,background:"var(--blush)",cursor:"pointer",fontSize:11.5,color:C.light,fontWeight:600,boxShadow:C.shadowSm,lineHeight:1}},
+          React.createElement(Icon,{name:"clipboard",size:12,color:C.light,strokeWidth:2}),
+          React.createElement("span",null,pantrySkipped+" already in your pantry"),
+          React.createElement("span",{style:{fontSize:12,opacity:.5,marginLeft:1}},"›")
+        )
       ):null,
     ),
     
