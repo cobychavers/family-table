@@ -4412,7 +4412,6 @@ function App(){
   var rfRef=useRef(null);
   var scRef=useRef(null);
   var scanRef=useRef(null);
-  var pdfImportRef=useRef(null);
   var profilePicRef=useRef(null);
 
   var userId=user||"guest";
@@ -5704,7 +5703,7 @@ function App(){
     });
   }
 
-  // Import recipe from URL (website, Instagram, TikTok, Facebook)
+  // Import recipe from a recipe website or blog URL
   var RECIPE_PROXY_URL = "https://recipe-proxy.coby-chavers.workers.dev";
 
   // All AI calls go through here so they carry the signed-in user's Firebase
@@ -5763,17 +5762,6 @@ function App(){
 
   function importFromUrl(url) {
     if (!url.trim()) return;
-    
-    // Check for social media URLs that don't work well with direct import
-    var isSocialMedia = url.includes("instagram.com") || url.includes("tiktok.com") || url.includes("facebook.com") || url.includes("fb.com");
-    
-    if (isSocialMedia) {
-      // Social media blocks direct access - guide user to use Scan instead
-      appAlert("Instagram, TikTok, and Facebook block direct recipe import.\n\n📷 Try this instead:\n1. Screenshot the recipe post\n2. Close this and tap 'Scan'\n3. Upload your screenshot(s)\n\nThe AI will extract the recipe from your photos!");
-      setImportLoading(false);
-      return;
-    }
-
     if (!isOnline) { appAlert("Importing a recipe requires an internet connection. Please try again once you're back online."); setImportLoading(false); return; }
 
     setImportLoading(true);
@@ -5884,71 +5872,6 @@ function App(){
         reviewImportedRecipe({}, "Imported from " + url, "url");
       }, {confirmText:"Add by Hand"});
     });
-  }
-
-  // Import recipe from PDF
-  function importFromPdf(file) {
-    if (!file) return;
-    if (!isOnline) { appAlert("Importing a recipe requires an internet connection. Please try again once you're back online."); return; }
-    setImportLoading(true);
-    setImportStatus("Reading PDF...");
-    
-    var reader = new FileReader();
-    reader.onerror = function() {
-      setImportLoading(false);
-      setImportStatus("");
-      appAlert("Could not read the PDF file.");
-    };
-    reader.onload = function(ev) {
-      var base64 = ev.target.result.split(",")[1];
-      setImportStatus("Extracting recipe from PDF...");
-      
-      proxyFetch({
-        type: "pdf",
-        imageData: base64,
-        mimeType: "application/pdf"
-      })
-      .then(function(response) { return response.json(); })
-      .then(function(data) {
-        if (data.error) throw new Error(data.error);
-        if (!data.success || !data.recipe) throw new Error("Could not extract recipe from this PDF");
-        
-        var parsed = data.recipe;
-        setImportStatus("Recipe found!");
-
-        // Too thin to trust - complete it in the editor instead of saving it broken.
-        if (!(parsed.ingredients && parsed.ingredients.length)) {
-          reviewImportedRecipe(parsed, "Imported from PDF: " + file.name, "pdf");
-          return;
-        }
-
-        var newRecipe = {
-          id: Date.now(),
-          name: parsed.name || "Imported Recipe",
-          emoji: "🍽️",
-          time: parsed.time || "",
-          ingredients: (parsed.ingredients || []).map(sanitizeIng),
-          notes: parsed.notes || "",
-          recipeType: parsed.recipeType || "other",
-          credit: "Imported from PDF: " + file.name
-        };
-
-        svR(recipes.concat([newRecipe]));
-        setImportLoading(false);
-        setImportStatus("");
-        setShowImport(false);
-        setExpR(newRecipe.id);
-      })
-      .catch(function(err) {
-        setImportLoading(false);
-        setImportStatus("");
-        if (err.isRateLimit) { appAlert(err.message); return; }
-        appConfirm("Couldn't read that PDF automatically. Add this recipe by hand instead?", function(){
-          reviewImportedRecipe({}, "Imported from PDF: " + file.name, "pdf");
-        }, {confirmText:"Add by Hand"});
-      });
-    };
-    reader.readAsDataURL(file);
   }
 
   // A chat reply is only "save"-able once it's ONE fully detailed recipe (multiple
@@ -8118,9 +8041,6 @@ function App(){
               <div style={{fontSize:13,color:C.light,marginTop:10,lineHeight:1.5}}>
                 <strong>Works with:</strong> AllRecipes, Food Network, Bon Appétit, recipe blogs, etc.
               </div>
-              <div style={{fontSize:13,color:C.light,marginTop:6,lineHeight:1.5,background:C.blush,padding:"10px 12px",borderRadius:8}}>
-                <strong>Instagram/TikTok?</strong> Screenshot the recipe and use the <strong>Photo</strong> tab instead!
-              </div>
             </div>
             <button 
               onClick={function(){importFromUrl(importUrl)}} 
@@ -8134,7 +8054,7 @@ function App(){
           {/* Photo Tab */}
           {!importLoading&&importTab==="photo"?<div>
             <div style={{fontSize:13,color:C.light,marginBottom:16,lineHeight:1.5}}>
-              Snap a photo of a recipe card, cookbook page, or a screenshot (Instagram, TikTok) and we'll pull the recipe out of it.
+              Snap a photo of a recipe card, cookbook page, or a screenshot and we'll pull the recipe out of it.
             </div>
             <div
               onClick={function(){setShowImport(false);setScanPhotos([]);setShowScanModal(true);}}
