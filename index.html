@@ -2589,6 +2589,13 @@ function GroceryTab(p){
   // from the merge key (only when something precedes them, so the spice "cloves"
   // or a bare "leaves" is left alone). Merge-key only - never changes the label.
   var GROCERY_FORM_NOUN={leaf:1,leaves:1,clove:1,cloves:1,sprig:1,sprigs:1,stalk:1,stalks:1,stem:1,stems:1,rib:1,ribs:1};
+  // Head nouns where a leading "ground" makes a genuinely DIFFERENT product than
+  // the plain word, so "ground" must NOT be stripped: the ground meats (ground
+  // beef isn't beef) and the few spices sold both whole and ground where a
+  // recipe means one specifically (ground ginger vs fresh ginger, etc.). For
+  // every other "ground X" (ground cumin, ground cinnamon, ground coriander...)
+  // "ground" is just the form and X is the same jar, so it's dropped for keying.
+  var GROCERY_GROUND_KEEP={beef:1,pork:1,turkey:1,chicken:1,veal:1,lamb:1,bison:1,venison:1,sausage:1,meat:1,chuck:1,sirloin:1,round:1,ginger:1,mustard:1,nutmeg:1,coffee:1,almond:1,flaxseed:1};
   // Hyphens/dashes read as spaces for keying, so "all-purpose flour" and "all
   // purpose flour" (and "extra-virgin" vs "extra virgin") are the same item.
   function dehyphen(s){return (s||"").replace(/[-­‐-―−]+/g," ").replace(/\s+/g," ").trim();}
@@ -2596,6 +2603,8 @@ function GroceryTab(p){
     var n=dehyphen(grocerySynonymKey(dehyphen((name||"").toLowerCase())));
     var words=n.split(" ");
     while(words.length>1&&(GROCERY_SAFE_DESCRIPTOR[words[0]]||GROCERY_PREP_LEADING[words[0]]))words.shift();
+    // "ground cumin" == "cumin" for shopping, but "ground beef" != "beef".
+    if(words.length>1&&words[0]==="ground"&&!GROCERY_GROUND_KEEP[grocerySingularLast(words[words.length-1])])words.shift();
     while(words.length>1&&GROCERY_FORM_NOUN[words[words.length-1]])words.pop();
     n=grocerySingularLast(words.join(" "));
     return dehyphen(grocerySynonymKey(n));
