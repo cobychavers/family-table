@@ -7019,8 +7019,7 @@ function App(){
             <button onClick={function(){setShowRecipePlusMenu(!showRecipePlusMenu)}} style={{padding:"7px 14px",borderRadius:8,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>+ Add</button>
             {showRecipePlusMenu?<div style={{position:"absolute",top:40,right:0,background:"var(--surface)",borderRadius:10,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,minWidth:180,zIndex:50,overflow:"hidden"}}>
               <button onClick={function(){setRf(emptyMeal());setShowRF(true);setShowRecipePlusMenu(false);setNewCatOpen(false);setNewCatName("")}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}}><Icon name="pencil" size={14} strokeWidth={1.75}/>Add Manually</button>
-              <button onClick={function(){setShowScanModal(true);setScanPhotos([]);setShowRecipePlusMenu(false)}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}}><Icon name="camera" size={14} strokeWidth={1.75}/>Photo</button>
-              <button onClick={function(){setShowImport(true);setShowRecipePlusMenu(false)}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",boxSizing:"border-box"}}><Icon name="inbox" size={14} strokeWidth={1.75}/>Import</button>
+              <button onClick={function(){setShowImport(true);setImportTab("text");setShowRecipePlusMenu(false)}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",boxSizing:"border-box"}}><Icon name="inbox" size={14} strokeWidth={1.75}/>Import</button>
             </div>:null}
           </div>
           {showRecipePlusMenu?<div onClick={function(){setShowRecipePlusMenu(false)}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:40}}/>:null}
@@ -7936,7 +7935,7 @@ function App(){
         
         {/* Tabs */}
         <div style={{display:"flex",borderBottom:"1px solid "+C.bdr,flexShrink:0}}>
-          {[["text","filetext","Text"],["url","globe","URL"],["pdf","filetext","PDF"]].map(function(t){
+          {[["text","filetext","Text"],["url","globe","URL"],["photo","camera","Photo"]].map(function(t){
             var active=importTab===t[0];
             return <button key={t[0]} onClick={function(){setImportTab(t[0])}} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,flex:1,padding:"12px",border:"none",borderBottom:active?"2px solid "+C.dark:"2px solid transparent",background:active?C.blush:"var(--surface)",cursor:"pointer",fontSize:13,fontWeight:active?700:500,color:active?C.dark:C.light}}><Icon name={t[1]} size={13} strokeWidth={1.75}/>{t[2]}</button>
           })}
@@ -8120,7 +8119,7 @@ function App(){
                 <strong>Works with:</strong> AllRecipes, Food Network, Bon Appétit, recipe blogs, etc.
               </div>
               <div style={{fontSize:13,color:C.light,marginTop:6,lineHeight:1.5,background:C.blush,padding:"10px 12px",borderRadius:8}}>
-                <strong>Instagram/TikTok?</strong> Screenshot the recipe and use <strong>Scan</strong> instead!
+                <strong>Instagram/TikTok?</strong> Screenshot the recipe and use the <strong>Photo</strong> tab instead!
               </div>
             </div>
             <button 
@@ -8132,25 +8131,18 @@ function App(){
             </button>
           </div>:null}
           
-          {/* PDF Tab */}
-          {!importLoading&&importTab==="pdf"?<div>
+          {/* Photo Tab */}
+          {!importLoading&&importTab==="photo"?<div>
             <div style={{fontSize:13,color:C.light,marginBottom:16,lineHeight:1.5}}>
-              Upload a PDF containing a recipe. Works great with recipe cards, cookbook pages, or printed recipes.
+              Snap a photo of a recipe card, cookbook page, or a screenshot (Instagram, TikTok) and we'll pull the recipe out of it.
             </div>
-            <input 
-              ref={pdfImportRef}
-              type="file" 
-              accept=".pdf,application/pdf" 
-              style={{display:"none"}} 
-              onChange={function(e){var f=e.target.files&&e.target.files[0];if(f)importFromPdf(f);e.target.value=""}}
-            />
-            <div 
-              onClick={function(){pdfImportRef.current&&pdfImportRef.current.click()}}
+            <div
+              onClick={function(){setShowImport(false);setScanPhotos([]);setShowScanModal(true);}}
               style={{width:"100%",padding:"40px 20px",borderRadius:12,border:"2px dashed "+C.bdr,background:C.blush,textAlign:"center",cursor:"pointer"}}
             >
-              <div style={{marginBottom:8,display:"flex",justifyContent:"center",opacity:.5}}><Icon name="filetext" size={34} strokeWidth={1.5}/></div>
-              <div style={{fontSize:14,fontWeight:600,color:C.dark,marginBottom:4}}>Click to upload PDF</div>
-              <div style={{fontSize:12,color:C.light}}>or drag and drop</div>
+              <div style={{marginBottom:8,display:"flex",justifyContent:"center",opacity:.5}}><Icon name="camera" size={34} strokeWidth={1.5}/></div>
+              <div style={{fontSize:14,fontWeight:600,color:C.dark,marginBottom:4}}>Take or choose photos</div>
+              <div style={{fontSize:12,color:C.light}}>Recipe cards, cookbook pages, or screenshots</div>
             </div>
           </div>:null}
         </div>
