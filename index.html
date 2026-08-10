@@ -4231,6 +4231,39 @@ function App(){
     setGroceryOwner(null); // push always lands on MY own list
     setView("grocery");
   }
+  var [showMoveDay,setShowMoveDay]=useState(false); // day-picker for moving selected meals
+  // Move the selected meals to a different day. Only your OWN meals can move
+  // (you can't rearrange a family member's plan); any others in the selection
+  // are left where they are. Removes each from its source day (by its position
+  // in your own meals doc) and appends it to the chosen day, in one write.
+  function moveSelectedToDay(targetDateKey){
+    if(!targetDateKey)return;
+    var entries=Object.keys(selectedCalMeals).map(function(k){return {key:k,meal:selectedCalMeals[k]};});
+    var mine=entries.filter(function(e){return isMine(e.meal);});
+    var skipped=entries.length-mine.length;
+    if(!mine.length){ setShowMoveDay(false); appAlert("You can only move your own meals to another day."); return; }
+    var next=Object.assign({},meals);
+    var removalsByDay={},toAdd=[];
+    mine.forEach(function(e){
+      var srcDay=e.key.split("|")[0];
+      var idx=(typeof e.meal._idx==="number")?e.meal._idx:parseInt(e.key.split("|")[1],10);
+      (removalsByDay[srcDay]=removalsByDay[srcDay]||[]).push(idx);
+      var clean=Object.assign({},e.meal); delete clean._owner; delete clean._ownerPic; delete clean._idx;
+      toAdd.push(clean);
+    });
+    Object.keys(removalsByDay).forEach(function(day){
+      var list=Array.isArray(next[day])?next[day].slice():(next[day]?[next[day]]:[]);
+      removalsByDay[day].sort(function(a,b){return b-a;}).forEach(function(i){ if(i>=0&&i<list.length)list.splice(i,1); });
+      if(list.length)next[day]=list; else delete next[day];
+    });
+    var tgt=Array.isArray(next[targetDateKey])?next[targetDateKey].slice():(next[targetDateKey]?[next[targetDateKey]]:[]);
+    toAdd.forEach(function(m){tgt.push(m);});
+    next[targetDateKey]=tgt;
+    svM(next);
+    setSelectedCalMeals({});
+    setShowMoveDay(false);
+    if(skipped>0)appAlert("Moved "+mine.length+" meal"+(mine.length===1?"":"s")+" · "+skipped+" belonged to someone else and stayed put.");
+  }
   var [showPlaceholder,setShowPlaceholder]=useState(null); // date key currently adding a placeholder for, or null
   var [dayAddMenu,setDayAddMenu]=useState(null); // date key whose "+" add-menu is open, or null
   var [placeholderText,setPlaceholderText]=useState("");
@@ -6742,12 +6775,30 @@ function App(){
         {Object.keys(selectedCalMeals).length>0?<div style={{position:"fixed",left:0,right:0,bottom:"calc(18px + env(safe-area-inset-bottom))",zIndex:900,display:"flex",justifyContent:"center",pointerEvents:"none"}}>
           <div style={{display:"flex",alignItems:"center",gap:4,background:C.dark,borderRadius:28,boxShadow:"0 8px 24px rgba(0,0,0,0.3), 0 2px 6px rgba(0,0,0,0.18)",padding:"5px 5px 5px 6px",pointerEvents:"auto",animation:"ft-fade-in .2s cubic-bezier(0.16,1,0.3,1)"}}>
             <button onClick={function(){setSelectedCalMeals({})}} aria-label="Clear selection" style={{width:38,height:38,borderRadius:19,border:"none",background:"transparent",color:"rgba(255,255,255,0.75)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="x" size={16} color="rgba(255,255,255,0.75)" strokeWidth={2.5}/></button>
-            <button className="ft-card-tap" onClick={moveSelectedToGrocery} style={{display:"flex",alignItems:"center",gap:8,padding:"11px 20px 11px 16px",borderRadius:24,border:"none",background:"rgba(255,255,255,0.12)",color:"#fff",fontFamily:"'Inter',-apple-system,sans-serif",fontSize:14,fontWeight:600,letterSpacing:0.2,cursor:"pointer"}}>
-              <Icon name="cart" size={16} color="#fff" strokeWidth={2}/>
-              {"Move "+Object.keys(selectedCalMeals).length+" to Grocery"}
+            <span style={{color:"rgba(255,255,255,0.85)",fontSize:13,fontWeight:700,padding:"0 4px 0 4px",flexShrink:0}}>{Object.keys(selectedCalMeals).length}</span>
+            <button className="ft-card-tap" onClick={moveSelectedToGrocery} style={{display:"flex",alignItems:"center",gap:7,padding:"11px 16px",borderRadius:22,border:"none",background:"rgba(255,255,255,0.12)",color:"#fff",fontFamily:"'Inter',-apple-system,sans-serif",fontSize:14,fontWeight:600,cursor:"pointer",flexShrink:0}}>
+              <Icon name="cart" size={16} color="#fff" strokeWidth={2}/>Grocery
+            </button>
+            <button className="ft-card-tap" onClick={function(){setShowMoveDay(true)}} style={{display:"flex",alignItems:"center",gap:7,padding:"11px 16px",borderRadius:22,border:"none",background:"rgba(255,255,255,0.12)",color:"#fff",fontFamily:"'Inter',-apple-system,sans-serif",fontSize:14,fontWeight:600,cursor:"pointer",flexShrink:0}}>
+              <Icon name="calendar" size={16} color="#fff" strokeWidth={2}/>Move
             </button>
           </div>
         </div>:null}
+
+        {/* Move-to-day picker for the checked meals. */}
+        {showMoveDay?<div style={ovl} onClick={function(){setShowMoveDay(false)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16,color:C.ink}}><Icon name="calendar" size={16} color={C.dark} strokeWidth={1.75}/>Move to which day?</div>
+            <button onClick={function(){setShowMoveDay(false)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button>
+          </div>
+          <div style={{fontSize:12.5,color:C.light,marginBottom:14}}>{Object.keys(selectedCalMeals).length+" meal"+(Object.keys(selectedCalMeals).length===1?"":"s")+" selected"}</div>
+          <div style={{fontWeight:600,fontSize:13,marginBottom:8,color:C.ink}}>This week</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:16}}>
+            {wd.map(function(date,i){var k=dk(date),isT=k===todayK,hm=activeMeals[k];return <button key={k} onClick={function(){moveSelectedToDay(k)}} style={{padding:10,borderRadius:10,border:isT?"2px solid "+C.dark:"1px solid "+C.bdr,background:hm?C.blushMed:C.card,cursor:"pointer",textAlign:"center"}}><div style={{fontSize:11,fontWeight:700,color:C.light}}>{DAYS_FULL[i].slice(0,3)}</div><div style={{fontSize:16,fontWeight:800,color:isT?C.dark:"var(--dark)"}}>{date.getDate()}</div></button>})}
+          </div>
+          <div style={{fontWeight:600,fontSize:13,marginBottom:6,color:C.ink}}>Or pick any date</div>
+          <input type="date" onChange={function(e){if(e.target.value)moveSelectedToDay(e.target.value)}} style={Object.assign({},inp,{marginBottom:0})}/>
+        </div></div>:null}
         {/* One shared calendar. Only a brief syncing note while the family's
             plans load - no permanent banner (it was just clutter). */}
         {hasFamily&&familyMealsLoading?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:14,fontSize:12,color:C.light}}>
