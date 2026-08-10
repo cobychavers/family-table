@@ -277,7 +277,7 @@ export default {
 
       if (type === "chef_chat") {
         // Recipe-idea chat - returns a plain-text reply, not a structured recipe
-        payload = { success: true, reply: await chefChat(body.messages, env.ANTHROPIC_API_KEY, meter, body.avoid, body.taste) };
+        payload = { success: true, reply: await chefChat(body.messages, env.ANTHROPIC_API_KEY, meter, body.avoid, body.taste, body.planned, body.pantry, body.diet) };
       } else if (type === "ingredient_swap") {
         // Substitutes for one ingredient - returns its own {success, original,
         // suggestions} shape, not the {success, recipe} shape
@@ -863,7 +863,7 @@ Important:
 }
 
 // Recipe-idea brainstorming chat
-async function chefChat(messages, apiKey, meter, avoid, taste) {
+async function chefChat(messages, apiKey, meter, avoid, taste, planned, pantry, diet) {
   if (!messages || messages.length === 0) {
     throw new Error("No messages provided");
   }
@@ -913,6 +913,21 @@ Keep tone practical and friendly. No long preambles, no markdown headers, no emo
   // the variety rules, and always defer to an explicit request in the chat.
   if (typeof taste === "string" && taste.trim()) {
     systemPrompt += `\n\nWhat this cook tends to like, inferred from their saved recipes: ${taste.trim()}.\nLean your ideas toward these tastes and ingredients they already enjoy - it makes suggestions feel personal. But keep the variety rules above (still range around, still no repeats), and if the user asks for something specific in the chat, follow that over their usual tastes.`;
+  }
+
+  // Dietary preferences/restrictions - HARD constraints, always respected.
+  if (typeof diet === "string" && diet.trim()) {
+    systemPrompt += `\n\nDIETARY RULES (hard constraints - NEVER violate these, in ideas OR full recipes): ${diet.trim()}. If a dish would break these, don't offer it; adapt or choose something else. Don't call attention to the rules - just quietly follow them.`;
+  }
+
+  // What's already scheduled on their calendar this week - suggest around it.
+  if (Array.isArray(planned) && planned.length) {
+    systemPrompt += `\n\nAlready on their meal plan for this week (don't re-suggest these exact dishes when giving ideas - complement them and keep the week varied):\n` + planned.slice(0, 20).map(d => "- " + d).join("\n");
+  }
+
+  // Pantry staples they already have on hand.
+  if (Array.isArray(pantry) && pantry.length) {
+    systemPrompt += `\n\nStaples the cook already has on hand: ${pantry.slice(0, 50).join(", ")}.\nWhen it fits, prefer ideas that make good use of these, and never tell them to buy something in this list.`;
   }
 
   const anthropicMessages = messages.map(m => ({

@@ -4362,7 +4362,36 @@ function App(){
   var chefInputRef=useRef(null);
   var [chefLoading,setChefLoading]=useState(false);
   var [chefLastActive,setChefLastActive]=useState(null);
+  // Dietary preferences the Chef must always respect (free text: "vegetarian,
+  // no pork, allergic to shellfish"). Persisted locally and sent with every ask.
+  var [chefDiet,setChefDiet]=useState(function(){try{return localStorage.getItem("dm_chef_diet")||""}catch(e){return""}});
+  var [showChefPrefs,setShowChefPrefs]=useState(false);
+  function saveChefDiet(v){setChefDiet(v);try{localStorage.setItem("dm_chef_diet",v||"")}catch(e){}}
+  // The user's pantry staples, loaded so the Chef can lean on what they already
+  // have. (The pantry itself is managed in the Grocery tab; this is a read.)
+  var [chefPantry,setChefPantry]=useState([]);
   var [chefSwaps,setChefSwaps]=useState({}); // msgIndex -> {original, substitute} - ephemeral display overlay for un-saved Chef-suggested recipes
+  // Load the user's pantry staples once (read-only) so the Chef can prefer ideas
+  // that use what they already have.
+  useEffect(function(){
+    if(!userId||userId==="guest"){setChefPantry([]);return;}
+    window.storage.get("dm_pantry_"+userId,true).then(function(r){
+      if(r&&r.value){try{var list=JSON.parse(r.value);setChefPantry((list||[]).map(function(x){return x&&x.name?x.name:""}).filter(Boolean));}catch(e){}}
+    }).catch(function(){});
+  },[userId]);
+  // Dish names planned on the calendar for the current week - fed to the Chef so
+  // it varies around what's already scheduled instead of re-suggesting it.
+  function buildChefPlanned(){
+    var names=[],seen={};
+    (wd||[]).forEach(function(d){
+      var v=activeMeals[dk(d)];if(!v)return;
+      (Array.isArray(v)?v:[v]).forEach(function(m){
+        var nm=m&&m.name?m.name.trim():"";
+        if(nm&&!m.placeholder&&!seen[nm.toLowerCase()]){seen[nm.toLowerCase()]=1;names.push(nm);}
+      });
+    });
+    return names;
+  }
   var [showSwapPicker,setShowSwapPicker]=useState(false);
   var [swapPickerRecipeKey,setSwapPickerRecipeKey]=useState("");
   var [swapPickerIngredient,setSwapPickerIngredient]=useState("");
@@ -6117,7 +6146,7 @@ function App(){
 
     setChefLoading(true);
 
-    proxyFetch({type:"chef_chat",messages:history.slice(-10),avoid:chefSeenDishes.slice(0,40),taste:buildTasteProfile()})
+    proxyFetch({type:"chef_chat",messages:history.slice(-10),avoid:chefSeenDishes.slice(0,40),taste:buildTasteProfile(),planned:buildChefPlanned().slice(0,20),pantry:chefPantry.slice(0,50),diet:(chefDiet||"").trim()})
     .then(function(response){return response.json()})
     .then(function(data){
       if(data.error)throw new Error(data.error);
@@ -7247,6 +7276,7 @@ function App(){
           </div>
           <div style={{display:"flex",alignItems:"center",gap:14}}>
             {chefMessages.length>0?<button onClick={function(){setChefMessages([]);setChefSwaps({})}} style={{background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.light,cursor:"pointer"}}>New Chat</button>:null}
+            <button onClick={function(){setShowChefPrefs(true)}} title="Chef preferences" style={{background:"none",border:"none",padding:0,cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontSize:12,fontWeight:600,color:chefDiet.trim()?C.gold:C.light}}><Icon name="user" size={14} color={chefDiet.trim()?C.gold:C.light} strokeWidth={2}/>Preferences</button>
           </div>
         </div>
 
@@ -7307,6 +7337,16 @@ function App(){
           <input ref={chefInputRef} value={chefInput} onChange={function(e){setChefInput(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter"&&!chefLoading&&chefInput.trim())sendChefMessage(chefInput)}} placeholder="Ask the Chef" style={Object.assign({},inp,{flex:1})} disabled={chefLoading}/>
           <button onClick={function(){sendChefMessage(chefInput)}} disabled={chefLoading||!chefInput.trim()} style={{width:44,height:44,borderRadius:10,border:"none",background:(chefLoading||!chefInput.trim())?C.blushDeep:C.dark,color:"#fff",cursor:(chefLoading||!chefInput.trim())?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="send" size={18} strokeWidth={2}/></button>
         </div>
+
+        {showChefPrefs?<div style={ovl} onClick={function(){setShowChefPrefs(false)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16,color:C.ink}}><Icon name="user" size={15} color={C.dark} strokeWidth={1.75}/>Chef Preferences</div>
+            <button onClick={function(){setShowChefPrefs(false)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button>
+          </div>
+          <div style={{fontSize:12.5,color:C.light,lineHeight:1.5,marginBottom:12}}>Any dietary needs or preferences? The Chef will always keep these in mind - in ideas and full recipes.</div>
+          <textarea value={chefDiet} onChange={function(e){saveChefDiet(e.target.value)}} placeholder="e.g. vegetarian, no pork, dairy-free, allergic to shellfish, low-carb" style={{width:"100%",boxSizing:"border-box",minHeight:100,padding:"12px 14px",borderRadius:12,border:"1px solid "+C.bdr,fontSize:14,lineHeight:1.5,resize:"vertical",fontFamily:"'Inter',-apple-system,sans-serif",background:C.card,color:C.ink,outline:"none"}}/>
+          <button onClick={function(){setShowChefPrefs(false)}} style={Object.assign({},btn(C.dark),{width:"100%",marginTop:12})}>Done</button>
+        </div></div>:null}
       </div>}
 
       {view==="grocery"&&<GroceryTab meals={meals} wdates={wd} wlabel={wl} rgn={region} gSI={gSI} gSFI={gSFI} setItemStore={setSI} userId={groceryListOwner} ownList={groceryIsMine} ownerUid={groceryOwnerUid} listOwner={groceryOwner} setListOwner={setGroceryOwner} members={householdMembers} me={userId} myProfilePic={userProfilePic} groceryHidden={groceryHidden} setGroceryHidden={setGroceryHidden} stores={STORES} addCustomStore={addCustomStore} removeCustomStore={removeCustomStore} defStore={defStore} setDefStore={handleSetDefStore} categoryStores={categoryStores} setCategoryStore={handleSetCategoryStore} goToCalendar={function(){setView("calendar")}} goToPantry={function(){setView("pantry")}} setWs={setWs} ws={ws} pendingMeals={pendingGroceryMeals} clearPendingMeals={function(){setPendingGroceryMeals(null)}} setMealStatus={setMealStatus}/>}
