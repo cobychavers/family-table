@@ -6163,8 +6163,11 @@ function App(){
     });
   }
 
-  function saveChefIdeaAsRecipe(text){
-    if(!isOnline){ appAlert("Saving this idea as a recipe requires an internet connection. Please try again once you're back online."); return; }
+  // Turn a Chef full-recipe reply into a structured recipe object (via the same
+  // parser the imports use), then hand it to a callback - the three actions
+  // below (save / plan / grocery) share this one parse.
+  function chefTextToRecipe(text,cb){
+    if(!isOnline){ appAlert("This needs an internet connection. Please try again once you're back online."); return; }
     setChefLoading(true);
     proxyFetch({type:"parse_text",text:text})
     .then(function(response){return response.json()})
@@ -6172,7 +6175,7 @@ function App(){
       if(data.error)throw new Error(data.error);
       if(!data.success||!data.recipe)throw new Error("Could not turn that into a recipe");
       var parsed=data.recipe;
-      var newRecipe=stampNewRecipe({
+      var recipe=stampNewRecipe({
         name:parsed.name||"Chef idea",
         emoji:"🍽️",
         time:parsed.time||"",
@@ -6183,13 +6186,27 @@ function App(){
         servings:parsed.servings||null,
         nutrition:sanitizeNutrition(parsed.nutrition)
       },userId,"chef_chat");
-      svR(recipes.concat([newRecipe]));
       setChefLoading(false);
-      setViewRecipe(newRecipe);
+      cb(recipe);
     })
     .catch(function(err){
       setChefLoading(false);
-      appAlert(err.isRateLimit?err.message:("Couldn't save that as a recipe: "+err.message));
+      appAlert(err.isRateLimit?err.message:("Couldn't do that: "+err.message));
+    });
+  }
+  function saveChefIdeaAsRecipe(text){
+    chefTextToRecipe(text,function(recipe){ svR(recipes.concat([recipe])); setViewRecipe(recipe); });
+  }
+  // Plan it: parse the recipe and open the "Add to Calendar" picker with it.
+  function chefPlanRecipe(text){
+    chefTextToRecipe(text,function(recipe){ setR2cal(recipe); setR2date(""); });
+  }
+  // Add to grocery: parse the recipe and push its ingredients onto the list.
+  function chefRecipeToGrocery(text){
+    chefTextToRecipe(text,function(recipe){
+      setPendingGroceryMeals([recipe]);
+      setGroceryOwner(null);
+      setView("grocery");
     });
   }
 
@@ -7316,7 +7333,9 @@ function App(){
                   {pickable?<div style={{display:"flex",alignItems:"center",gap:5,marginTop:6,fontSize:11,color:C.gold,fontWeight:600}}><Icon name="sparkle" size={10} color={C.gold} strokeWidth={2}/>Tap a dish for the full recipe</div>:null}
                   {showChips?<div style={{display:"flex",flexWrap:"wrap",gap:7,marginTop:9}}>{parsedChef.chips.map(function(c,ci){return <button key={ci} onClick={function(){if(!chefLoading)sendChefMessage(c)}} style={{padding:"8px 14px",borderRadius:16,border:"1px solid "+C.gold,background:"var(--surface)",color:C.dark,fontSize:13,fontWeight:600,cursor:"pointer",boxShadow:C.shadowSm}}>{c}</button>})}</div>:null}
                   {swapOverlay?<button onClick={function(){setChefSwaps(function(prev){var next=Object.assign({},prev);delete next[i];return next})}} style={{display:"flex",alignItems:"center",gap:4,marginTop:6,background:"none",border:"none",padding:0,fontSize:11,fontWeight:600,color:C.gold,cursor:"pointer"}}><Icon name="swap" size={11} color={C.gold} strokeWidth={2}/>Swapped - tap to revert</button>:null}
-                  {m.role==="assistant"&&m.kind!=="swap"&&chefReplyIsFullRecipe(m.text)?<button onClick={function(){saveChefIdeaAsRecipe(m.text)}} disabled={chefLoading} style={{marginTop:6,background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.gold,cursor:chefLoading?"default":"pointer"}}>Save as Recipe</button>:null}
+                  {m.role==="assistant"&&m.kind!=="swap"&&chefReplyIsFullRecipe(m.text)?<div style={{display:"flex",flexWrap:"wrap",gap:7,marginTop:9}}>
+                    {[["Save","bookmark",function(){saveChefIdeaAsRecipe(m.text)}],["Plan","calendar",function(){chefPlanRecipe(m.text)}],["Add to grocery","cart",function(){chefRecipeToGrocery(m.text)}]].map(function(a,ai){return <button key={ai} onClick={function(){if(!chefLoading)a[2]()}} disabled={chefLoading} style={{display:"inline-flex",alignItems:"center",gap:5,padding:"7px 12px",borderRadius:14,border:"1px solid "+C.gold,background:"var(--surface)",color:C.gold,fontSize:12,fontWeight:600,cursor:chefLoading?"default":"pointer",opacity:chefLoading?.6:1}}><Icon name={a[1]} size={12} color={C.gold} strokeWidth={2}/>{a[0]}</button>})}
+                  </div>:null}
                   {m.role==="assistant"&&m.kind==="swap"?<div style={{marginTop:8,display:"flex",flexDirection:"column",gap:8}}>
                     {m.suggestions.map(function(s,si){return <div key={si} style={{background:"var(--surface)",border:"1px solid "+C.bdr,borderRadius:10,padding:"10px 12px",boxShadow:C.shadowSm}}>
                       <div style={{fontSize:14,fontWeight:700,color:C.ink,marginBottom:2}}>{s.substitute}</div>
