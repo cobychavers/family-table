@@ -1449,6 +1449,24 @@ function sanitizeIng(i){
 // head on the name, re-join it to the quantity, and re-parse the whole line so
 // the fraction, unit and name land back in the right places. A no-op for any
 // ingredient that isn't malformed this way.
+// Coerce an AI-returned nutrition object into a clean, display-safe shape (or
+// null if there's nothing usable). Calories become a positive integer; the
+// macros become short strings ending in "g".
+function sanitizeNutrition(n){
+  if(!n||typeof n!=="object")return null;
+  var cal=n.calories;
+  if(typeof cal==="string")cal=parseInt(cal.replace(/[^0-9.]/g,""),10);
+  cal=(typeof cal==="number"&&isFinite(cal)&&cal>0)?Math.round(cal):null;
+  function macro(v){
+    if(v==null)return "";
+    v=String(v).trim();
+    if(!/\d/.test(v))return "";
+    return /[a-z]/i.test(v)?v:v+"g";
+  }
+  var protein=macro(n.protein),carbs=macro(n.carbs),fat=macro(n.fat);
+  if(cal==null&&!protein&&!carbs&&!fat)return null;
+  return {calories:cal,protein:protein,carbs:carbs,fat:fat};
+}
 function repairIngObject(ing){
   if(!ing||typeof ing!=="object")return ing;
   var nm=(ing.name==null?"":String(ing.name)).replace(/^\s+/,"");
@@ -1846,6 +1864,29 @@ function parseInstructionSteps(text){
   var out=[];
   steps.forEach(function(s){ splitStepSentences(s).forEach(function(x){ if(x)out.push(x); }); });
   return out;
+}
+
+// The Chef offers tappable quick answers by ending a clarifying question with a
+// line like "[[chips: Cozy | Fresh | Fast]]". Pull those out and return the
+// message text without that line, plus the chip labels.
+function parseChefChips(text){
+  text=text||"";
+  var chips=[];
+  var m=text.match(/\[\[chips:([^\]]*)\]\]/i);
+  if(m){
+    chips=m[1].split("|").map(function(s){return s.trim();}).filter(Boolean);
+    text=text.replace(m[0],"").replace(/[ \t]+$/gm,"").replace(/\s+$/,"");
+  }
+  return {text:text, chips:chips};
+}
+// Render **bold** markdown inline (the Chef bolds dish names). Returns an array
+// of strings and <strong> nodes; the container keeps whiteSpace:pre-wrap so
+// line breaks survive.
+function renderRichText(text){
+  return (text||"").split(/(\*\*[^*]+\*\*)/g).map(function(p,i){
+    var b=/^\*\*([^*]+)\*\*$/.exec(p);
+    return b?React.createElement("strong",{key:i},b[1]):p;
+  });
 }
 
 // No icon field here on purpose. Categories are rendered by CatTag as a gold
@@ -5764,7 +5805,9 @@ function App(){
       notes: parsed.notes || "",
       recipeType: parsed.recipeType || "",
       photo: parsed.photo || null,
-      credit: credit || parsed.credit || ""
+      credit: credit || parsed.credit || "",
+      servings: parsed.servings || null,
+      nutrition: sanitizeNutrition(parsed.nutrition)
     }, userId, source || "import");
     setImportLoading(false);
     setImportStatus("");
@@ -6104,7 +6147,9 @@ function App(){
         ingredients:(parsed.ingredients||[]).map(sanitizeIng),
         notes:parsed.notes||"",
         recipeType:parsed.recipeType||"other",
-        credit:"Suggested by AI Chef"
+        credit:"Suggested by AI Chef",
+        servings:parsed.servings||null,
+        nutrition:sanitizeNutrition(parsed.nutrition)
       },userId,"chef_chat");
       svR(recipes.concat([newRecipe]));
       setChefLoading(false);
@@ -7082,6 +7127,29 @@ function App(){
               </React.Fragment>}
             </div>
 
+            {/* Nutrition - estimated, per serving */}
+            {(function(){
+              var nut=sanitizeNutrition(viewRecipe.nutrition);
+              if(!nut)return null;
+              var srv=viewRecipe.servings;
+              var cells=[];
+              if(nut.calories!=null)cells.push({label:"Cal",value:String(nut.calories)});
+              if(nut.protein)cells.push({label:"Protein",value:nut.protein});
+              if(nut.carbs)cells.push({label:"Carbs",value:nut.carbs});
+              if(nut.fat)cells.push({label:"Fat",value:nut.fat});
+              if(!cells.length)return null;
+              return <div style={{marginBottom:20}}>
+                <div style={{fontSize:11,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.6,marginBottom:8}}>Nutrition · per serving{srv?" ("+srv+" servings)":""}</div>
+                <div style={{display:"flex",gap:8}}>
+                  {cells.map(function(c,ci){return <div key={ci} style={{flex:1,background:C.blush,borderRadius:12,padding:"10px 6px",textAlign:"center"}}>
+                    <div style={{fontSize:17,fontWeight:800,color:C.ink,fontFamily:"'Cormorant Garamond','Georgia',serif",lineHeight:1.1}}>{c.value}</div>
+                    <div style={{fontSize:10,fontWeight:600,color:C.light,textTransform:"uppercase",letterSpacing:.4,marginTop:3}}>{c.label}</div>
+                  </div>})}
+                </div>
+                <div style={{fontSize:10.5,color:C.light,marginTop:6,fontStyle:"italic"}}>Estimated from ingredients</div>
+              </div>;
+            })()}
+
             {/* Ingredients - collapsible */}
             {viewRecipe.ingredients&&viewRecipe.ingredients.length>0?<div style={{marginBottom:20}}>
               <div onClick={function(){setViewRecipeHideIng(!viewRecipeHideIng)}} style={{display:"flex",alignItems:"center",gap:8,marginBottom:viewRecipeHideIng?0:12,cursor:"pointer"}}>
@@ -7202,10 +7270,13 @@ function App(){
                 var esc=swapOverlay.original.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
                 displayText=displayText.replace(new RegExp(esc,"i"),swapOverlay.substitute);
               }
-              return <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",marginBottom:14}}>
+              var parsedChef=m.role==="assistant"?parseChefChips(displayText):{text:displayText,chips:[]};
+              var showChips=m.role==="assistant"&&parsedChef.chips.length>0&&i===chefMessages.length-1&&!chefLoading;
+              return <div key={i} style={{display:"flex",flexDirection:"column",alignItems:m.role==="user"?"flex-end":"flex-start",marginBottom:14}}>
                 <div style={{maxWidth:"85%"}}>
                   {m.role==="assistant"?<div style={{display:"flex",alignItems:"center",gap:5,marginBottom:5}}><Icon name="sparkle" size={11} color={C.gold} strokeWidth={2}/><span style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.5}}>AI Chef</span></div>:null}
-                  <div style={{padding:"11px 14px",borderRadius:14,background:m.role==="user"?C.dark:"var(--surface)",color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.5,boxShadow:m.role==="user"?"none":C.shadowSm,whiteSpace:"pre-wrap"}}>{displayText}</div>
+                  <div style={{padding:"11px 14px",borderRadius:14,background:m.role==="user"?C.dark:"var(--surface)",color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.5,boxShadow:m.role==="user"?"none":C.shadowSm,whiteSpace:"pre-wrap"}}>{m.role==="assistant"?renderRichText(parsedChef.text):displayText}</div>
+                  {showChips?<div style={{display:"flex",flexWrap:"wrap",gap:7,marginTop:9}}>{parsedChef.chips.map(function(c,ci){return <button key={ci} onClick={function(){if(!chefLoading)sendChefMessage(c)}} style={{padding:"8px 14px",borderRadius:16,border:"1px solid "+C.gold,background:"var(--surface)",color:C.dark,fontSize:13,fontWeight:600,cursor:"pointer",boxShadow:C.shadowSm}}>{c}</button>})}</div>:null}
                   {swapOverlay?<button onClick={function(){setChefSwaps(function(prev){var next=Object.assign({},prev);delete next[i];return next})}} style={{display:"flex",alignItems:"center",gap:4,marginTop:6,background:"none",border:"none",padding:0,fontSize:11,fontWeight:600,color:C.gold,cursor:"pointer"}}><Icon name="swap" size={11} color={C.gold} strokeWidth={2}/>Swapped - tap to revert</button>:null}
                   {m.role==="assistant"&&m.kind!=="swap"&&chefReplyIsFullRecipe(m.text)?<button onClick={function(){saveChefIdeaAsRecipe(m.text)}} disabled={chefLoading} style={{marginTop:6,background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.gold,cursor:chefLoading?"default":"pointer"}}>Save as Recipe</button>:null}
                   {m.role==="assistant"&&m.kind==="swap"?<div style={{marginTop:8,display:"flex",flexDirection:"column",gap:8}}>
