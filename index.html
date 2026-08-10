@@ -1881,11 +1881,14 @@ function parseChefChips(text){
 }
 // Render **bold** markdown inline (the Chef bolds dish names). Returns an array
 // of strings and <strong> nodes; the container keeps whiteSpace:pre-wrap so
-// line breaks survive.
-function renderRichText(text){
+// line breaks survive. When onBold is given (idea-list replies), each bolded
+// dish name becomes tappable so a tap fetches that full recipe - no typing.
+function renderRichText(text,onBold){
   return (text||"").split(/(\*\*[^*]+\*\*)/g).map(function(p,i){
     var b=/^\*\*([^*]+)\*\*$/.exec(p);
-    return b?React.createElement("strong",{key:i},b[1]):p;
+    if(!b)return p;
+    if(onBold)return React.createElement("strong",{key:i,onClick:function(){onBold(b[1])},style:{color:"var(--dark)",textDecorationLine:"underline",textDecorationStyle:"dotted",textUnderlineOffset:3,cursor:"pointer"}},b[1]);
+    return React.createElement("strong",{key:i},b[1]);
   });
 }
 
@@ -7272,10 +7275,15 @@ function App(){
               }
               var parsedChef=m.role==="assistant"?parseChefChips(displayText):{text:displayText,chips:[]};
               var showChips=m.role==="assistant"&&parsedChef.chips.length>0&&i===chefMessages.length-1&&!chefLoading;
+              // An idea-list reply (not a full recipe, swap, or clarifying question):
+              // make each bolded dish name tappable to pull up its full recipe.
+              var pickable=m.role==="assistant"&&m.kind!=="swap"&&parsedChef.chips.length===0&&!chefReplyIsFullRecipe(m.text)&&/\*\*[^*]+\*\*/.test(parsedChef.text);
+              var onPickDish=pickable?function(name){if(!chefLoading)sendChefMessage("Please give me the full recipe for "+name)}:null;
               return <div key={i} style={{display:"flex",flexDirection:"column",alignItems:m.role==="user"?"flex-end":"flex-start",marginBottom:14}}>
                 <div style={{maxWidth:"85%"}}>
                   {m.role==="assistant"?<div style={{display:"flex",alignItems:"center",gap:5,marginBottom:5}}><Icon name="sparkle" size={11} color={C.gold} strokeWidth={2}/><span style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.5}}>AI Chef</span></div>:null}
-                  <div style={{padding:"11px 14px",borderRadius:14,background:m.role==="user"?C.dark:"var(--surface)",color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.5,boxShadow:m.role==="user"?"none":C.shadowSm,whiteSpace:"pre-wrap"}}>{m.role==="assistant"?renderRichText(parsedChef.text):displayText}</div>
+                  <div style={{padding:"11px 14px",borderRadius:14,background:m.role==="user"?C.dark:"var(--surface)",color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.5,boxShadow:m.role==="user"?"none":C.shadowSm,whiteSpace:"pre-wrap"}}>{m.role==="assistant"?renderRichText(parsedChef.text,onPickDish):displayText}</div>
+                  {pickable?<div style={{display:"flex",alignItems:"center",gap:5,marginTop:6,fontSize:11,color:C.gold,fontWeight:600}}><Icon name="sparkle" size={10} color={C.gold} strokeWidth={2}/>Tap a dish for the full recipe</div>:null}
                   {showChips?<div style={{display:"flex",flexWrap:"wrap",gap:7,marginTop:9}}>{parsedChef.chips.map(function(c,ci){return <button key={ci} onClick={function(){if(!chefLoading)sendChefMessage(c)}} style={{padding:"8px 14px",borderRadius:16,border:"1px solid "+C.gold,background:"var(--surface)",color:C.dark,fontSize:13,fontWeight:600,cursor:"pointer",boxShadow:C.shadowSm}}>{c}</button>})}</div>:null}
                   {swapOverlay?<button onClick={function(){setChefSwaps(function(prev){var next=Object.assign({},prev);delete next[i];return next})}} style={{display:"flex",alignItems:"center",gap:4,marginTop:6,background:"none",border:"none",padding:0,fontSize:11,fontWeight:600,color:C.gold,cursor:"pointer"}}><Icon name="swap" size={11} color={C.gold} strokeWidth={2}/>Swapped - tap to revert</button>:null}
                   {m.role==="assistant"&&m.kind!=="swap"&&chefReplyIsFullRecipe(m.text)?<button onClick={function(){saveChefIdeaAsRecipe(m.text)}} disabled={chefLoading} style={{marginTop:6,background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.gold,cursor:chefLoading?"default":"pointer"}}>Save as Recipe</button>:null}
