@@ -6786,19 +6786,28 @@ function App(){
         </div>:null}
 
         {/* Move-to-day picker for the checked meals. */}
-        {showMoveDay?<div style={ovl} onClick={function(){setShowMoveDay(false)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
+        {showMoveDay?(function(){
+          var nextWs=new Date(ws);nextWs.setDate(nextWs.getDate()+7);
+          var nextWd=weekDatesOf(nextWs);
+          var selN=Object.keys(selectedCalMeals).length;
+          var dayBtn=function(date,i){var k=dk(date),isT=k===todayK,hm=activeMeals[k];return <button key={k} onClick={function(){moveSelectedToDay(k)}} style={{padding:10,borderRadius:10,border:isT?"2px solid "+C.dark:"1px solid "+C.bdr,background:hm?C.blushMed:C.card,cursor:"pointer",textAlign:"center"}}><div style={{fontSize:11,fontWeight:700,color:C.light}}>{DAYS_FULL[i].slice(0,3)}</div><div style={{fontSize:16,fontWeight:800,color:isT?C.dark:"var(--dark)"}}>{date.getDate()}</div></button>};
+          return <div style={ovl} onClick={function(){setShowMoveDay(false)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
             <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16,color:C.ink}}><Icon name="calendar" size={16} color={C.dark} strokeWidth={1.75}/>Move to which day?</div>
             <button onClick={function(){setShowMoveDay(false)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button>
           </div>
-          <div style={{fontSize:12.5,color:C.light,marginBottom:14}}>{Object.keys(selectedCalMeals).length+" meal"+(Object.keys(selectedCalMeals).length===1?"":"s")+" selected"}</div>
+          <div style={{fontSize:12.5,color:C.light,marginBottom:14}}>{selN+" meal"+(selN===1?"":"s")+" selected"}</div>
           <div style={{fontWeight:600,fontSize:13,marginBottom:8,color:C.ink}}>This week</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:16}}>
-            {wd.map(function(date,i){var k=dk(date),isT=k===todayK,hm=activeMeals[k];return <button key={k} onClick={function(){moveSelectedToDay(k)}} style={{padding:10,borderRadius:10,border:isT?"2px solid "+C.dark:"1px solid "+C.bdr,background:hm?C.blushMed:C.card,cursor:"pointer",textAlign:"center"}}><div style={{fontSize:11,fontWeight:700,color:C.light}}>{DAYS_FULL[i].slice(0,3)}</div><div style={{fontSize:16,fontWeight:800,color:isT?C.dark:"var(--dark)"}}>{date.getDate()}</div></button>})}
+            {wd.map(dayBtn)}
+          </div>
+          <div style={{fontWeight:600,fontSize:13,marginBottom:8,color:C.ink}}>Next week</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:16}}>
+            {nextWd.map(dayBtn)}
           </div>
           <div style={{fontWeight:600,fontSize:13,marginBottom:6,color:C.ink}}>Or pick any date</div>
           <input type="date" onChange={function(e){if(e.target.value)moveSelectedToDay(e.target.value)}} style={Object.assign({},inp,{marginBottom:0})}/>
-        </div></div>:null}
+        </div></div>;})():null}
         {/* One shared calendar. Only a brief syncing note while the family's
             plans load - no permanent banner (it was just clutter). */}
         {hasFamily&&familyMealsLoading?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:14,fontSize:12,color:C.light}}>
