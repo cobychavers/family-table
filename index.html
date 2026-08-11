@@ -4411,9 +4411,12 @@ function App(){
     },16);
     return function(){clearTimeout(id);};
   },[chefTyping,chefMessages]);
-  // Voice input (Web Speech API) - feature-detected, so on platforms without it
-  // (notably iOS Safari) the mic simply doesn't appear.
-  var chefSpeech=(typeof window!=="undefined")&&(window.SpeechRecognition||window.webkitSpeechRecognition);
+  // Voice input (Web Speech API). iOS *exposes* webkitSpeechRecognition but
+  // actually starting it hangs the WKWebView (froze the app in the installed
+  // PWA), so we exclude iOS/iPadOS entirely and rely on the keyboard's built-in
+  // dictation there. Desktop Chrome/Edge keep the in-app mic.
+  var chefIsIOS=(typeof navigator!=="undefined")&&(/iP(hone|od|ad)/.test(navigator.userAgent||"")||(navigator.platform==="MacIntel"&&(navigator.maxTouchPoints||0)>1));
+  var chefSpeech=(typeof window!=="undefined")&&(window.SpeechRecognition||window.webkitSpeechRecognition)&&!chefIsIOS;
   var [chefListening,setChefListening]=useState(false);
   var chefRecogRef=useRef(null);
   var chefPhotoRef=useRef(null);
