@@ -278,10 +278,10 @@ export default {
 
       if (type === "chef_chat") {
         // Recipe-idea chat - returns a plain-text reply, not a structured recipe
-        payload = { success: true, reply: await chefChat(body.messages, env.ANTHROPIC_API_KEY, meter, body.avoid, body.taste, body.planned, body.pantry, body.diet) };
+        payload = { success: true, reply: await chefChat(body.messages, env.ANTHROPIC_API_KEY, meter, body.avoid, body.taste, body.planned, body.pantry, body.diet, body.extra) };
       } else if (type === "chef_week_plan") {
         // A whole-week dinner plan - returns { success, plan: { intro, meals:[...] } }
-        payload = { success: true, plan: await chefWeekPlan(body.count, env.ANTHROPIC_API_KEY, meter, body.avoid, body.taste, body.planned, body.pantry, body.diet) };
+        payload = { success: true, plan: await chefWeekPlan(body.count, env.ANTHROPIC_API_KEY, meter, body.avoid, body.taste, body.planned, body.pantry, body.diet, body.extra) };
       } else if (type === "ingredient_swap") {
         // Substitutes for one ingredient - returns its own {success, original,
         // suggestions} shape, not the {success, recipe} shape
@@ -866,8 +866,28 @@ Important:
   return parsed;
 }
 
+// Shared prompt lines for the newer personalization signals (household size,
+// equipment, effort, hard dislikes, and the current time/season). Returned as a
+// string to append to either the chat or week-plan prompt.
+function chefExtraPromptLines(extra) {
+  if (!extra || typeof extra !== "object") return "";
+  let s = "";
+  const hh = (extra.household || "").toString().trim();
+  if (hh) s += `\n\nHousehold size: ${hh}. Size recipes to feed this many (roughly a serving per person, a bit extra if it's a kids-friendly crowd), and set "servings" accordingly.`;
+  if (Array.isArray(extra.equipment) && extra.equipment.length) s += `\n\nKitchen equipment they have and like to use: ${extra.equipment.join(", ")}. Lean toward methods that use these when it fits; never assume equipment they didn't list.`;
+  const eff = (extra.effort || "").toString().trim();
+  if (eff) s += `\n\nEffort level they're up for: ${eff}. Match the ambition of your ideas/recipes to this.`;
+  if (Array.isArray(extra.dislikes) && extra.dislikes.length) s += `\n\nNEVER suggest these - the cook has thumbed them down or asked to avoid them (skip these dishes and close variations entirely): ${extra.dislikes.slice(0, 60).join(", ")}.`;
+  const tod = (extra.timeOfDay || "").toString().trim();
+  const season = (extra.season || "").toString().trim();
+  if (tod || season) {
+    s += `\n\nRight now it's ${[tod, season].filter(Boolean).join(", ")} for the cook. Let this gently color your ideas when it's relevant - lighter/fresher dishes in summer, cozy soups and stews when it's cold, and breakfast-appropriate ideas in the morning - but always defer to what they actually ask for.`;
+  }
+  return s;
+}
+
 // Recipe-idea brainstorming chat
-async function chefChat(messages, apiKey, meter, avoid, taste, planned, pantry, diet) {
+async function chefChat(messages, apiKey, meter, avoid, taste, planned, pantry, diet, extra) {
   if (!messages || messages.length === 0) {
     throw new Error("No messages provided");
   }
@@ -889,7 +909,7 @@ QUICK-REPLY CHIPS: Whenever you ask a clarifying question, make it one-tap easy 
 Give 2-5 short options (1-3 words each) that cover the likely answers. The app turns them into tappable buttons and hides this line from view, so put your actual question in the normal text above it. Only include a [[chips: ...]] line when you are asking a question - never on a message that gives recipe ideas, a full recipe, or a direct answer.
 
 WHEN YOU SUGGEST IDEAS:
-Give 4-6 specific, realistic recipe ideas, each as a short **bolded name** followed by a one-sentence description. Keep it brief - a quick back-and-forth, not an essay.
+Give 4-6 specific, realistic recipe ideas, each as a short **bolded name** followed by a one-sentence description. End each idea's description with a rough per-serving calorie estimate in parentheses, like "(~520 cal)". Keep it brief - a quick back-and-forth, not an essay.
 
 VARIETY IS ESSENTIAL:
 - Make the ideas genuinely different from EACH OTHER: vary the cuisine, the main protein or base, and the cooking method. Never give several variations of the same dish.
@@ -937,6 +957,8 @@ Keep tone practical and friendly. No long preambles, no markdown headers, no emo
     systemPrompt += `\n\nStaples the cook already has on hand: ${pantry.slice(0, 50).join(", ")}.\nWhen it fits, prefer ideas that make good use of these, and never tell them to buy something in this list.`;
   }
 
+  systemPrompt += chefExtraPromptLines(extra);
+
   const anthropicMessages = messages.map(m => ({
     role: m.role === "assistant" ? "assistant" : "user",
     content: m.text
@@ -961,7 +983,7 @@ Keep tone practical and friendly. No long preambles, no markdown headers, no emo
 // A whole-week dinner plan: several complete, varied recipes at once, returned
 // as structured JSON so the app can render them and add them all to the
 // calendar in one tap. Reuses the same personalization signals as chefChat.
-async function chefWeekPlan(count, apiKey, meter, avoid, taste, planned, pantry, diet) {
+async function chefWeekPlan(count, apiKey, meter, avoid, taste, planned, pantry, diet, extra) {
   const n = Math.max(3, Math.min(7, parseInt(count, 10) || 5));
 
   let prompt = `Plan ${n} dinners for this cook's week. Return ONLY valid JSON with no other text, in exactly this shape:
@@ -990,6 +1012,7 @@ Rules:
   if (Array.isArray(avoid) && avoid.length) {
     prompt += `\n- Recently suggested already (avoid these and close variations): ${avoid.slice(0, 30).join(", ")}.`;
   }
+  prompt += chefExtraPromptLines(extra);
 
   const data = await callAnthropic({
     model: "claude-sonnet-5",

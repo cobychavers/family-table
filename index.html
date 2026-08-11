@@ -1883,12 +1883,16 @@ function parseChefChips(text){
 // of strings and <strong> nodes; the container keeps whiteSpace:pre-wrap so
 // line breaks survive. When onBold is given (idea-list replies), each bolded
 // dish name becomes tappable so a tap fetches that full recipe - no typing.
-function renderRichText(text,onBold){
+function renderRichText(text,onBold,onDislike){
   return (text||"").split(/(\*\*[^*]+\*\*)/g).map(function(p,i){
     var b=/^\*\*([^*]+)\*\*$/.exec(p);
     if(!b)return p;
-    if(onBold)return React.createElement("strong",{key:i,onClick:function(){onBold(b[1])},style:{color:"var(--dark)",textDecorationLine:"underline",textDecorationStyle:"dotted",textUnderlineOffset:3,cursor:"pointer"}},b[1]);
-    return React.createElement("strong",{key:i},b[1]);
+    var name=b[1];
+    if(!onBold)return React.createElement("strong",{key:i},name);
+    var strong=React.createElement("strong",{key:"s",onClick:function(){onBold(name)},style:{color:"var(--dark)",textDecorationLine:"underline",textDecorationStyle:"dotted",textUnderlineOffset:3,cursor:"pointer"}},name);
+    if(!onDislike)return React.createElement("strong",{key:i,onClick:function(){onBold(name)},style:{color:"var(--dark)",textDecorationLine:"underline",textDecorationStyle:"dotted",textUnderlineOffset:3,cursor:"pointer"}},name);
+    return React.createElement(React.Fragment,{key:i},strong,
+      React.createElement("button",{onClick:function(e){e.stopPropagation();onDislike(name);},title:"Not this - don't suggest it again","aria-label":"Don't suggest "+name,style:{display:"inline-flex",alignItems:"center",justifyContent:"center",verticalAlign:"middle",width:16,height:16,marginLeft:5,marginRight:1,borderRadius:8,border:"none",background:"var(--blush-med)",cursor:"pointer",opacity:.7,padding:0}},React.createElement(Icon,{name:"x",size:9,color:"var(--light)",strokeWidth:2.5})));
   });
 }
 
@@ -4400,6 +4404,32 @@ function App(){
   var [chefDiet,setChefDiet]=useState(function(){try{return localStorage.getItem("dm_chef_diet")||""}catch(e){return""}});
   var [showChefPrefs,setShowChefPrefs]=useState(false);
   function saveChefDiet(v){setChefDiet(v);try{localStorage.setItem("dm_chef_diet",v||"")}catch(e){}}
+  // More persistent Chef preferences: household size (scales servings), the
+  // equipment they own/use, their usual effort level, and a hard "never suggest"
+  // list built from thumbs-down. All sent with every ask.
+  var [chefHousehold,setChefHousehold]=useState(function(){try{return localStorage.getItem("dm_chef_household")||""}catch(e){return""}});
+  function saveChefHousehold(v){setChefHousehold(v);try{localStorage.setItem("dm_chef_household",v||"")}catch(e){}}
+  var [chefEquipment,setChefEquipment]=useState(function(){try{return JSON.parse(localStorage.getItem("dm_chef_equipment")||"[]")}catch(e){return[]}});
+  function toggleChefEquipment(item){setChefEquipment(function(prev){var next=prev.indexOf(item)>=0?prev.filter(function(x){return x!==item}):prev.concat([item]);try{localStorage.setItem("dm_chef_equipment",JSON.stringify(next))}catch(e){}return next;});}
+  var [chefEffort,setChefEffort]=useState(function(){try{return localStorage.getItem("dm_chef_effort")||""}catch(e){return""}});
+  function saveChefEffort(v){setChefEffort(v);try{localStorage.setItem("dm_chef_effort",v||"")}catch(e){}}
+  var [chefDislikes,setChefDislikes]=useState(function(){try{return JSON.parse(localStorage.getItem("dm_chef_dislikes")||"[]")}catch(e){return[]}});
+  function addChefDislike(name){var n=(name||"").replace(/[*]/g,"").trim();if(!n)return;setChefDislikes(function(prev){if(prev.some(function(x){return x.toLowerCase()===n.toLowerCase()}))return prev;var next=[n].concat(prev).slice(0,80);try{localStorage.setItem("dm_chef_dislikes",JSON.stringify(next))}catch(e){}return next;});}
+  function removeChefDislike(name){setChefDislikes(function(prev){var next=prev.filter(function(x){return x.toLowerCase()!==(name||"").toLowerCase()});try{localStorage.setItem("dm_chef_dislikes",JSON.stringify(next))}catch(e){}return next;});}
+  // Current time-of-day + season, so ideas fit the moment (breakfast in the AM,
+  // cozy dishes when it's cold). Northern-hemisphere season from the month.
+  function chefTimeContext(){
+    var d=new Date(),h=d.getHours(),m=d.getMonth();
+    var tod=h<11?"morning":h<15?"midday":h<21?"evening":"late night";
+    var season=(m===11||m===0||m===1)?"winter":(m>=2&&m<=4)?"spring":(m>=5&&m<=7)?"summer":"fall";
+    return {timeOfDay:tod,season:season};
+  }
+  function buildChefExtra(){
+    var t=chefTimeContext();
+    return {household:(chefHousehold||"").trim(),equipment:chefEquipment,effort:(chefEffort||"").trim(),dislikes:chefDislikes.slice(0,60),timeOfDay:t.timeOfDay,season:t.season};
+  }
+  var CHEF_EQUIPMENT=["Air fryer","Slow cooker","Instant Pot","Grill","Oven","Stovetop","Blender","Sheet pan"];
+  var CHEF_EFFORT_OPTIONS=["Quick & easy","Balanced","I love to cook"];
   // The user's pantry staples, loaded so the Chef can lean on what they already
   // have. (The pantry itself is managed in the Grocery tab; this is a read.)
   var [chefPantry,setChefPantry]=useState([]);
@@ -6181,7 +6211,7 @@ function App(){
 
     setChefLoading(true);
 
-    proxyFetch({type:"chef_chat",messages:history.slice(-10),avoid:chefSeenDishes.slice(0,40),taste:buildTasteProfile(),planned:buildChefPlanned().slice(0,20),pantry:chefPantry.slice(0,50),diet:(chefDiet||"").trim()})
+    proxyFetch({type:"chef_chat",messages:history.slice(-10),avoid:chefSeenDishes.slice(0,40),taste:buildTasteProfile(),planned:buildChefPlanned().slice(0,20),pantry:chefPantry.slice(0,50),diet:(chefDiet||"").trim(),extra:buildChefExtra()})
     .then(function(response){return response.json()})
     .then(function(data){
       if(data.error)throw new Error(data.error);
@@ -6214,7 +6244,7 @@ function App(){
     setChefLastActive(Date.now());
     if(!isOnline){ setChefMessages(history.concat([{role:"assistant",text:"I need an internet connection for that - try again once you're back online."}])); return; }
     setChefLoading(true);
-    proxyFetch({type:"chef_week_plan",count:5,avoid:chefSeenDishes.slice(0,40),taste:buildTasteProfile(),planned:buildChefPlanned().slice(0,20),pantry:chefPantry.slice(0,50),diet:(chefDiet||"").trim()})
+    proxyFetch({type:"chef_week_plan",count:5,avoid:chefSeenDishes.slice(0,40),taste:buildTasteProfile(),planned:buildChefPlanned().slice(0,20),pantry:chefPantry.slice(0,50),diet:(chefDiet||"").trim(),extra:buildChefExtra()})
     .then(function(response){return response.json()})
     .then(function(data){
       if(data.error)throw new Error(data.error);
@@ -7458,7 +7488,7 @@ function App(){
               return <div key={i} style={{display:"flex",flexDirection:"column",alignItems:m.role==="user"?"flex-end":"flex-start",marginBottom:14}}>
                 <div style={{maxWidth:"85%"}}>
                   {m.role==="assistant"?<div style={{display:"flex",alignItems:"center",gap:5,marginBottom:5}}><Icon name="sparkle" size={11} color={C.gold} strokeWidth={2}/><span style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.5}}>AI Chef</span></div>:null}
-                  <div style={{padding:"11px 14px",borderRadius:14,background:m.role==="user"?C.dark:"var(--surface)",color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.5,boxShadow:m.role==="user"?"none":C.shadowSm,whiteSpace:"pre-wrap"}}>{m.role==="assistant"?renderRichText(parsedChef.text,onPickDish):displayText}</div>
+                  <div style={{padding:"11px 14px",borderRadius:14,background:m.role==="user"?C.dark:"var(--surface)",color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.5,boxShadow:m.role==="user"?"none":C.shadowSm,whiteSpace:"pre-wrap"}}>{m.role==="assistant"?renderRichText(parsedChef.text,onPickDish,pickable?function(name){addChefDislike(name)}:null):displayText}</div>
                   {pickable?<div style={{display:"flex",alignItems:"center",gap:5,marginTop:6,fontSize:11,color:C.gold,fontWeight:600}}><Icon name="sparkle" size={10} color={C.gold} strokeWidth={2}/>Tap a dish for the full recipe</div>:null}
                   {showChips?<div style={{display:"flex",flexWrap:"wrap",gap:7,marginTop:9}}>{parsedChef.chips.map(function(c,ci){return <button key={ci} onClick={function(){if(!chefLoading)sendChefMessage(c)}} style={{padding:"8px 14px",borderRadius:16,border:"1px solid "+C.gold,background:"var(--surface)",color:C.dark,fontSize:13,fontWeight:600,cursor:"pointer",boxShadow:C.shadowSm}}>{c}</button>})}</div>:null}
                   {swapOverlay?<button onClick={function(){setChefSwaps(function(prev){var next=Object.assign({},prev);delete next[i];return next})}} style={{display:"flex",alignItems:"center",gap:4,marginTop:6,background:"none",border:"none",padding:0,fontSize:11,fontWeight:600,color:C.gold,cursor:"pointer"}}><Icon name="swap" size={11} color={C.gold} strokeWidth={2}/>Swapped - tap to revert</button>:null}
@@ -7496,9 +7526,25 @@ function App(){
             <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16,color:C.ink}}><Icon name="user" size={15} color={C.dark} strokeWidth={1.75}/>Chef Preferences</div>
             <button onClick={function(){setShowChefPrefs(false)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button>
           </div>
-          <div style={{fontSize:12.5,color:C.light,lineHeight:1.5,marginBottom:12}}>Any dietary needs or preferences? The Chef will always keep these in mind - in ideas and full recipes.</div>
-          <textarea value={chefDiet} onChange={function(e){saveChefDiet(e.target.value)}} placeholder="e.g. vegetarian, no pork, dairy-free, allergic to shellfish, low-carb" style={{width:"100%",boxSizing:"border-box",minHeight:100,padding:"12px 14px",borderRadius:12,border:"1px solid "+C.bdr,fontSize:14,lineHeight:1.5,resize:"vertical",fontFamily:"'Inter',-apple-system,sans-serif",background:C.card,color:C.ink,outline:"none"}}/>
-          <button onClick={function(){setShowChefPrefs(false)}} style={Object.assign({},btn(C.dark),{width:"100%",marginTop:12})}>Done</button>
+          <div style={{fontSize:12.5,color:C.light,lineHeight:1.5,marginBottom:12}}>The Chef keeps all of this in mind for every idea and recipe.</div>
+          {(function(){
+            var FS="'Inter',-apple-system,sans-serif";
+            var label=function(top){return {fontSize:11.5,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.5,margin:(top?"16px":"0")+" 0 8px"};};
+            var chip=function(on){return {padding:"7px 12px",borderRadius:16,border:"1px solid "+(on?C.dark:C.bdr),background:on?C.blushMed:"var(--surface)",color:on?C.ink:C.light,fontSize:12.5,fontWeight:600,cursor:"pointer",fontFamily:FS};};
+            return <div style={{maxHeight:"60vh",overflowY:"auto",margin:"0 -2px",padding:"0 2px"}}>
+              <div style={label(false)}>Dietary needs</div>
+              <textarea value={chefDiet} onChange={function(e){saveChefDiet(e.target.value)}} placeholder="e.g. vegetarian, no pork, dairy-free, allergic to shellfish, low-carb" style={{width:"100%",boxSizing:"border-box",minHeight:70,padding:"11px 13px",borderRadius:12,border:"1px solid "+C.bdr,fontSize:14,lineHeight:1.5,resize:"vertical",fontFamily:FS,background:C.card,color:C.ink,outline:"none"}}/>
+              <div style={label(true)}>Household size</div>
+              <input type="number" min="1" max="20" value={chefHousehold} onChange={function(e){saveChefHousehold(e.target.value)}} placeholder="e.g. 4" style={{width:110,boxSizing:"border-box",padding:"10px 13px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,fontFamily:FS,background:C.card,color:C.ink,outline:"none"}}/>
+              <div style={label(true)}>Kitchen equipment</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{CHEF_EQUIPMENT.map(function(it){var on=chefEquipment.indexOf(it)>=0;return <button key={it} onClick={function(){toggleChefEquipment(it)}} style={chip(on)}>{it}</button>})}</div>
+              <div style={label(true)}>Effort level</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{CHEF_EFFORT_OPTIONS.map(function(o){var on=chefEffort===o;return <button key={o} onClick={function(){saveChefEffort(on?"":o)}} style={chip(on)}>{o}</button>})}</div>
+              <div style={label(true)}>Never suggest</div>
+              {chefDislikes.length?<div style={{display:"flex",flexWrap:"wrap",gap:7}}>{chefDislikes.map(function(d){return <span key={d} style={{display:"inline-flex",alignItems:"center",gap:5,padding:"6px 8px 6px 11px",borderRadius:16,background:"var(--surface)",border:"1px solid "+C.bdr,fontSize:12.5,fontWeight:600,color:C.ink,fontFamily:FS}}>{d}<button onClick={function(){removeChefDislike(d)}} style={{background:"none",border:"none",cursor:"pointer",display:"flex",opacity:.5,padding:0}}><Icon name="x" size={12} strokeWidth={2.5}/></button></span>})}</div>:<div style={{fontSize:12.5,color:C.light,fontStyle:"italic"}}>Nothing yet — thumb-down a suggestion in chat to add it here.</div>}
+            </div>;
+          })()}
+          <button onClick={function(){setShowChefPrefs(false)}} style={Object.assign({},btn(C.dark),{width:"100%",marginTop:14})}>Done</button>
         </div></div>:null}
       </div>}
 
