@@ -4448,6 +4448,8 @@ function App(){
   function toggleChefEquipment(item){setChefEquipment(function(prev){var next=prev.indexOf(item)>=0?prev.filter(function(x){return x!==item}):prev.concat([item]);try{localStorage.setItem("dm_chef_equipment",JSON.stringify(next))}catch(e){}return next;});}
   var [chefEffort,setChefEffort]=useState(function(){try{return localStorage.getItem("dm_chef_effort")||""}catch(e){return""}});
   function saveChefEffort(v){setChefEffort(v);try{localStorage.setItem("dm_chef_effort",v||"")}catch(e){}}
+  var [chefKids,setChefKids]=useState(function(){try{return localStorage.getItem("dm_chef_kids")||""}catch(e){return""}}); // "" | "yes" | "no"
+  function saveChefKids(v){setChefKids(v);try{localStorage.setItem("dm_chef_kids",v||"")}catch(e){}}
   var [chefDislikes,setChefDislikes]=useState(function(){try{return JSON.parse(localStorage.getItem("dm_chef_dislikes")||"[]")}catch(e){return[]}});
   function addChefDislike(name){var n=(name||"").replace(/[*]/g,"").trim();if(!n)return;setChefDislikes(function(prev){if(prev.some(function(x){return x.toLowerCase()===n.toLowerCase()}))return prev;var next=[n].concat(prev).slice(0,80);try{localStorage.setItem("dm_chef_dislikes",JSON.stringify(next))}catch(e){}return next;});}
   function removeChefDislike(name){setChefDislikes(function(prev){var next=prev.filter(function(x){return x.toLowerCase()!==(name||"").toLowerCase()});try{localStorage.setItem("dm_chef_dislikes",JSON.stringify(next))}catch(e){}return next;});}
@@ -4461,7 +4463,7 @@ function App(){
   }
   function buildChefExtra(){
     var t=chefTimeContext();
-    return {household:(chefHousehold||"").trim(),equipment:chefEquipment,effort:(chefEffort||"").trim(),dislikes:chefDislikes.slice(0,60),timeOfDay:t.timeOfDay,season:t.season};
+    return {household:(chefHousehold||"").trim(),kids:(chefKids||"").trim(),equipment:chefEquipment,effort:(chefEffort||"").trim(),dislikes:chefDislikes.slice(0,60),timeOfDay:t.timeOfDay,season:t.season};
   }
   var CHEF_EQUIPMENT=["Air fryer","Slow cooker","Instant Pot","Grill","Oven","Stovetop","Blender","Sheet pan"];
   var CHEF_EFFORT_OPTIONS=["Quick & easy","Balanced","I love to cook"];
@@ -6264,6 +6266,15 @@ function App(){
     });
   }
 
+  // Tapping "What can I make with what I have?" opens a friendly prompt inviting
+  // the cook to type their ingredients or snap a photo - a real back-and-forth
+  // instead of blindly firing a question at the model.
+  function chefStartWhatIHave(){
+    setChefMessages([{role:"assistant",text:"Happy to help! What have you got on hand? List a few ingredients below, or tap the camera to snap your fridge and I'll take it from there."}]);
+    setChefLastActive(Date.now());
+    setChefTyping({index:0,shown:0});
+    setTimeout(function(){chefInputRef.current&&chefInputRef.current.focus()},60);
+  }
   // Snap the fridge/pantry -> meal ideas from what's visible.
   function sendFridgeIdeas(images){
     if(!images||!images.length)return;
@@ -7519,7 +7530,7 @@ function App(){
           </div>
           <div style={{display:"flex",alignItems:"center",gap:14}}>
             {chefMessages.length>0?<button onClick={function(){setChefMessages([]);setChefSwaps({})}} style={{background:"none",border:"none",padding:0,fontSize:12,fontWeight:600,color:C.light,cursor:"pointer"}}>New Chat</button>:null}
-            <button onClick={function(){setShowChefPrefs(true)}} title="Chef preferences" style={{background:"none",border:"none",padding:0,cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontSize:12,fontWeight:600,color:chefDiet.trim()?C.gold:C.light}}><Icon name="user" size={14} color={chefDiet.trim()?C.gold:C.light} strokeWidth={2}/>Preferences</button>
+            <button onClick={function(){setShowChefPrefs(true)}} title="Chef preferences" aria-label="Chef preferences" style={{background:"none",border:"none",padding:6,cursor:"pointer",display:"flex",alignItems:"center"}}><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={C.light} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
           </div>
         </div>
 
@@ -7530,12 +7541,8 @@ function App(){
             <div style={{fontSize:13,color:C.light,maxWidth:280,margin:"0 auto 16px"}}>Tell me what's in your fridge, what you're in the mood for, or ask a cooking question.</div>
             <div style={{display:"flex",flexDirection:"column",gap:7,maxWidth:340,margin:"0 auto"}}>
               {["Plan my week of dinners","What can I make with what I have?","Something quick and easy tonight","Kid-friendly dinner ideas","Surprise me with an idea"].map(function(sug){
-                return <button key={sug} onClick={function(){sendChefMessage(sug)}} style={{padding:"12px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",boxShadow:C.shadowSm}}>{sug}</button>
+                return <button key={sug} onClick={function(){if(sug==="What can I make with what I have?"){chefStartWhatIHave()}else{sendChefMessage(sug)}}} style={{padding:"12px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",boxShadow:C.shadowSm}}>{sug}</button>
               })}
-              {/* Ingredient swap is just another question now - tapping pre-fills the
-                  input so you name the ingredient, then send routes to the swap flow. */}
-              <button key="__swap__" onClick={function(){setChefInput("What can I use instead of ");setTimeout(function(){chefInputRef.current&&chefInputRef.current.focus()},0)}} style={{padding:"12px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",boxShadow:C.shadowSm}}>What can I use instead of an ingredient?</button>
-              <button key="__fridge__" onClick={function(){if(chefPhotoRef.current)chefPhotoRef.current.click()}} style={{display:"flex",alignItems:"center",gap:9,padding:"12px 16px",borderRadius:10,border:"1px solid "+C.gold,background:"var(--surface)",color:C.dark,fontSize:13,fontWeight:600,cursor:"pointer",textAlign:"left",boxShadow:C.shadowSm}}><Icon name="camera" size={15} color={C.gold} strokeWidth={2}/>Snap your fridge for ideas</button>
             </div>
           </div>
         :
@@ -7628,12 +7635,12 @@ function App(){
               <textarea value={chefDiet} onChange={function(e){saveChefDiet(e.target.value)}} placeholder="e.g. vegetarian, no pork, dairy-free, allergic to shellfish, low-carb" style={{width:"100%",boxSizing:"border-box",minHeight:70,padding:"11px 13px",borderRadius:12,border:"1px solid "+C.bdr,fontSize:14,lineHeight:1.5,resize:"vertical",fontFamily:FS,background:C.card,color:C.ink,outline:"none"}}/>
               <div style={label(true)}>Household size</div>
               <input type="number" min="1" max="20" value={chefHousehold} onChange={function(e){saveChefHousehold(e.target.value)}} placeholder="e.g. 4" style={{width:110,boxSizing:"border-box",padding:"10px 13px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,fontFamily:FS,background:C.card,color:C.ink,outline:"none"}}/>
+              <div style={label(true)}>Cooking for kids?</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{[["yes","Yes, kids too"],["no","No kids"]].map(function(o){var on=chefKids===o[0];return <button key={o[0]} onClick={function(){saveChefKids(on?"":o[0])}} style={chip(on)}>{o[1]}</button>})}</div>
               <div style={label(true)}>Kitchen equipment</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{CHEF_EQUIPMENT.map(function(it){var on=chefEquipment.indexOf(it)>=0;return <button key={it} onClick={function(){toggleChefEquipment(it)}} style={chip(on)}>{it}</button>})}</div>
               <div style={label(true)}>Effort level</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{CHEF_EFFORT_OPTIONS.map(function(o){var on=chefEffort===o;return <button key={o} onClick={function(){saveChefEffort(on?"":o)}} style={chip(on)}>{o}</button>})}</div>
-              <div style={label(true)}>Never suggest</div>
-              {chefDislikes.length?<div style={{display:"flex",flexWrap:"wrap",gap:7}}>{chefDislikes.map(function(d){return <span key={d} style={{display:"inline-flex",alignItems:"center",gap:5,padding:"6px 8px 6px 11px",borderRadius:16,background:"var(--surface)",border:"1px solid "+C.bdr,fontSize:12.5,fontWeight:600,color:C.ink,fontFamily:FS}}>{d}<button onClick={function(){removeChefDislike(d)}} style={{background:"none",border:"none",cursor:"pointer",display:"flex",opacity:.5,padding:0}}><Icon name="x" size={12} strokeWidth={2.5}/></button></span>})}</div>:<div style={{fontSize:12.5,color:C.light,fontStyle:"italic"}}>Nothing yet — thumb-down a suggestion in chat to add it here.</div>}
             </div>;
           })()}
           <button onClick={function(){setShowChefPrefs(false)}} style={Object.assign({},btn(C.dark),{width:"100%",marginTop:14})}>Done</button>

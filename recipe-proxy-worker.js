@@ -876,7 +876,10 @@ function chefExtraPromptLines(extra) {
   if (!extra || typeof extra !== "object") return "";
   let s = "";
   const hh = (extra.household || "").toString().trim();
-  if (hh) s += `\n\nHousehold size: ${hh}. Size recipes to feed this many (roughly a serving per person, a bit extra if it's a kids-friendly crowd), and set "servings" accordingly.`;
+  if (hh) s += `\n\nHousehold size: ${hh}. Size recipes to feed this many (roughly a serving per person), and set "servings" accordingly.`;
+  const kids = (extra.kids || "").toString().trim();
+  if (kids === "yes") s += `\n\nThere are kids eating too - favor family- and kid-friendly dishes (approachable flavors, not too spicy) unless they ask otherwise.`;
+  else if (kids === "no") s += `\n\nNo kids in the mix - you don't need to keep things kid-friendly; grown-up flavors and spice are fine.`;
   if (Array.isArray(extra.equipment) && extra.equipment.length) s += `\n\nKitchen equipment they have and like to use: ${extra.equipment.join(", ")}. Lean toward methods that use these when it fits; never assume equipment they didn't list.`;
   const eff = (extra.effort || "").toString().trim();
   if (eff) s += `\n\nEffort level they're up for: ${eff}. Match the ambition of your ideas/recipes to this.`;
