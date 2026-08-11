@@ -282,6 +282,9 @@ export default {
       } else if (type === "chef_week_plan") {
         // A whole-week dinner plan - returns { success, plan: { intro, meals:[...] } }
         payload = { success: true, plan: await chefWeekPlan(body.count, env.ANTHROPIC_API_KEY, meter, body.avoid, body.taste, body.planned, body.pantry, body.diet, body.extra) };
+      } else if (type === "fridge_ideas") {
+        // Meal ideas from a photo of the fridge/pantry - returns { success, reply } text
+        payload = { success: true, reply: await fridgeIdeas(body.images, env.ANTHROPIC_API_KEY, meter, body.avoid, body.taste, body.diet, body.extra) };
       } else if (type === "ingredient_swap") {
         // Substitutes for one ingredient - returns its own {success, original,
         // suggestions} shape, not the {success, recipe} shape
@@ -884,6 +887,33 @@ function chefExtraPromptLines(extra) {
     s += `\n\nRight now it's ${[tod, season].filter(Boolean).join(", ")} for the cook. Let this gently color your ideas when it's relevant - lighter/fresher dishes in summer, cozy soups and stews when it's cold, and breakfast-appropriate ideas in the morning - but always defer to what they actually ask for.`;
   }
   return s;
+}
+
+// Meal ideas from a photo of what's in the fridge/pantry. Vision + the same
+// personalization signals as the chat, returning a plain-text idea list.
+async function fridgeIdeas(images, apiKey, meter, avoid, taste, diet, extra) {
+  if (!images || !images.length) throw new Error("No images provided");
+  const content = images.slice(0, 3).map(img => ({
+    type: "image",
+    source: { type: "base64", media_type: img.mediaType || "image/jpeg", data: img.base64 }
+  }));
+  let prompt = `The image(s) show what this cook has in their fridge/pantry right now. First identify the ingredients you can actually see, then suggest 4-6 specific, realistic meals they could make MOSTLY from what's visible (assuming only basic staples like oil, salt, and common spices). Each idea: a short **bolded name**, then a one-sentence description that ends with a rough per-serving calorie estimate like "(~520 cal)"; if a dish needs one or two easy extra items, say so briefly. Keep it brief. Make the ideas genuinely different from each other - vary cuisine, protein/base, and method.`;
+  if (typeof diet === "string" && diet.trim()) prompt += `\n\nDIETARY RULES (never violate, in ideas OR recipes): ${diet.trim()}.`;
+  if (typeof taste === "string" && taste.trim()) prompt += `\n\nTheir usual tastes (lean toward these, keep variety): ${taste.trim()}.`;
+  if (Array.isArray(avoid) && avoid.length) prompt += `\n\nRecently suggested already (avoid these and close variations): ${avoid.slice(0, 30).join(", ")}.`;
+  prompt += chefExtraPromptLines(extra);
+  content.push({ type: "text", text: prompt });
+
+  const data = await callAnthropic({
+    model: "claude-sonnet-5",
+    max_tokens: 1200,
+    temperature: 1,
+    messages: [{ role: "user", content }]
+  }, apiKey, meter);
+
+  const text = data.content?.find(b => b.type === "text")?.text || "";
+  if (!text.trim()) throw new Error("Couldn't read that photo");
+  return text.trim();
 }
 
 // Recipe-idea brainstorming chat
