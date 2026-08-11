@@ -4397,6 +4397,37 @@ function App(){
   }
   var [chefInput,setChefInput]=useState("");
   var chefInputRef=useRef(null);
+  // Typewriter reveal for the last assistant reply - makes answers feel alive
+  // and fast even though the text arrives all at once. {index, shown}.
+  var [chefTyping,setChefTyping]=useState(null);
+  useEffect(function(){
+    if(!chefTyping)return;
+    var msg=chefMessages[chefTyping.index];
+    if(!msg||msg.role!=="assistant"||typeof msg.text!=="string"){setChefTyping(null);return;}
+    var full=msg.text.length;
+    if(chefTyping.shown>=full){setChefTyping(null);return;}
+    var id=setTimeout(function(){
+      setChefTyping(function(t){if(!t)return null;var step=Math.max(2,Math.round(full/55));return {index:t.index,shown:Math.min(full,t.shown+step)};});
+    },16);
+    return function(){clearTimeout(id);};
+  },[chefTyping,chefMessages]);
+  // Voice input (Web Speech API) - feature-detected, so on platforms without it
+  // (notably iOS Safari) the mic simply doesn't appear.
+  var chefSpeech=(typeof window!=="undefined")&&(window.SpeechRecognition||window.webkitSpeechRecognition);
+  var [chefListening,setChefListening]=useState(false);
+  var chefRecogRef=useRef(null);
+  function toggleChefVoice(){
+    if(!chefSpeech)return;
+    if(chefListening){try{chefRecogRef.current&&chefRecogRef.current.stop()}catch(e){}setChefListening(false);return;}
+    try{
+      var rec=new chefSpeech();chefRecogRef.current=rec;
+      rec.lang="en-US";rec.interimResults=true;rec.continuous=false;
+      rec.onresult=function(e){var t="";for(var k=0;k<e.results.length;k++){t+=e.results[k][0].transcript;}setChefInput(t);};
+      rec.onerror=function(){setChefListening(false);};
+      rec.onend=function(){setChefListening(false);};
+      rec.start();setChefListening(true);
+    }catch(e){setChefListening(false);}
+  }
   var [chefLoading,setChefLoading]=useState(false);
   var [chefLastActive,setChefLastActive]=useState(null);
   // Dietary preferences the Chef must always respect (free text: "vegetarian,
@@ -6219,6 +6250,7 @@ function App(){
       setChefLastActive(Date.now());
       setChefMessages(history.concat([{role:"assistant",text:data.reply}]));
       recordChefDishes(data.reply);
+      setChefTyping({index:history.length,shown:0});
       setChefLoading(false);
     })
     .catch(function(err){
@@ -7480,19 +7512,23 @@ function App(){
                 displayText=displayText.replace(new RegExp(esc,"i"),swapOverlay.substitute);
               }
               var parsedChef=m.role==="assistant"?parseChefChips(displayText):{text:displayText,chips:[]};
-              var showChips=m.role==="assistant"&&parsedChef.chips.length>0&&i===chefMessages.length-1&&!chefLoading;
+              // Mid typewriter-reveal: show only the revealed slice and hold the
+              // chips/actions until it finishes.
+              var typing=m.role==="assistant"&&chefTyping&&chefTyping.index===i&&chefTyping.shown<(parsedChef.text||"").length;
+              var shownText=typing?(parsedChef.text||"").slice(0,chefTyping.shown):parsedChef.text;
+              var showChips=m.role==="assistant"&&parsedChef.chips.length>0&&i===chefMessages.length-1&&!chefLoading&&!typing;
               // An idea-list reply (not a full recipe, swap, or clarifying question):
               // make each bolded dish name tappable to pull up its full recipe.
-              var pickable=m.role==="assistant"&&m.kind!=="swap"&&parsedChef.chips.length===0&&!chefReplyIsFullRecipe(m.text)&&/\*\*[^*]+\*\*/.test(parsedChef.text);
+              var pickable=!typing&&m.role==="assistant"&&m.kind!=="swap"&&parsedChef.chips.length===0&&!chefReplyIsFullRecipe(m.text)&&/\*\*[^*]+\*\*/.test(parsedChef.text);
               var onPickDish=pickable?function(name){if(!chefLoading)sendChefMessage("Please give me the full recipe for "+name)}:null;
               return <div key={i} style={{display:"flex",flexDirection:"column",alignItems:m.role==="user"?"flex-end":"flex-start",marginBottom:14}}>
                 <div style={{maxWidth:"85%"}}>
                   {m.role==="assistant"?<div style={{display:"flex",alignItems:"center",gap:5,marginBottom:5}}><Icon name="sparkle" size={11} color={C.gold} strokeWidth={2}/><span style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.5}}>AI Chef</span></div>:null}
-                  <div style={{padding:"11px 14px",borderRadius:14,background:m.role==="user"?C.dark:"var(--surface)",color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.5,boxShadow:m.role==="user"?"none":C.shadowSm,whiteSpace:"pre-wrap"}}>{m.role==="assistant"?renderRichText(parsedChef.text,onPickDish,pickable?function(name){addChefDislike(name)}:null):displayText}</div>
+                  <div style={{padding:"11px 14px",borderRadius:14,background:m.role==="user"?C.dark:"var(--surface)",color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.5,boxShadow:m.role==="user"?"none":C.shadowSm,whiteSpace:"pre-wrap"}}>{m.role==="assistant"?React.createElement(React.Fragment,null,renderRichText(typing?shownText:parsedChef.text,onPickDish,pickable?function(name){addChefDislike(name)}:null),typing?React.createElement("span",{style:{opacity:.5}},"▍"):null):displayText}</div>
                   {pickable?<div style={{display:"flex",alignItems:"center",gap:5,marginTop:6,fontSize:11,color:C.gold,fontWeight:600}}><Icon name="sparkle" size={10} color={C.gold} strokeWidth={2}/>Tap a dish for the full recipe</div>:null}
                   {showChips?<div style={{display:"flex",flexWrap:"wrap",gap:7,marginTop:9}}>{parsedChef.chips.map(function(c,ci){return <button key={ci} onClick={function(){if(!chefLoading)sendChefMessage(c)}} style={{padding:"8px 14px",borderRadius:16,border:"1px solid "+C.gold,background:"var(--surface)",color:C.dark,fontSize:13,fontWeight:600,cursor:"pointer",boxShadow:C.shadowSm}}>{c}</button>})}</div>:null}
                   {swapOverlay?<button onClick={function(){setChefSwaps(function(prev){var next=Object.assign({},prev);delete next[i];return next})}} style={{display:"flex",alignItems:"center",gap:4,marginTop:6,background:"none",border:"none",padding:0,fontSize:11,fontWeight:600,color:C.gold,cursor:"pointer"}}><Icon name="swap" size={11} color={C.gold} strokeWidth={2}/>Swapped - tap to revert</button>:null}
-                  {m.role==="assistant"&&m.kind!=="swap"&&chefReplyIsFullRecipe(m.text)?<React.Fragment>
+                  {!typing&&m.role==="assistant"&&m.kind!=="swap"&&chefReplyIsFullRecipe(m.text)?<React.Fragment>
                     <div style={{display:"flex",flexWrap:"wrap",gap:7,marginTop:9}}>
                     {[["Save","bookmark",function(){saveChefIdeaAsRecipe(m.text)}],["Plan","calendar",function(){chefPlanRecipe(m.text)}],["Add to grocery","cart",function(){chefRecipeToGrocery(m.text)}]].map(function(a,ai){return <button key={ai} onClick={function(){if(!chefLoading)a[2]()}} disabled={chefLoading} style={{display:"inline-flex",alignItems:"center",gap:5,padding:"7px 12px",borderRadius:14,border:"1px solid "+C.gold,background:"var(--surface)",color:C.gold,fontSize:12,fontWeight:600,cursor:chefLoading?"default":"pointer",opacity:chefLoading?.6:1}}><Icon name={a[1]} size={12} color={C.gold} strokeWidth={2}/>{a[0]}</button>})}
                     </div>
@@ -7517,7 +7553,8 @@ function App(){
         }
 
         <div style={{display:"flex",gap:8}}>
-          <input ref={chefInputRef} value={chefInput} onChange={function(e){setChefInput(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter"&&!chefLoading&&chefInput.trim())sendChefMessage(chefInput)}} placeholder="Ask the Chef" style={Object.assign({},inp,{flex:1})} disabled={chefLoading}/>
+          <input ref={chefInputRef} value={chefInput} onChange={function(e){setChefInput(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter"&&!chefLoading&&chefInput.trim())sendChefMessage(chefInput)}} placeholder={chefListening?"Listening…":"Ask the Chef"} style={Object.assign({},inp,{flex:1})} disabled={chefLoading}/>
+          {chefSpeech?<button onClick={toggleChefVoice} disabled={chefLoading} title={chefListening?"Stop":"Speak"} aria-label={chefListening?"Stop voice input":"Voice input"} style={{width:44,height:44,borderRadius:10,border:"none",background:chefListening?C.gold:"var(--blush-med)",cursor:chefLoading?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,animation:chefListening?"ft-pulse 1.2s ease-in-out infinite":"none"}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={chefListening?"#fff":C.dark} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/></svg></button>:null}
           <button onClick={function(){sendChefMessage(chefInput)}} disabled={chefLoading||!chefInput.trim()} style={{width:44,height:44,borderRadius:10,border:"none",background:(chefLoading||!chefInput.trim())?C.blushDeep:C.dark,color:"#fff",cursor:(chefLoading||!chefInput.trim())?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="send" size={18} strokeWidth={2}/></button>
         </div>
 
