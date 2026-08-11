@@ -6167,6 +6167,8 @@ function App(){
       return;
     }
 
+    if(isWeekPlanRequest(text)){ sendChefWeekPlan(text,baseHistory); return; }
+
     var userMsg={role:"user",text:text.trim()};
     var history=baseHistory.concat([userMsg]);
     setChefMessages(history);
@@ -6194,6 +6196,56 @@ function App(){
       setChefMessages(history.concat([{role:"assistant",text:msg}]));
       setChefLoading(false);
     });
+  }
+
+  // "Plan my week" style asks route to the structured week-plan endpoint.
+  function isWeekPlanRequest(text){
+    var t=(text||"").toLowerCase();
+    if(/\bmeal[- ]?plan\b/.test(t))return true;
+    return /\bplan\b/.test(t) && /\b(week|dinners|meals)\b/.test(t);
+  }
+  function sendChefWeekPlan(promptText,baseHistoryArg){
+    var isStale=chefLastActive&&(Date.now()-chefLastActive>CHEF_IDLE_CLEAR_MS);
+    var baseHistory=baseHistoryArg!==undefined?baseHistoryArg:(isStale?[]:chefMessages);
+    setChefInput("");
+    var userMsg={role:"user",text:(promptText||"Plan my week").trim()};
+    var history=baseHistory.concat([userMsg]);
+    setChefMessages(history);
+    setChefLastActive(Date.now());
+    if(!isOnline){ setChefMessages(history.concat([{role:"assistant",text:"I need an internet connection for that - try again once you're back online."}])); return; }
+    setChefLoading(true);
+    proxyFetch({type:"chef_week_plan",count:5,avoid:chefSeenDishes.slice(0,40),taste:buildTasteProfile(),planned:buildChefPlanned().slice(0,20),pantry:chefPantry.slice(0,50),diet:(chefDiet||"").trim()})
+    .then(function(response){return response.json()})
+    .then(function(data){
+      if(data.error)throw new Error(data.error);
+      if(!data.success||!data.plan||!Array.isArray(data.plan.meals)||!data.plan.meals.length)throw new Error("Could not build a plan");
+      var meals=data.plan.meals.map(function(m){return {name:m.name||"Dinner",time:m.time||"",ingredients:(m.ingredients||[]).map(sanitizeIng),notes:m.notes||"",recipeType:m.recipeType||"other",servings:m.servings||null,nutrition:sanitizeNutrition(m.nutrition)};});
+      setChefLastActive(Date.now());
+      setChefMessages(history.concat([{role:"assistant",kind:"weekplan",intro:data.plan.intro||"",meals:meals}]));
+      recordChefDishes(meals.map(function(m){return "**"+m.name+"**"}).join("\n"));
+      setChefLoading(false);
+    })
+    .catch(function(err){
+      var msg=err.isRateLimit?err.message:("Sorry, I couldn't build that plan - "+err.message+". Try again?");
+      setChefMessages(history.concat([{role:"assistant",text:msg}]));
+      setChefLoading(false);
+    });
+  }
+  // Drop a whole week plan onto the calendar - one meal per day, starting today.
+  function addWeekPlanToCalendar(planMeals){
+    if(!planMeals||!planMeals.length)return;
+    var next=Object.assign({},meals);
+    var start=new Date();
+    planMeals.forEach(function(mm,idx){
+      var d=new Date(start); d.setDate(d.getDate()+idx);
+      var k=dk(d);
+      var list=Array.isArray(next[k])?next[k].slice():(next[k]?[next[k]]:[]);
+      list.push({name:mm.name,emoji:"🍽️",time:mm.time||"",ingredients:(mm.ingredients||[]).slice(),notes:mm.notes||"",photo:null,recipeType:mm.recipeType||"other",servings:mm.servings||null,nutrition:mm.nutrition||null});
+      next[k]=list;
+    });
+    svM(next);
+    setView("calendar");
+    appAlert(planMeals.length+" dinners added to your calendar, starting today.");
   }
 
   // Turn a Chef full-recipe reply into a structured recipe object (via the same
@@ -7363,7 +7415,7 @@ function App(){
             <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:5}}>What should we cook?</div>
             <div style={{fontSize:13,color:C.light,maxWidth:280,margin:"0 auto 16px"}}>Tell me what's in your fridge, what you're in the mood for, or ask a cooking question.</div>
             <div style={{display:"flex",flexDirection:"column",gap:7,maxWidth:340,margin:"0 auto"}}>
-              {["What can I make with what I have?","Something quick and easy tonight","Kid-friendly dinner ideas","Easy meals for busy family","Surprise me with an idea"].map(function(sug){
+              {["Plan my week of dinners","What can I make with what I have?","Something quick and easy tonight","Kid-friendly dinner ideas","Surprise me with an idea"].map(function(sug){
                 return <button key={sug} onClick={function(){sendChefMessage(sug)}} style={{padding:"12px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",boxShadow:C.shadowSm}}>{sug}</button>
               })}
               {/* Ingredient swap is just another question now - tapping pre-fills the
@@ -7374,6 +7426,23 @@ function App(){
         :
           <div style={{marginBottom:16}}>
             {chefMessages.map(function(m,i){
+              if(m.kind==="weekplan"){
+                return <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"flex-start",marginBottom:14}}>
+                  <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:5}}><Icon name="sparkle" size={11} color={C.gold} strokeWidth={2}/><span style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.5}}>AI Chef</span></div>
+                  <div style={{width:"100%",background:"var(--surface)",borderRadius:14,boxShadow:C.shadowSm,padding:"12px 14px"}}>
+                    {m.intro?<div style={{fontSize:14,color:C.ink,lineHeight:1.5,marginBottom:8}}>{m.intro}</div>:null}
+                    {m.meals.map(function(mm,mi){var cal=mm.nutrition&&mm.nutrition.calories?mm.nutrition.calories+" cal":"";var meta=[mm.time,cal].filter(Boolean).join(" · ");return <div key={mi} className="ft-card-tap" onClick={function(){setViewRecipe(stampNewRecipe(Object.assign({},mm,{emoji:"🍽️",credit:"Suggested by AI Chef"}),userId,"chef_chat"))}} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"10px 0",borderTop:mi?"1px solid "+C.bdr:"none",cursor:"pointer"}}>
+                      <div style={{flexShrink:0,width:22,height:22,borderRadius:11,background:C.blushMed,color:C.dark,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,marginTop:1}}>{mi+1}</div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:14,fontWeight:700,color:C.ink,lineHeight:1.25}}>{mm.name}</div>
+                        {meta?<div style={{fontSize:12,color:C.light,marginTop:2}}>{meta}</div>:null}
+                      </div>
+                      <Icon name="chevron-right" size={15} color={C.light} strokeWidth={2}/>
+                    </div>})}
+                    <button onClick={function(){addWeekPlanToCalendar(m.meals)}} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,width:"100%",marginTop:12,padding:"11px",borderRadius:10,border:"none",background:C.dark,color:"#fff",fontSize:13.5,fontWeight:700,cursor:"pointer"}}><Icon name="calendar" size={14} color="#fff" strokeWidth={2}/>Add all to calendar</button>
+                  </div>
+                </div>;
+              }
               var swapOverlay=chefSwaps[i];
               var displayText=m.text;
               if(swapOverlay&&swapOverlay.original){
@@ -7393,9 +7462,14 @@ function App(){
                   {pickable?<div style={{display:"flex",alignItems:"center",gap:5,marginTop:6,fontSize:11,color:C.gold,fontWeight:600}}><Icon name="sparkle" size={10} color={C.gold} strokeWidth={2}/>Tap a dish for the full recipe</div>:null}
                   {showChips?<div style={{display:"flex",flexWrap:"wrap",gap:7,marginTop:9}}>{parsedChef.chips.map(function(c,ci){return <button key={ci} onClick={function(){if(!chefLoading)sendChefMessage(c)}} style={{padding:"8px 14px",borderRadius:16,border:"1px solid "+C.gold,background:"var(--surface)",color:C.dark,fontSize:13,fontWeight:600,cursor:"pointer",boxShadow:C.shadowSm}}>{c}</button>})}</div>:null}
                   {swapOverlay?<button onClick={function(){setChefSwaps(function(prev){var next=Object.assign({},prev);delete next[i];return next})}} style={{display:"flex",alignItems:"center",gap:4,marginTop:6,background:"none",border:"none",padding:0,fontSize:11,fontWeight:600,color:C.gold,cursor:"pointer"}}><Icon name="swap" size={11} color={C.gold} strokeWidth={2}/>Swapped - tap to revert</button>:null}
-                  {m.role==="assistant"&&m.kind!=="swap"&&chefReplyIsFullRecipe(m.text)?<div style={{display:"flex",flexWrap:"wrap",gap:7,marginTop:9}}>
+                  {m.role==="assistant"&&m.kind!=="swap"&&chefReplyIsFullRecipe(m.text)?<React.Fragment>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:7,marginTop:9}}>
                     {[["Save","bookmark",function(){saveChefIdeaAsRecipe(m.text)}],["Plan","calendar",function(){chefPlanRecipe(m.text)}],["Add to grocery","cart",function(){chefRecipeToGrocery(m.text)}]].map(function(a,ai){return <button key={ai} onClick={function(){if(!chefLoading)a[2]()}} disabled={chefLoading} style={{display:"inline-flex",alignItems:"center",gap:5,padding:"7px 12px",borderRadius:14,border:"1px solid "+C.gold,background:"var(--surface)",color:C.gold,fontSize:12,fontWeight:600,cursor:chefLoading?"default":"pointer",opacity:chefLoading?.6:1}}><Icon name={a[1]} size={12} color={C.gold} strokeWidth={2}/>{a[0]}</button>})}
-                  </div>:null}
+                    </div>
+                    {i===chefMessages.length-1?<div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:7}}>
+                      {[["Healthier","Make this recipe healthier"],["Lower-carb","Make this recipe lower-carb"],["Serves 6","Scale this recipe to 6 servings"],["Dairy-free","Make this recipe dairy-free"],["Faster","Make this recipe faster to make"]].map(function(t,ti){return <button key={ti} onClick={function(){if(!chefLoading)sendChefMessage(t[1])}} disabled={chefLoading} style={{padding:"6px 11px",borderRadius:14,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.light,fontSize:11.5,fontWeight:600,cursor:chefLoading?"default":"pointer"}}>{t[0]}</button>})}
+                    </div>:null}
+                  </React.Fragment>:null}
                   {m.role==="assistant"&&m.kind==="swap"?<div style={{marginTop:8,display:"flex",flexDirection:"column",gap:8}}>
                     {m.suggestions.map(function(s,si){return <div key={si} style={{background:"var(--surface)",border:"1px solid "+C.bdr,borderRadius:10,padding:"10px 12px",boxShadow:C.shadowSm}}>
                       <div style={{fontSize:14,fontWeight:700,color:C.ink,marginBottom:2}}>{s.substitute}</div>

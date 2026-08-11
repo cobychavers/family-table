@@ -278,6 +278,9 @@ export default {
       if (type === "chef_chat") {
         // Recipe-idea chat - returns a plain-text reply, not a structured recipe
         payload = { success: true, reply: await chefChat(body.messages, env.ANTHROPIC_API_KEY, meter, body.avoid, body.taste, body.planned, body.pantry, body.diet) };
+      } else if (type === "chef_week_plan") {
+        // A whole-week dinner plan - returns { success, plan: { intro, meals:[...] } }
+        payload = { success: true, plan: await chefWeekPlan(body.count, env.ANTHROPIC_API_KEY, meter, body.avoid, body.taste, body.planned, body.pantry, body.diet) };
       } else if (type === "ingredient_swap") {
         // Substitutes for one ingredient - returns its own {success, original,
         // suggestions} shape, not the {success, recipe} shape
@@ -895,6 +898,9 @@ VARIETY IS ESSENTIAL:
 FULL RECIPE ON REQUEST:
 If the user asks for more detail on a specific idea ("tell me more about the second one", "how do I make that"), respond with ONE full recipe for that dish: the name, total time, a complete ingredient list with quantities, and numbered steps - self-contained enough to cook from without seeing the rest of the chat.
 
+TWEAK THE CURRENT RECIPE:
+If the user asks to modify the recipe you just gave them - "make it healthier", "lower-carb", "make it dairy-free / vegetarian / gluten-free", "scale it to 6 servings", "make it faster", "make it spicier", etc. - return the FULL revised recipe in the same complete format (name, time, full ingredient list with quantities, numbered steps), already adjusted. Keep the name but you may append a short qualifier (e.g. "(Lighter)", "(Serves 6)"). Don't just describe the changes - give the whole updated recipe so it's cook-ready and saveable.
+
 QUICK KITCHEN HELP:
 When they ask a practical cooking question - a unit conversion ("how many tablespoons in a cup"), an ingredient substitution, a doneness temperature, a scaling question, or a technique - just answer it directly and concisely. No clarifying questions here, and don't force recipe ideas onto these; add a short helpful note only if it's useful.
 
@@ -949,6 +955,54 @@ Keep tone practical and friendly. No long preambles, no markdown headers, no emo
   }
 
   return text.trim();
+}
+
+// A whole-week dinner plan: several complete, varied recipes at once, returned
+// as structured JSON so the app can render them and add them all to the
+// calendar in one tap. Reuses the same personalization signals as chefChat.
+async function chefWeekPlan(count, apiKey, meter, avoid, taste, planned, pantry, diet) {
+  const n = Math.max(3, Math.min(7, parseInt(count, 10) || 5));
+
+  let prompt = `Plan ${n} dinners for this cook's week. Return ONLY valid JSON with no other text, in exactly this shape:
+{"intro":"One short friendly sentence about the plan.","meals":[{"name":"Recipe Name","time":"30 min","ingredients":[{"qty":"2","unit":"cup","name":"flour"}],"notes":"1. First step\\n2. Second step","recipeType":"other","servings":4,"nutrition":{"calories":520,"protein":"32g","carbs":"45g","fat":"18g"}}]}
+
+Rules:
+- Exactly ${n} dinners, genuinely different from each other: vary the cuisine, the main protein or base, and the cooking method. No near-duplicates.
+- Deliberately let a few INGREDIENTS overlap across the meals so one grocery trip covers the week and less food is wasted - but keep the dishes themselves distinct.
+- Each meal must be complete and cookable: a real ingredient list with qty/unit/name, and numbered steps in "notes" (each step on its own line separated by \\n).
+- Keep them realistic weeknight dinners unless the context below says otherwise.
+- "recipeType" is one of: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, drinks, cocktails, other.
+- "servings": a whole number. "nutrition": your best PER-SERVING estimate ("calories" a whole number; "protein"/"carbs"/"fat" strings ending in "g"). Always include these estimates.`;
+
+  if (typeof diet === "string" && diet.trim()) {
+    prompt += `\n- DIETARY RULES (hard constraints, never violate): ${diet.trim()}.`;
+  }
+  if (Array.isArray(planned) && planned.length) {
+    prompt += `\n- Already on their plan this week (do NOT repeat these, plan around them): ${planned.slice(0, 20).join(", ")}.`;
+  }
+  if (Array.isArray(pantry) && pantry.length) {
+    prompt += `\n- Staples they already have (lean on these where it fits): ${pantry.slice(0, 50).join(", ")}.`;
+  }
+  if (typeof taste === "string" && taste.trim()) {
+    prompt += `\n- Their usual tastes (lean toward these but keep variety): ${taste.trim()}.`;
+  }
+  if (Array.isArray(avoid) && avoid.length) {
+    prompt += `\n- Recently suggested already (avoid these and close variations): ${avoid.slice(0, 30).join(", ")}.`;
+  }
+
+  const data = await callAnthropic({
+    model: "claude-sonnet-5",
+    max_tokens: 5000,
+    temperature: 1,
+    messages: [{ role: "user", content: prompt }]
+  }, apiKey, meter);
+
+  const responseText = data.content?.find(b => b.type === "text")?.text || "";
+  const parsed = extractJsonObject(responseText);
+  if (!parsed || !Array.isArray(parsed.meals) || !parsed.meals.length) {
+    throw new Error("Could not build a week plan");
+  }
+  return { intro: typeof parsed.intro === "string" ? parsed.intro : "", meals: parsed.meals };
 }
 
 // Ingredient substitution suggestions for one ingredient, optionally in the
