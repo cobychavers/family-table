@@ -1,0 +1,27 @@
+# Cloudflare Worker config for the recipe-proxy worker.
+# Used by `wrangler deploy` (locally, via GitHub Actions, or via Cloudflare's
+# native Git integration / Workers Builds).
+#
+# IMPORTANT: when a Worker deploys from wrangler.toml, this file becomes the
+# source of truth for its BINDINGS. Secrets are the exception - they are stored
+# separately and persist across deploys, so ANTHROPIC_API_KEY (a secret you set
+# in the dashboard, or via `wrangler secret put ANTHROPIC_API_KEY`) is NOT listed
+# here and will carry over untouched. The KV binding below, however, MUST be
+# declared or rate limiting would silently break after the first auto-deploy.
+
+name = "recipe-proxy"
+main = "recipe-proxy-worker.js"
+
+# Match this to the "Compatibility date" shown in the Cloudflare dashboard for
+# this Worker (Settings -> Runtime) so behavior doesn't change on deploy.
+compatibility_date = "2026-04-22"
+
+# The Worker is served at recipe-proxy.<your-subdomain>.workers.dev, which is
+# the default workers.dev route - no [[routes]] needed.
+
+# KV namespace for AI rate limiting (env.AI_RATE_LIMIT).
+# FILL IN `id`: Cloudflare dashboard -> Storage & Databases -> KV -> the namespace
+# currently bound as AI_RATE_LIMIT on this Worker -> copy its ID here.
+[[kv_namespaces]]
+binding = "AI_RATE_LIMIT"
+id = "db033dfebe7948c588883f50af513eff"
