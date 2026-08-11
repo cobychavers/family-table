@@ -1,3 +1,4 @@
+// Deploys automatically via Cloudflare Workers Builds on push (see wrangler.toml).
 // --- Firebase ID token verification ---------------------------------------
 // Gates the AI endpoints behind a real Firebase ID token, so only signed-in
 // users of this project can call them. The RS256 signature is checked against
