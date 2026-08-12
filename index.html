@@ -4448,6 +4448,8 @@ function App(){
   function addChefEquipment(raw){var n=(raw||"").trim();if(!n)return;setChefEquipment(function(prev){if(prev.some(function(x){return x.toLowerCase()===n.toLowerCase()}))return prev;var next=prev.concat([n]);try{localStorage.setItem("dm_chef_equipment",JSON.stringify(next))}catch(e){}return next;});}
   var [chefEquipOpen,setChefEquipOpen]=useState(false);
   var [chefEquipInput,setChefEquipInput]=useState("");
+  var [chefCuisineInput,setChefCuisineInput]=useState("");
+  function addChefCuisine(raw){var n=(raw||"").trim();if(!n)return;setChefMore(function(prev){var arr=(prev.cuisines||[]).slice();if(arr.some(function(x){return x.toLowerCase()===n.toLowerCase()}))return prev;arr.push(n);var next=Object.assign({},prev,{cuisines:arr});try{localStorage.setItem("dm_chef_more",JSON.stringify(next))}catch(e){}return next;});}
   var [chefEffort,setChefEffort]=useState(function(){try{return localStorage.getItem("dm_chef_effort")||""}catch(e){return""}});
   function saveChefEffort(v){setChefEffort(v);try{localStorage.setItem("dm_chef_effort",v||"")}catch(e){}}
   var [chefKids,setChefKids]=useState(function(){try{return localStorage.getItem("dm_chef_kids")||""}catch(e){return""}}); // "" | "yes" | "no"
@@ -7611,7 +7613,11 @@ function App(){
 
               <div style={section()}>Tastes</div>
               <div style={label()}>Favorite cuisines</div>
-              {chips(CHEF_CUISINES,function(o){return (chefMore.cuisines||[]).indexOf(o)>=0},function(o){toggleChefMoreArr("cuisines",o)})}
+              {chips(CHEF_CUISINES.concat((chefMore.cuisines||[]).filter(function(x){return CHEF_CUISINES.indexOf(x)<0})),function(o){return (chefMore.cuisines||[]).indexOf(o)>=0},function(o){toggleChefMoreArr("cuisines",o)})}
+              <div style={{display:"flex",gap:6,marginTop:8}}>
+                <input value={chefCuisineInput} onChange={function(e){setChefCuisineInput(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter"){e.preventDefault();addChefCuisine(chefCuisineInput);setChefCuisineInput("")}}} placeholder="Add a cuisine…" style={Object.assign({},field,{flex:1,padding:"9px 11px"})}/>
+                <button onClick={function(){addChefCuisine(chefCuisineInput);setChefCuisineInput("")}} disabled={!chefCuisineInput.trim()} style={Object.assign({},btn(C.dark),{borderRadius:9,flexShrink:0,padding:"0 14px",opacity:chefCuisineInput.trim()?1:.5})}>Add</button>
+              </div>
               <div style={label()}>Spice level</div>
               {chips(CHEF_SPICE,function(o){return chefMore.spice===o},function(o){updateChefMore({spice:chefMore.spice===o?"":o})})}
               <div style={label()}>Foods to avoid</div>
@@ -7626,14 +7632,9 @@ function App(){
                 <span style={{color:chefEquipment.length?C.ink:C.light,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{chefEquipment.length?(chefEquipment.length<=2?chefEquipment.join(", "):chefEquipment.slice(0,2).join(", ")+" +"+(chefEquipment.length-2)):"Select equipment"}</span>
                 <span style={{fontSize:9,color:C.light,flexShrink:0,transform:chefEquipOpen?"rotate(180deg)":"none",transition:"transform .15s"}}>▼</span>
               </button>
-              {chefEquipOpen?<div style={{border:"1px solid "+C.bdr,borderRadius:10,marginTop:6,overflow:"hidden",background:"var(--surface)",boxShadow:C.shadowSm}}>
-                <div style={{maxHeight:210,overflowY:"auto"}}>
-                  {CHEF_EQUIPMENT.concat(chefEquipment.filter(function(x){return CHEF_EQUIPMENT.indexOf(x)<0})).map(function(it,idx){var on=chefEquipment.indexOf(it)>=0;return <button key={it} onClick={function(){toggleChefEquipment(it)}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"10px 12px",background:on?C.blush:"var(--surface)",border:"none",borderTop:idx?"1px solid "+C.bdr:"none",cursor:"pointer",textAlign:"left"}}>
-                    <span style={{width:18,height:18,borderRadius:5,border:"1.5px solid "+(on?C.dark:C.bdr),background:on?C.dark:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{on?<Icon name="check" size={11} color="#fff" strokeWidth={3}/>:null}</span>
-                    <span style={{fontSize:13.5,color:C.ink,fontFamily:FS}}>{it}</span>
-                  </button>})}
-                </div>
-                <div style={{display:"flex",gap:6,padding:8,borderTop:"1px solid "+C.bdr}}>
+              {chefEquipOpen?<div style={{marginTop:8}}>
+                {chips(CHEF_EQUIPMENT.concat(chefEquipment.filter(function(x){return CHEF_EQUIPMENT.indexOf(x)<0})),function(o){return chefEquipment.indexOf(o)>=0},function(o){toggleChefEquipment(o)})}
+                <div style={{display:"flex",gap:6,marginTop:8}}>
                   <input value={chefEquipInput} onChange={function(e){setChefEquipInput(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter"){e.preventDefault();addChefEquipment(chefEquipInput);setChefEquipInput("")}}} placeholder="Add your own…" style={Object.assign({},field,{flex:1,padding:"9px 11px"})}/>
                   <button onClick={function(){addChefEquipment(chefEquipInput);setChefEquipInput("")}} disabled={!chefEquipInput.trim()} style={Object.assign({},btn(C.dark),{borderRadius:9,flexShrink:0,padding:"0 14px",opacity:chefEquipInput.trim()?1:.5})}>Add</button>
                 </div>
