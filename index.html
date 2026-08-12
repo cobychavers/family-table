@@ -4463,7 +4463,7 @@ function App(){
   function buildChefExtra(){
     var t=chefTimeContext();
     return {household:(chefHousehold||"").trim(),equipment:chefEquipment,dislikes:chefDislikes.slice(0,60),timeOfDay:t.timeOfDay,season:t.season,
-      cuisines:chefMore.cuisines||[],spice:chefMore.spice||"",avoidIngredients:(chefMore.avoid||"").trim(),timeBudget:chefMore.timeBudget||"",skill:chefMore.skill||"",leftovers:chefMore.leftovers?"yes":""};
+      cuisines:chefMore.cuisines||[],spice:chefMore.spice||"",avoid:chefMore.avoidList||[],timeBudget:chefMore.timeBudget||"",skill:chefMore.skill||"",leftovers:chefMore.leftovers?"yes":""};
   }
   var CHEF_EQUIPMENT=["Air fryer","Slow cooker","Instant Pot","Grill","Oven","Stovetop","Blender","Sheet pan"];
   var CHEF_EFFORT_OPTIONS=["Quick & easy","Balanced","I love to cook"];
@@ -4478,6 +4478,11 @@ function App(){
   var [chefMore,setChefMore]=useState(function(){try{return JSON.parse(localStorage.getItem("dm_chef_more")||"{}")}catch(e){return{}}});
   function updateChefMore(patch){setChefMore(function(prev){var next=Object.assign({},prev,patch);try{localStorage.setItem("dm_chef_more",JSON.stringify(next))}catch(e){}return next;});}
   function toggleChefMoreArr(key,val){setChefMore(function(prev){var arr=(prev[key]||[]).slice();var i=arr.indexOf(val);if(i>=0)arr.splice(i,1);else arr.push(val);var next=Object.assign({},prev);next[key]=arr;try{localStorage.setItem("dm_chef_more",JSON.stringify(next))}catch(e){}return next;});}
+  // "Foods to avoid" tag list - dietary restrictions AND disliked foods in one
+  // clean, chip-based field. Add via Enter (splits on commas so a paste works).
+  var [chefAvoidInput,setChefAvoidInput]=useState("");
+  function addChefAvoid(raw){var parts=(raw||"").split(",").map(function(s){return s.trim()}).filter(Boolean);if(!parts.length)return;setChefMore(function(prev){var arr=(prev.avoidList||[]).slice();parts.forEach(function(n){if(!arr.some(function(x){return x.toLowerCase()===n.toLowerCase()}))arr.push(n);});var next=Object.assign({},prev,{avoidList:arr.slice(0,80)});try{localStorage.setItem("dm_chef_more",JSON.stringify(next))}catch(e){}return next;});}
+  function removeChefAvoid(name){setChefMore(function(prev){var arr=(prev.avoidList||[]).filter(function(x){return x.toLowerCase()!==(name||"").toLowerCase()});var next=Object.assign({},prev,{avoidList:arr});try{localStorage.setItem("dm_chef_more",JSON.stringify(next))}catch(e){}return next;});}
   // The user's pantry staples, loaded so the Chef can lean on what they already
   // have. (The pantry itself is managed in the Grocery tab; this is a read.)
   var [chefPantry,setChefPantry]=useState([]);
@@ -6259,7 +6264,7 @@ function App(){
 
     setChefLoading(true);
 
-    proxyFetch({type:"chef_chat",messages:history.slice(-10),avoid:chefSeenDishes.slice(0,40),taste:buildTasteProfile(),planned:buildChefPlanned().slice(0,20),pantry:chefPantry.slice(0,50),diet:(chefDiet||"").trim(),extra:buildChefExtra()})
+    proxyFetch({type:"chef_chat",messages:history.slice(-10),avoid:chefSeenDishes.slice(0,40),taste:buildTasteProfile(),planned:buildChefPlanned().slice(0,20),pantry:chefPantry.slice(0,50),extra:buildChefExtra()})
     .then(function(response){return response.json()})
     .then(function(data){
       if(data.error)throw new Error(data.error);
@@ -6293,7 +6298,7 @@ function App(){
     setChefLastActive(Date.now());
     if(!isOnline){ setChefMessages(history.concat([{role:"assistant",text:"I need an internet connection for that - try again once you're back online."}])); return; }
     setChefLoading(true);
-    proxyFetch({type:"chef_week_plan",count:5,avoid:chefSeenDishes.slice(0,40),taste:buildTasteProfile(),planned:buildChefPlanned().slice(0,20),pantry:chefPantry.slice(0,50),diet:(chefDiet||"").trim(),extra:buildChefExtra()})
+    proxyFetch({type:"chef_week_plan",count:5,avoid:chefSeenDishes.slice(0,40),taste:buildTasteProfile(),planned:buildChefPlanned().slice(0,20),pantry:chefPantry.slice(0,50),extra:buildChefExtra()})
     .then(function(response){return response.json()})
     .then(function(data){
       if(data.error)throw new Error(data.error);
@@ -7606,12 +7611,9 @@ function App(){
               {chips(CHEF_CUISINES,function(o){return (chefMore.cuisines||[]).indexOf(o)>=0},function(o){toggleChefMoreArr("cuisines",o)})}
               <div style={label()}>Spice level</div>
               {chips(CHEF_SPICE,function(o){return chefMore.spice===o},function(o){updateChefMore({spice:chefMore.spice===o?"":o})})}
-              <div style={label()}>Ingredients to avoid</div>
-              <input value={chefMore.avoid||""} onChange={function(e){updateChefMore({avoid:e.target.value})}} placeholder="e.g. cilantro, mushrooms, olives" style={field}/>
-
-              <div style={section()}>Diet</div>
-              <div style={label()}>Dietary needs &amp; restrictions</div>
-              <textarea value={chefDiet} onChange={function(e){saveChefDiet(e.target.value)}} placeholder="e.g. vegetarian, no pork, dairy-free, allergic to shellfish" style={Object.assign({},field,{minHeight:60,lineHeight:1.5,resize:"vertical"})}/>
+              <div style={label()}>Foods to avoid</div>
+              {(chefMore.avoidList||[]).length?<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>{(chefMore.avoidList||[]).map(function(item){return <span key={item} style={{display:"inline-flex",alignItems:"center",gap:5,padding:"6px 8px 6px 11px",borderRadius:16,background:C.blushMed,border:"1px solid "+C.bdr,fontSize:12.5,fontWeight:600,color:C.ink,fontFamily:FS}}>{item}<button onClick={function(){removeChefAvoid(item)}} style={{background:"none",border:"none",cursor:"pointer",display:"flex",opacity:.55,padding:0}}><Icon name="x" size={12} strokeWidth={2.5}/></button></span>})}</div>:null}
+              <input value={chefAvoidInput} onChange={function(e){setChefAvoidInput(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter"||e.key===","){e.preventDefault();addChefAvoid(chefAvoidInput);setChefAvoidInput("")}}} placeholder="Allergies, restrictions or dislikes — press Enter" style={field}/>
 
               <div style={section()}>How you cook</div>
               <div style={label()}>Weeknight time</div>

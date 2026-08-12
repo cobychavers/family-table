@@ -884,8 +884,7 @@ function chefExtraPromptLines(extra) {
   if (Array.isArray(extra.proteins) && extra.proteins.length) s += `\n\nGo-to proteins they enjoy: ${extra.proteins.join(", ")}. Favor these, but still rotate for variety.`;
   const spice = (extra.spice || "").toString().trim();
   if (spice) s += `\n\nPreferred spice level: ${spice}. Season dishes accordingly.`;
-  const avoidIng = (extra.avoidIngredients || "").toString().trim();
-  if (avoidIng) s += `\n\nIngredients they dislike - avoid using these (this is a taste preference, not an allergy): ${avoidIng}.`;
+  if (Array.isArray(extra.avoid) && extra.avoid.length) s += `\n\nFoods the cook can't or won't eat - their dietary restrictions AND dislikes combined. NEVER include any of these, or a dish centered on them, in any idea or recipe. Treat this strictly (some may be allergies): ${extra.avoid.slice(0, 60).join(", ")}.`;
   // Diet & health
   const goal = (extra.healthGoal || "").toString().trim();
   if (goal) s += `\n\nHealth goal to support: ${goal}. Bias recipes toward this where you reasonably can.`;
