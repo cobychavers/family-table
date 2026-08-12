@@ -4463,7 +4463,7 @@ function App(){
   function buildChefExtra(){
     var t=chefTimeContext();
     return {household:(chefHousehold||"").trim(),equipment:chefEquipment,dislikes:chefDislikes.slice(0,60),timeOfDay:t.timeOfDay,season:t.season,
-      cuisines:chefMore.cuisines||[],spice:chefMore.spice||"",avoid:chefMore.avoidList||[],timeBudget:chefMore.timeBudget||"",skill:chefMore.skill||"",leftovers:chefMore.leftovers?"yes":""};
+      cuisines:chefMore.cuisines||[],spice:chefMore.spice||"",avoid:chefMore.avoidList||[],skill:chefMore.skill||"",leftovers:chefMore.leftovers?"yes":""};
   }
   var CHEF_EQUIPMENT=["Air fryer","Slow cooker","Instant Pot","Grill","Oven","Stovetop","Blender","Sheet pan"];
   var CHEF_EFFORT_OPTIONS=["Quick & easy","Balanced","I love to cook"];
@@ -4472,7 +4472,7 @@ function App(){
   var CHEF_SPICE=["Mild","Medium","Spicy"];
   var CHEF_TIME=["15 min or less","30 min or less","45 min or less","About an hour"];
   var CHEF_HEALTH=["High-protein","Low-carb","Heart-healthy","Low-calorie","Balanced"];
-  var CHEF_SKILL=["Beginner","Comfortable","Advanced"];
+  var CHEF_SKILL=["Beginner","Intermediate","Advanced"];
   var CHEF_MEALS=["Breakfast","Lunch","Dinner","Snacks"];
   // Everything else lives in one object so it's one state + one storage key.
   var [chefMore,setChefMore]=useState(function(){try{return JSON.parse(localStorage.getItem("dm_chef_more")||"{}")}catch(e){return{}}});
@@ -7616,8 +7616,6 @@ function App(){
               <input value={chefAvoidInput} onChange={function(e){setChefAvoidInput(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter"||e.key===","){e.preventDefault();addChefAvoid(chefAvoidInput);setChefAvoidInput("")}}} placeholder="Allergies, restrictions or dislikes — press Enter" style={field}/>
 
               <div style={section()}>How you cook</div>
-              <div style={label()}>Weeknight time</div>
-              {drop(chefMore.timeBudget,function(e){updateChefMore({timeBudget:e.target.value})},CHEF_TIME,"No limit")}
               <div style={label()}>Skill level</div>
               {chips(CHEF_SKILL,function(o){return chefMore.skill===o},function(o){updateChefMore({skill:chefMore.skill===o?"":o})})}
               <div style={label()}>Kitchen equipment</div>
