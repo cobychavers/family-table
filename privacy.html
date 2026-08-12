@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy · The Family Table</title>
+<style>
+  :root{ --ink:#2b2320; --muted:#6b615a; --light:#9a8f86; --bg:#f7f1ec; --card:#fff; --bdr:#e5ddd6; --accent:#7a5c58; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",sans-serif;line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:720px;margin:0 auto;padding:40px 22px 80px}
+  h1{font-family:"Cormorant Garamond",Georgia,serif;font-size:34px;font-weight:700;letter-spacing:.5px;margin:0 0 4px}
+  .sub{color:var(--light);font-style:italic;margin:0 0 6px}
+  .updated{color:var(--light);font-size:13px;margin:0 0 28px}
+  h2{font-family:"Cormorant Garamond",Georgia,serif;font-size:23px;font-weight:700;margin:34px 0 8px;padding-top:20px;border-top:1px solid var(--bdr)}
+  h3{font-size:15px;font-weight:700;margin:20px 0 6px}
+  p,li{font-size:15.5px;color:var(--ink)}
+  a{color:var(--accent)}
+  ul{padding-left:22px}
+  li{margin:5px 0}
+  .card{background:var(--card);border:1px solid var(--bdr);border-radius:14px;padding:16px 20px;margin:16px 0}
+  .muted{color:var(--muted);font-size:14px}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--bdr);vertical-align:top}
+  th{color:var(--light);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+  .foot{margin-top:40px;color:var(--light);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Privacy Policy</h1>
+  <p class="sub">The Family Table</p>
+  <p class="updated">Last updated: August 12, 2026</p>
+
+  <p>The Family Table (“the app,” “we,” “us”) is a meal‑planning app that lets you plan meals, save and create recipes, build grocery lists, and get AI recipe help. This policy explains what we collect, how we use it, who processes it, and the choices you have. We keep data collection to what the app needs to work — we do not sell your data, show ads, or track you across other apps or websites.</p>
+
+  <h2>Information we collect</h2>
+  <h3>Information you provide</h3>
+  <ul>
+    <li><strong>Account details:</strong> your email address, a username, and (optionally) a phone number. Your password is handled by Google Firebase Authentication; we never see or store it in readable form.</li>
+    <li><strong>Your content:</strong> recipes, meal plans, calendar entries, grocery lists, pantry items, and Chef preferences (such as household size, dietary restrictions, disliked foods, cuisines, and kitchen equipment) that you enter.</li>
+    <li><strong>Photos:</strong> a profile picture and recipe photos you choose to upload or capture.</li>
+    <li><strong>Household sharing:</strong> if you create or join a household, your recipes and meal plans are shared with the members you invite.</li>
+  </ul>
+  <h3>Information created when using AI features</h3>
+  <ul>
+    <li>When you use the AI Chef or recipe scanning/import, the app sends the relevant input — your prompts, recipe text or photos, and meal/pantry/preference context — to Anthropic’s Claude model (through our Cloudflare Worker) to generate a response.</li>
+  </ul>
+  <h3>Information we do <em>not</em> collect</h3>
+  <ul>
+    <li>No location data, no advertising identifiers, no third‑party analytics or tracking, and no contacts. We do not build advertising profiles.</li>
+  </ul>
+
+  <h2>How we use your information</h2>
+  <ul>
+    <li>To provide the app’s core features — saving your recipes, plans, lists, and preferences, and syncing them across your devices.</li>
+    <li>To operate the AI features you invoke (recipe generation, ideas, scanning, ingredient swaps).</li>
+    <li>To share content with household members you invite.</li>
+    <li>To secure the service and prevent abuse (for example, rate‑limiting AI requests).</li>
+    <li>To send account emails such as email verification.</li>
+  </ul>
+
+  <h2>Who processes your data (service providers)</h2>
+  <table>
+    <tr><th>Provider</th><th>Purpose</th><th>Data involved</th></tr>
+    <tr><td>Google Firebase (Authentication, Firestore, Cloud Storage)</td><td>Accounts, data storage, and photo storage</td><td>Email, username, phone, your content, photos</td></tr>
+    <tr><td>Cloudflare (Workers)</td><td>Securely relays AI requests; stores only anonymous rate‑limit counters keyed to your account ID</td><td>AI request content in transit; usage counters</td></tr>
+    <tr><td>Anthropic (Claude API)</td><td>Generates AI responses for the features you use</td><td>Your prompt, recipe text/photos, and preference context you send</td></tr>
+  </table>
+  <p class="muted">These providers process data on our behalf under their own terms and security practices. Anthropic processes API inputs and outputs to provide the response and does not use them to train its models; see Anthropic’s privacy and usage policies for details.</p>
+
+  <h2>Data sharing</h2>
+  <p>We do not sell your personal information and we do not share it for advertising. Your content is visible only to you and to the household members you explicitly invite. We may disclose information if required by law or to protect the safety and integrity of the service.</p>
+
+  <h2>Data retention and deletion</h2>
+  <p>We keep your information while your account is active. You can permanently delete your account and its data at any time from within the app: open the profile menu and choose <strong>Delete Account</strong>. This removes your account and your associated content (recipes, meal plans, grocery lists, pantry, and profile). Deletion is immediate and cannot be undone. Backups and provider logs may persist for a limited period before being overwritten.</p>
+
+  <h2>Security</h2>
+  <p>Data is transmitted over encrypted connections (HTTPS) and stored with our providers’ security controls. Access to your content is restricted to your account and the household members you invite. No method of transmission or storage is perfectly secure, but we take reasonable measures to protect your information.</p>
+
+  <h2>Children’s privacy</h2>
+  <p>The app is not directed to children under 13 (or the equivalent minimum age in your country), and we do not knowingly collect personal information from them. If you believe a child has provided us information, contact us and we will delete it.</p>
+
+  <h2>Your rights</h2>
+  <p>Depending on where you live, you may have rights to access, correct, or delete your personal information, and to object to or restrict certain processing. You can access and edit most information directly in the app, and delete everything using Delete Account. For any other request, contact us using the details below.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>We may update this policy from time to time. Material changes will be reflected by updating the “Last updated” date at the top of this page.</p>
+
+  <h2>Contact</h2>
+  <p>Questions or requests about your privacy? Contact us at <a href="mailto:coby.chavers@yahoo.com">coby.chavers@yahoo.com</a>.</p>
+
+  <p class="foot">The Family Table · This policy is provided for transparency and is not legal advice.</p>
+</div>
+</body>
+</html>
