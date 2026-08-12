@@ -7495,9 +7495,11 @@ function App(){
             <div style={{fontSize:13,color:C.light,maxWidth:280,margin:"0 auto 16px"}}>Tell me what's in your fridge, what you're in the mood for, or ask a cooking question.</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,maxWidth:300,margin:"0 auto"}}>
               {[
-                ["Plan My Week","calendar",function(){sendChefWeekPlan("Plan my week of dinners")}],
-                ["Quick & Easy","clock",function(){sendChefMessage("Give me quick and easy dinner ideas - 30 minutes or less, prep and cook included.")}],
+                ["Breakfast","sun",function(){sendChefMessage("Give me some breakfast ideas.")}],
+                ["Lunch","plate",function(){sendChefMessage("Give me some lunch ideas.")}],
+                ["Dinner","moon",function(){sendChefMessage("Give me some dinner ideas.")}],
                 ["Kid-Friendly","users",function(){sendChefMessage("Easy, kid-friendly dinner ideas that most kids will happily eat.")}],
+                ["Plan My Week","calendar",function(){sendChefWeekPlan("Plan my week of dinners")}],
                 ["Surprise Me","sparkle",function(){sendChefMessage("Surprise me with something out of the ordinary - feel free to step outside my usual tastes (but keep any hard dietary restrictions).")}]
               ].map(function(s){
                 return <button key={s[0]} onClick={s[2]} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,padding:"15px 8px",borderRadius:12,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontSize:12.5,fontWeight:600,cursor:"pointer",boxShadow:C.shadowSm}}><Icon name={s[1]} size={18} color={C.gold} strokeWidth={1.75}/>{s[0]}</button>
