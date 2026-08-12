@@ -4463,7 +4463,7 @@ function App(){
   function buildChefExtra(){
     var t=chefTimeContext();
     return {household:(chefHousehold||"").trim(),kids:(chefKids||"").trim(),kidsNotes:(chefMore.kidsNotes||"").trim(),equipment:chefEquipment,effort:(chefEffort||"").trim(),dislikes:chefDislikes.slice(0,60),timeOfDay:t.timeOfDay,season:t.season,
-      cuisines:chefMore.cuisines||[],proteins:chefMore.proteins||[],spice:chefMore.spice||"",avoidIngredients:(chefMore.avoid||"").trim(),healthGoal:chefMore.healthGoal||"",calorieTarget:(chefMore.calorieTarget||"").toString().trim(),timeBudget:chefMore.timeBudget||"",skill:chefMore.skill||"",budget:chefMore.budget?"yes":"",leftovers:chefMore.leftovers?"yes":"",meals:chefMore.meals||[]};
+      cuisines:chefMore.cuisines||[],proteins:chefMore.proteins||[],spice:chefMore.spice||"",avoidIngredients:(chefMore.avoid||"").trim(),timeBudget:chefMore.timeBudget||"",skill:chefMore.skill||"",budget:chefMore.budget?"yes":"",leftovers:chefMore.leftovers?"yes":"",meals:chefMore.meals||[]};
   }
   var CHEF_EQUIPMENT=["Air fryer","Slow cooker","Instant Pot","Grill","Oven","Stovetop","Blender","Sheet pan"];
   var CHEF_EFFORT_OPTIONS=["Quick & easy","Balanced","I love to cook"];
@@ -7613,13 +7613,9 @@ function App(){
               <div style={label()}>Ingredients to avoid</div>
               <input value={chefMore.avoid||""} onChange={function(e){updateChefMore({avoid:e.target.value})}} placeholder="e.g. cilantro, mushrooms, olives" style={field}/>
 
-              <div style={section()}>Diet &amp; health</div>
+              <div style={section()}>Diet</div>
               <div style={label()}>Dietary needs &amp; restrictions</div>
               <textarea value={chefDiet} onChange={function(e){saveChefDiet(e.target.value)}} placeholder="e.g. vegetarian, no pork, dairy-free, allergic to shellfish" style={Object.assign({},field,{minHeight:60,lineHeight:1.5,resize:"vertical"})}/>
-              <div style={label()}>Health goal</div>
-              {drop(chefMore.healthGoal,function(e){updateChefMore({healthGoal:e.target.value})},CHEF_HEALTH,"No specific goal")}
-              <div style={label()}>Daily calorie target (optional)</div>
-              <input type="number" min="800" max="5000" step="50" value={chefMore.calorieTarget||""} onChange={function(e){updateChefMore({calorieTarget:e.target.value})}} placeholder="e.g. 2000" style={Object.assign({},field,{width:130})}/>
 
               <div style={section()}>How you cook</div>
               <div style={label()}>Weeknight time</div>
