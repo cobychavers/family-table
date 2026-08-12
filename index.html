@@ -5785,7 +5785,7 @@ function App(){
               </div>
               <div style={{fontSize:14,color:C.light,flex:1}}>@{r.ownerUsername}</div>
             </div>
-            <div style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink,marginBottom:10,lineHeight:1.2}}>{r.name}</div>
+            <div style={{fontWeight:600,fontSize:16,color:C.dark,marginBottom:10,lineHeight:1.2}}>{r.name}</div>
             {(cookTime||typeInfo)?<div style={{display:"flex",alignItems:"center",gap:10,fontSize:13,color:C.light}}>
               {cookTime?<span style={{display:"inline-flex",alignItems:"center",gap:4}}><Icon name="clock" size={11} strokeWidth={1.75}/>{cookTime}</span>:null}
               {cookTime&&typeInfo?<span style={{opacity:.4}}>|</span>:null}
