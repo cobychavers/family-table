@@ -4462,10 +4462,22 @@ function App(){
   }
   function buildChefExtra(){
     var t=chefTimeContext();
-    return {household:(chefHousehold||"").trim(),kids:(chefKids||"").trim(),equipment:chefEquipment,effort:(chefEffort||"").trim(),dislikes:chefDislikes.slice(0,60),timeOfDay:t.timeOfDay,season:t.season};
+    return {household:(chefHousehold||"").trim(),kids:(chefKids||"").trim(),kidsNotes:(chefMore.kidsNotes||"").trim(),equipment:chefEquipment,effort:(chefEffort||"").trim(),dislikes:chefDislikes.slice(0,60),timeOfDay:t.timeOfDay,season:t.season,
+      cuisines:chefMore.cuisines||[],proteins:chefMore.proteins||[],spice:chefMore.spice||"",avoidIngredients:(chefMore.avoid||"").trim(),healthGoal:chefMore.healthGoal||"",calorieTarget:(chefMore.calorieTarget||"").toString().trim(),timeBudget:chefMore.timeBudget||"",skill:chefMore.skill||"",budget:chefMore.budget?"yes":"",leftovers:chefMore.leftovers?"yes":"",meals:chefMore.meals||[]};
   }
   var CHEF_EQUIPMENT=["Air fryer","Slow cooker","Instant Pot","Grill","Oven","Stovetop","Blender","Sheet pan"];
   var CHEF_EFFORT_OPTIONS=["Quick & easy","Balanced","I love to cook"];
+  var CHEF_CUISINES=["Italian","Mexican","Asian","Thai","Indian","Mediterranean","American","BBQ","Cajun","Middle Eastern","French","Greek"];
+  var CHEF_PROTEINS=["Chicken","Beef","Pork","Seafood","Eggs","Beans/Tofu"];
+  var CHEF_SPICE=["Mild","Medium","Spicy"];
+  var CHEF_TIME=["15 min or less","30 min or less","45 min or less","About an hour"];
+  var CHEF_HEALTH=["High-protein","Low-carb","Heart-healthy","Low-calorie","Balanced"];
+  var CHEF_SKILL=["Beginner","Comfortable","Advanced"];
+  var CHEF_MEALS=["Breakfast","Lunch","Dinner","Snacks"];
+  // Everything else lives in one object so it's one state + one storage key.
+  var [chefMore,setChefMore]=useState(function(){try{return JSON.parse(localStorage.getItem("dm_chef_more")||"{}")}catch(e){return{}}});
+  function updateChefMore(patch){setChefMore(function(prev){var next=Object.assign({},prev,patch);try{localStorage.setItem("dm_chef_more",JSON.stringify(next))}catch(e){}return next;});}
+  function toggleChefMoreArr(key,val){setChefMore(function(prev){var arr=(prev[key]||[]).slice();var i=arr.indexOf(val);if(i>=0)arr.splice(i,1);else arr.push(val);var next=Object.assign({},prev);next[key]=arr;try{localStorage.setItem("dm_chef_more",JSON.stringify(next))}catch(e){}return next;});}
   // The user's pantry staples, loaded so the Chef can lean on what they already
   // have. (The pantry itself is managed in the Grocery tab; this is a read.)
   var [chefPantry,setChefPantry]=useState([]);
@@ -7568,19 +7580,57 @@ function App(){
           <div style={{fontSize:12.5,color:C.light,lineHeight:1.5,marginBottom:12}}>The Chef keeps all of this in mind for every idea and recipe.</div>
           {(function(){
             var FS="'Inter',-apple-system,sans-serif";
-            var label=function(top){return {fontSize:11.5,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.5,margin:(top?"16px":"0")+" 0 8px"};};
-            var chip=function(on){return {padding:"7px 12px",borderRadius:16,border:"1px solid "+(on?C.dark:C.bdr),background:on?C.blushMed:"var(--surface)",color:on?C.ink:C.light,fontSize:12.5,fontWeight:600,cursor:"pointer",fontFamily:FS};};
-            return <div style={{maxHeight:"60vh",overflowY:"auto",margin:"0 -2px",padding:"0 2px"}}>
-              <div style={label(false)}>Dietary needs</div>
-              <textarea value={chefDiet} onChange={function(e){saveChefDiet(e.target.value)}} placeholder="e.g. vegetarian, no pork, dairy-free, allergic to shellfish, low-carb" style={{width:"100%",boxSizing:"border-box",minHeight:70,padding:"11px 13px",borderRadius:12,border:"1px solid "+C.bdr,fontSize:14,lineHeight:1.5,resize:"vertical",fontFamily:FS,background:C.card,color:C.ink,outline:"none"}}/>
-              <div style={label(true)}>Household size</div>
-              <input type="number" min="1" max="20" value={chefHousehold} onChange={function(e){saveChefHousehold(e.target.value)}} placeholder="e.g. 4" style={{width:110,boxSizing:"border-box",padding:"10px 13px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,fontFamily:FS,background:C.card,color:C.ink,outline:"none"}}/>
-              <div style={label(true)}>Cooking for kids?</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{[["yes","Yes, kids too"],["no","No kids"]].map(function(o){var on=chefKids===o[0];return <button key={o[0]} onClick={function(){saveChefKids(on?"":o[0])}} style={chip(on)}>{o[1]}</button>})}</div>
-              <div style={label(true)}>Kitchen equipment</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{CHEF_EQUIPMENT.map(function(it){var on=chefEquipment.indexOf(it)>=0;return <button key={it} onClick={function(){toggleChefEquipment(it)}} style={chip(on)}>{it}</button>})}</div>
-              <div style={label(true)}>Effort level</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{CHEF_EFFORT_OPTIONS.map(function(o){var on=chefEffort===o;return <button key={o} onClick={function(){saveChefEffort(on?"":o)}} style={chip(on)}>{o}</button>})}</div>
+            var label=function(){return {fontSize:11,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.5,margin:"14px 0 8px"};};
+            var chipS=function(on){return {padding:"7px 12px",borderRadius:16,border:"1px solid "+(on?C.dark:C.bdr),background:on?C.blushMed:"var(--surface)",color:on?C.ink:C.light,fontSize:12.5,fontWeight:600,cursor:"pointer",fontFamily:FS};};
+            var field={width:"100%",boxSizing:"border-box",padding:"11px 13px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,fontFamily:FS,background:C.card,color:C.ink,outline:"none"};
+            var section=function(first){return {fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:19,fontWeight:700,color:C.ink,margin:(first?"0":"20px")+" 0 2px",paddingTop:first?0:15,borderTop:first?"none":"1px solid "+C.bdr};};
+            var chips=function(list,isOn,onTap){return <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{list.map(function(o){return <button key={o} onClick={function(){onTap(o)}} style={chipS(isOn(o))}>{o}</button>})}</div>;};
+            var drop=function(value,onChange,opts,anyLabel){return <div style={{position:"relative",maxWidth:230}}><select value={value||""} onChange={onChange} style={Object.assign({},field,{appearance:"none",WebkitAppearance:"none",MozAppearance:"none",paddingRight:32,cursor:"pointer",fontWeight:600})}><option value="">{anyLabel}</option>{opts.map(function(o){return <option key={o} value={o}>{o}</option>})}</select><span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",fontSize:9,color:C.light}}>▼</span></div>;};
+            var checkRow=function(labelText,checked,onToggle){return <button onClick={onToggle} style={{display:"flex",alignItems:"center",gap:11,width:"100%",padding:"9px 0",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}><span style={{width:20,height:20,borderRadius:6,border:"1.5px solid "+(checked?C.dark:C.bdr),background:checked?C.dark:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"background .12s"}}>{checked?<Icon name="check" size={12} color="#fff" strokeWidth={3}/>:null}</span><span style={{fontSize:14,color:C.ink,fontFamily:FS}}>{labelText}</span></button>;};
+            var kids=chefKids==="yes";
+            return <div style={{maxHeight:"62vh",overflowY:"auto",margin:"0 -2px",padding:"0 2px"}}>
+
+              <div style={section(true)}>Who's eating</div>
+              <div style={label()}>Household size</div>
+              <input type="number" min="1" max="20" value={chefHousehold} onChange={function(e){saveChefHousehold(e.target.value)}} placeholder="e.g. 4" style={Object.assign({},field,{width:110})}/>
+              <div style={{marginTop:8}}>{checkRow("Cooking for kids too",kids,function(){saveChefKids(kids?"":"yes")})}</div>
+              {kids?<input value={chefMore.kidsNotes||""} onChange={function(e){updateChefMore({kidsNotes:e.target.value})}} placeholder="Ages or picky-eater notes (optional)" style={Object.assign({},field,{marginTop:4})}/>:null}
+
+              <div style={section()}>Tastes</div>
+              <div style={label()}>Favorite cuisines</div>
+              {chips(CHEF_CUISINES,function(o){return (chefMore.cuisines||[]).indexOf(o)>=0},function(o){toggleChefMoreArr("cuisines",o)})}
+              <div style={label()}>Go-to proteins</div>
+              {chips(CHEF_PROTEINS,function(o){return (chefMore.proteins||[]).indexOf(o)>=0},function(o){toggleChefMoreArr("proteins",o)})}
+              <div style={label()}>Spice level</div>
+              {drop(chefMore.spice,function(e){updateChefMore({spice:e.target.value})},CHEF_SPICE,"No preference")}
+              <div style={label()}>Ingredients to avoid</div>
+              <input value={chefMore.avoid||""} onChange={function(e){updateChefMore({avoid:e.target.value})}} placeholder="e.g. cilantro, mushrooms, olives" style={field}/>
+
+              <div style={section()}>Diet &amp; health</div>
+              <div style={label()}>Dietary needs &amp; restrictions</div>
+              <textarea value={chefDiet} onChange={function(e){saveChefDiet(e.target.value)}} placeholder="e.g. vegetarian, no pork, dairy-free, allergic to shellfish" style={Object.assign({},field,{minHeight:60,lineHeight:1.5,resize:"vertical"})}/>
+              <div style={label()}>Health goal</div>
+              {drop(chefMore.healthGoal,function(e){updateChefMore({healthGoal:e.target.value})},CHEF_HEALTH,"No specific goal")}
+              <div style={label()}>Daily calorie target (optional)</div>
+              <input type="number" min="800" max="5000" step="50" value={chefMore.calorieTarget||""} onChange={function(e){updateChefMore({calorieTarget:e.target.value})}} placeholder="e.g. 2000" style={Object.assign({},field,{width:130})}/>
+
+              <div style={section()}>How you cook</div>
+              <div style={label()}>Weeknight time</div>
+              {drop(chefMore.timeBudget,function(e){updateChefMore({timeBudget:e.target.value})},CHEF_TIME,"No limit")}
+              <div style={label()}>Effort level</div>
+              {chips(CHEF_EFFORT_OPTIONS,function(o){return chefEffort===o},function(o){saveChefEffort(chefEffort===o?"":o)})}
+              <div style={label()}>Skill level</div>
+              {drop(chefMore.skill,function(e){updateChefMore({skill:e.target.value})},CHEF_SKILL,"Any")}
+              <div style={label()}>Kitchen equipment</div>
+              {chips(CHEF_EQUIPMENT,function(o){return chefEquipment.indexOf(o)>=0},function(o){toggleChefEquipment(o)})}
+
+              <div style={section()}>Planning</div>
+              <div style={label()}>Meals to plan</div>
+              {chips(CHEF_MEALS,function(o){return (chefMore.meals||[]).indexOf(o)>=0},function(o){toggleChefMoreArr("meals",o)})}
+              <div style={{marginTop:8}}>
+                {checkRow("Lean budget-friendly",!!chefMore.budget,function(){updateChefMore({budget:!chefMore.budget})})}
+                {checkRow("Make extra for leftovers",!!chefMore.leftovers,function(){updateChefMore({leftovers:!chefMore.leftovers})})}
+              </div>
             </div>;
           })()}
           <button onClick={function(){setShowChefPrefs(false)}} style={Object.assign({},btn(C.dark),{width:"100%",marginTop:14})}>Done</button>

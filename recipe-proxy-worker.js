@@ -877,9 +877,34 @@ function chefExtraPromptLines(extra) {
   const kids = (extra.kids || "").toString().trim();
   if (kids === "yes") s += `\n\nThere are kids eating too - favor family- and kid-friendly dishes (approachable flavors, not too spicy) unless they ask otherwise.`;
   else if (kids === "no") s += `\n\nNo kids in the mix - you don't need to keep things kid-friendly; grown-up flavors and spice are fine.`;
-  if (Array.isArray(extra.equipment) && extra.equipment.length) s += `\n\nKitchen equipment they have and like to use: ${extra.equipment.join(", ")}. Lean toward methods that use these when it fits; never assume equipment they didn't list.`;
+  const kidsNotes = (extra.kidsNotes || "").toString().trim();
+  if (kidsNotes) s += `\n\nNotes about the kids: ${kidsNotes}. Keep these in mind.`;
+  // Tastes
+  if (Array.isArray(extra.cuisines) && extra.cuisines.length) s += `\n\nCuisines they love (lean toward these, but keep variety): ${extra.cuisines.join(", ")}.`;
+  if (Array.isArray(extra.proteins) && extra.proteins.length) s += `\n\nGo-to proteins they enjoy: ${extra.proteins.join(", ")}. Favor these, but still rotate for variety.`;
+  const spice = (extra.spice || "").toString().trim();
+  if (spice) s += `\n\nPreferred spice level: ${spice}. Season dishes accordingly.`;
+  const avoidIng = (extra.avoidIngredients || "").toString().trim();
+  if (avoidIng) s += `\n\nIngredients they dislike - avoid using these (this is a taste preference, not an allergy): ${avoidIng}.`;
+  // Diet & health
+  const goal = (extra.healthGoal || "").toString().trim();
+  if (goal) s += `\n\nHealth goal to support: ${goal}. Bias recipes toward this where you reasonably can.`;
+  const cal = (extra.calorieTarget || "").toString().trim();
+  if (cal) s += `\n\nRough daily calorie target: ${cal}. Keep individual meals sensible against that.`;
+  // How they cook
+  const tb = (extra.timeBudget || "").toString().trim();
+  if (tb) s += `\n\nWeeknight time budget: ${tb}. Keep weeknight recipes within that unless they ask for a project.`;
   const eff = (extra.effort || "").toString().trim();
   if (eff) s += `\n\nEffort level they're up for: ${eff}. Match the ambition of your ideas/recipes to this.`;
+  const skill = (extra.skill || "").toString().trim();
+  if (skill) s += `\n\nCooking skill level: ${skill}. Pitch techniques and instructions to this level.`;
+  if (Array.isArray(extra.equipment) && extra.equipment.length) s += `\n\nKitchen equipment they have and like to use: ${extra.equipment.join(", ")}. Lean toward methods that use these when it fits; never assume equipment they didn't list.`;
+  // Planning
+  const budget = (extra.budget || "").toString().trim();
+  if (budget === "yes") s += `\n\nThey want budget-friendly meals - favor affordable ingredients and cuts, and dishes that reuse ingredients.`;
+  const lefto = (extra.leftovers || "").toString().trim();
+  if (lefto === "yes") s += `\n\nThey like leftovers - it's good to make extra / batch-friendly portions.`;
+  if (Array.isArray(extra.meals) && extra.meals.length) s += `\n\nMeals they plan for: ${extra.meals.join(", ")}. When relevant, tailor ideas to these.`;
   if (Array.isArray(extra.dislikes) && extra.dislikes.length) s += `\n\nNEVER suggest these - the cook has thumbed them down or asked to avoid them (skip these dishes and close variations entirely): ${extra.dislikes.slice(0, 60).join(", ")}.`;
   const tod = (extra.timeOfDay || "").toString().trim();
   const season = (extra.season || "").toString().trim();
