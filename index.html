@@ -4446,7 +4446,8 @@ function App(){
   var [chefEquipment,setChefEquipment]=useState(function(){try{return JSON.parse(localStorage.getItem("dm_chef_equipment")||"[]")}catch(e){return[]}});
   function toggleChefEquipment(item){setChefEquipment(function(prev){var next=prev.indexOf(item)>=0?prev.filter(function(x){return x!==item}):prev.concat([item]);try{localStorage.setItem("dm_chef_equipment",JSON.stringify(next))}catch(e){}return next;});}
   function addChefEquipment(raw){var n=(raw||"").trim();if(!n)return;setChefEquipment(function(prev){if(prev.some(function(x){return x.toLowerCase()===n.toLowerCase()}))return prev;var next=prev.concat([n]);try{localStorage.setItem("dm_chef_equipment",JSON.stringify(next))}catch(e){}return next;});}
-  var [chefEquipOpen,setChefEquipOpen]=useState(false);
+  var [chefEquipOpen,setChefEquipOpen]=useState(true);
+  var [chefCuisineOpen,setChefCuisineOpen]=useState(true);
   var [chefEquipInput,setChefEquipInput]=useState("");
   var [chefCuisineInput,setChefCuisineInput]=useState("");
   function addChefCuisine(raw){var n=(raw||"").trim();if(!n)return;setChefMore(function(prev){var arr=(prev.cuisines||[]).slice();if(arr.some(function(x){return x.toLowerCase()===n.toLowerCase()}))return prev;arr.push(n);var next=Object.assign({},prev,{cuisines:arr});try{localStorage.setItem("dm_chef_more",JSON.stringify(next))}catch(e){}return next;});}
@@ -7602,6 +7603,7 @@ function App(){
             var field={width:"100%",boxSizing:"border-box",padding:"11px 13px",borderRadius:10,border:"1px solid "+C.bdr,fontSize:14,fontFamily:FS,background:C.card,color:C.ink,outline:"none"};
             var section=function(first){return {fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:19,fontWeight:700,color:C.ink,margin:(first?"0":"20px")+" 0 2px",paddingTop:first?0:15,borderTop:first?"none":"1px solid "+C.bdr};};
             var chips=function(list,isOn,onTap){return <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{list.map(function(o){return <button key={o} onClick={function(){onTap(o)}} style={chipS(isOn(o))}>{o}</button>})}</div>;};
+            var collHead=function(text,count,open,onToggle){return <button onClick={onToggle} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",cursor:"pointer",fontSize:11,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.5,margin:"14px 0 8px",padding:0,fontFamily:FS}}><span>{text}{count?" · "+count:""}</span><span style={{fontSize:8,transform:open?"none":"rotate(-90deg)",transition:"transform .15s"}}>▼</span></button>;};
             var drop=function(value,onChange,opts,anyLabel){return <div style={{position:"relative",maxWidth:230}}><select value={value||""} onChange={onChange} style={Object.assign({},field,{appearance:"none",WebkitAppearance:"none",MozAppearance:"none",paddingRight:32,cursor:"pointer",fontWeight:600})}><option value="">{anyLabel}</option>{opts.map(function(o){return <option key={o} value={o}>{o}</option>})}</select><span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",fontSize:9,color:C.light}}>▼</span></div>;};
             var checkRow=function(labelText,checked,onToggle){return <button onClick={onToggle} style={{display:"flex",alignItems:"center",gap:11,width:"100%",padding:"9px 0",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}><span style={{width:20,height:20,borderRadius:6,border:"1.5px solid "+(checked?C.dark:C.bdr),background:checked?C.dark:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"background .12s"}}>{checked?<Icon name="check" size={12} color="#fff" strokeWidth={3}/>:null}</span><span style={{fontSize:14,color:C.ink,fontFamily:FS}}>{labelText}</span></button>;};
             return <div style={{maxHeight:"62vh",overflowY:"auto",margin:"0 -2px",padding:"0 2px"}}>
@@ -7612,12 +7614,14 @@ function App(){
               <div style={{marginTop:8}}>{checkRow("Leftovers",!!chefMore.leftovers,function(){updateChefMore({leftovers:!chefMore.leftovers})})}</div>
 
               <div style={section()}>Tastes</div>
-              <div style={label()}>Favorite cuisines</div>
-              {chips(CHEF_CUISINES.concat((chefMore.cuisines||[]).filter(function(x){return CHEF_CUISINES.indexOf(x)<0})),function(o){return (chefMore.cuisines||[]).indexOf(o)>=0},function(o){toggleChefMoreArr("cuisines",o)})}
-              <div style={{display:"flex",gap:6,marginTop:8}}>
-                <input value={chefCuisineInput} onChange={function(e){setChefCuisineInput(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter"){e.preventDefault();addChefCuisine(chefCuisineInput);setChefCuisineInput("")}}} placeholder="Add a cuisine…" style={Object.assign({},field,{flex:1,padding:"9px 11px"})}/>
-                <button onClick={function(){addChefCuisine(chefCuisineInput);setChefCuisineInput("")}} disabled={!chefCuisineInput.trim()} style={Object.assign({},btn(C.dark),{borderRadius:9,flexShrink:0,padding:"0 14px",opacity:chefCuisineInput.trim()?1:.5})}>Add</button>
-              </div>
+              {collHead("Favorite cuisines",(chefMore.cuisines||[]).length,chefCuisineOpen,function(){setChefCuisineOpen(!chefCuisineOpen)})}
+              {chefCuisineOpen?<div>
+                {chips(CHEF_CUISINES.concat((chefMore.cuisines||[]).filter(function(x){return CHEF_CUISINES.indexOf(x)<0})),function(o){return (chefMore.cuisines||[]).indexOf(o)>=0},function(o){toggleChefMoreArr("cuisines",o)})}
+                <div style={{display:"flex",gap:6,marginTop:8}}>
+                  <input value={chefCuisineInput} onChange={function(e){setChefCuisineInput(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter"){e.preventDefault();addChefCuisine(chefCuisineInput);setChefCuisineInput("")}}} placeholder="Add a cuisine…" style={Object.assign({},field,{flex:1,padding:"9px 11px"})}/>
+                  <button onClick={function(){addChefCuisine(chefCuisineInput);setChefCuisineInput("")}} disabled={!chefCuisineInput.trim()} style={Object.assign({},btn(C.dark),{borderRadius:9,flexShrink:0,padding:"0 14px",opacity:chefCuisineInput.trim()?1:.5})}>Add</button>
+                </div>
+              </div>:null}
               <div style={label()}>Spice level</div>
               {chips(CHEF_SPICE,function(o){return chefMore.spice===o},function(o){updateChefMore({spice:chefMore.spice===o?"":o})})}
               <div style={label()}>Foods to avoid</div>
@@ -7627,12 +7631,8 @@ function App(){
               <div style={section()}>How you cook</div>
               <div style={label()}>Skill level</div>
               {chips(CHEF_SKILL,function(o){return chefMore.skill===o},function(o){updateChefMore({skill:chefMore.skill===o?"":o})})}
-              <div style={label()}>Kitchen equipment</div>
-              <button onClick={function(){setChefEquipOpen(!chefEquipOpen)}} style={Object.assign({},field,{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,cursor:"pointer",textAlign:"left",fontWeight:600})}>
-                <span style={{color:chefEquipment.length?C.ink:C.light,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{chefEquipment.length?(chefEquipment.length<=2?chefEquipment.join(", "):chefEquipment.slice(0,2).join(", ")+" +"+(chefEquipment.length-2)):"Select equipment"}</span>
-                <span style={{fontSize:9,color:C.light,flexShrink:0,transform:chefEquipOpen?"rotate(180deg)":"none",transition:"transform .15s"}}>▼</span>
-              </button>
-              {chefEquipOpen?<div style={{marginTop:8}}>
+              {collHead("Kitchen equipment",chefEquipment.length,chefEquipOpen,function(){setChefEquipOpen(!chefEquipOpen)})}
+              {chefEquipOpen?<div>
                 {chips(CHEF_EQUIPMENT.concat(chefEquipment.filter(function(x){return CHEF_EQUIPMENT.indexOf(x)<0})),function(o){return chefEquipment.indexOf(o)>=0},function(o){toggleChefEquipment(o)})}
                 <div style={{display:"flex",gap:6,marginTop:8}}>
                   <input value={chefEquipInput} onChange={function(e){setChefEquipInput(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter"){e.preventDefault();addChefEquipment(chefEquipInput);setChefEquipInput("")}}} placeholder="Add your own…" style={Object.assign({},field,{flex:1,padding:"9px 11px"})}/>
