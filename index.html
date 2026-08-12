@@ -2348,6 +2348,7 @@ function GroceryTab(p){
   var [grocerySub,setGrocerySub]=useState("list"); // "list" | "pantry"
   var [pantryInput,setPantryInput]=useState("");
   var [pantrySkipped,setPantrySkipped]=useState(0);
+  var [staplesOpen,setStaplesOpen]=useState(true);
   // Matches on the same cleaned/synonym key the grocery list consolidates by,
   // so "black pepper, to taste" in a recipe matches "black pepper" in a pantry.
   function pantryKey(name){return groceryMergeKey(displayGroceryName(name||""))}
@@ -3678,11 +3679,34 @@ function GroceryTab(p){
 
   // Pantry sub-tab panel (staples kept off the generated list). Reuses this
   // tab's own pantry data - the same doc that drives list filtering.
+  var COMMON_STAPLES=[
+    {cat:"Oils & vinegars",items:["Olive oil","Vegetable oil","Balsamic vinegar"]},
+    {cat:"Baking",items:["Flour","Sugar","Brown sugar","Baking soda","Baking powder","Vanilla extract"]},
+    {cat:"Seasonings",items:["Salt","Black pepper","Garlic powder","Onion powder","Paprika","Cumin","Cinnamon","Oregano"]},
+    {cat:"Condiments",items:["Ketchup","Mustard","Mayonnaise","Soy sauce","Hot sauce","Honey"]},
+    {cat:"Basics",items:["Butter","Eggs","Milk","Rice","Pasta","Garlic","Onion"]}
+  ];
   var pantryPanel=React.createElement("div",{style:{animation:"ft-fade-in .2s ease-out"}},
     React.createElement("div",{style:{fontSize:12.5,color:C.light,lineHeight:1.5,marginBottom:16}},"Staples you keep at home. These are left off your grocery list when you generate it from the calendar."),
     React.createElement("div",{style:{display:"flex",gap:8,marginBottom:18,alignItems:"flex-start"}},
       React.createElement("textarea",{value:pantryInput,rows:1,onChange:function(e){setPantryInput(e.target.value)},onKeyDown:function(e){if(e.key==="Enter"&&!e.shiftKey&&pantryInput.trim()){e.preventDefault();addToPantry(pantryInput);setPantryInput("")}},placeholder:"Add one or many — separate with commas or new lines",style:{flex:1,minWidth:0,padding:"13px 14px",borderRadius:12,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box",color:C.ink,background:C.card,outline:"none",resize:"vertical",minHeight:48,fontFamily:"inherit",lineHeight:1.4}}),
       React.createElement("button",{onClick:function(){if(pantryInput.trim()){addToPantry(pantryInput);setPantryInput("")}},disabled:!pantryInput.trim(),style:{flex:"0 0 auto",padding:"13px 20px",borderRadius:12,border:"none",background:pantryInput.trim()?C.dark:"var(--disabled)",color:"#fff",fontSize:14,fontWeight:600,cursor:pantryInput.trim()?"pointer":"not-allowed"}},"Add")
+    ),
+    React.createElement("div",{style:{marginBottom:20}},
+      React.createElement("button",{onClick:function(){setStaplesOpen(!staplesOpen)},style:{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",cursor:"pointer",fontSize:11,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.5,padding:0,marginBottom:staplesOpen?12:0}},
+        React.createElement("span",null,"Quick add · common staples"),
+        React.createElement("span",{style:{fontSize:8,transform:staplesOpen?"none":"rotate(-90deg)",transition:"transform .15s"}},"▼")
+      ),
+      staplesOpen?React.createElement("div",null,COMMON_STAPLES.map(function(g){
+        return React.createElement("div",{key:g.cat,style:{marginBottom:13}},
+          React.createElement("div",{style:{fontSize:11,color:C.light,marginBottom:7,fontWeight:600}},g.cat),
+          React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:7}},g.items.map(function(name){
+            var on=isInPantry(name);
+            return React.createElement("button",{key:name,onClick:function(){if(on){removeFromPantry(name)}else{addToPantry(name)}},style:{padding:"7px 12px",borderRadius:16,border:"1px solid "+(on?C.dark:C.bdr),background:on?C.blushMed:C.card,color:on?C.ink:C.light,fontSize:12.5,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:5,fontFamily:"inherit"}},
+              on?React.createElement(Icon,{name:"check",size:11,color:C.dark,strokeWidth:2.5}):null,name);
+          }))
+        );
+      })):null
     ),
     pantry.length===0?React.createElement("div",{style:{textAlign:"center",padding:"44px 16px"}},
       React.createElement("div",{style:{marginBottom:12,opacity:.3}},React.createElement(Icon,{name:"clipboard",size:34,color:C.dark,strokeWidth:1.25})),
