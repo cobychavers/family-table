@@ -4462,7 +4462,7 @@ function App(){
   }
   function buildChefExtra(){
     var t=chefTimeContext();
-    return {household:(chefHousehold||"").trim(),kids:(chefKids||"").trim(),kidsNotes:(chefMore.kidsNotes||"").trim(),equipment:chefEquipment,effort:(chefEffort||"").trim(),dislikes:chefDislikes.slice(0,60),timeOfDay:t.timeOfDay,season:t.season,
+    return {household:(chefHousehold||"").trim(),kids:(chefKids||"").trim(),kidsNotes:(chefMore.kidsNotes||"").trim(),equipment:chefEquipment,dislikes:chefDislikes.slice(0,60),timeOfDay:t.timeOfDay,season:t.season,
       cuisines:chefMore.cuisines||[],proteins:chefMore.proteins||[],spice:chefMore.spice||"",avoidIngredients:(chefMore.avoid||"").trim(),timeBudget:chefMore.timeBudget||"",skill:chefMore.skill||"",budget:chefMore.budget?"yes":"",leftovers:chefMore.leftovers?"yes":"",meals:chefMore.meals||[]};
   }
   var CHEF_EQUIPMENT=["Air fryer","Slow cooker","Instant Pot","Grill","Oven","Stovetop","Blender","Sheet pan"];
@@ -7620,10 +7620,8 @@ function App(){
               <div style={section()}>How you cook</div>
               <div style={label()}>Weeknight time</div>
               {drop(chefMore.timeBudget,function(e){updateChefMore({timeBudget:e.target.value})},CHEF_TIME,"No limit")}
-              <div style={label()}>Effort level</div>
-              {chips(CHEF_EFFORT_OPTIONS,function(o){return chefEffort===o},function(o){saveChefEffort(chefEffort===o?"":o)})}
               <div style={label()}>Skill level</div>
-              {drop(chefMore.skill,function(e){updateChefMore({skill:e.target.value})},CHEF_SKILL,"Any")}
+              {chips(CHEF_SKILL,function(o){return chefMore.skill===o},function(o){updateChefMore({skill:chefMore.skill===o?"":o})})}
               <div style={label()}>Kitchen equipment</div>
               {chips(CHEF_EQUIPMENT,function(o){return chefEquipment.indexOf(o)>=0},function(o){toggleChefEquipment(o)})}
 
