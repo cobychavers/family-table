@@ -2378,10 +2378,21 @@ function GroceryTab(p){
     setPantry(list);
     saveList("dm_pantry_"+p.userId,JSON.stringify(list)).catch(function(){});
   }
-  function addToPantry(name){
-    var n=displayGroceryName(name||"").trim();
-    if(!n||isInPantry(n))return;
-    savePantry(pantry.concat([{name:n}]).sort(function(a,b){return a.name.localeCompare(b.name)}));
+  // Accepts one item or many at once - split on commas and newlines so a typed
+  // "olive oil, salt, flour" or a pasted multi-line list bulk-imports as separate
+  // staples. Skips anything already covered by an existing staple, and dedupes
+  // within the batch itself.
+  function addToPantry(raw){
+    var parts=(raw||"").split(/[,\n]+/).map(function(s){return displayGroceryName(s).trim()}).filter(Boolean);
+    if(!parts.length)return;
+    var next=pantry.slice();
+    parts.forEach(function(n){
+      var k=pantryKey(n);
+      var already=pantryHasKey(k)||next.some(function(x){return pantryKey(x.name)===k});
+      if(!already)next.push({name:n});
+    });
+    if(next.length===pantry.length)return;
+    savePantry(next.sort(function(a,b){return a.name.localeCompare(b.name)}));
   }
   function removeFromPantry(name){
     var k=pantryKey(name);
@@ -3669,8 +3680,8 @@ function GroceryTab(p){
   // tab's own pantry data - the same doc that drives list filtering.
   var pantryPanel=React.createElement("div",{style:{animation:"ft-fade-in .2s ease-out"}},
     React.createElement("div",{style:{fontSize:12.5,color:C.light,lineHeight:1.5,marginBottom:16}},"Staples you keep at home. These are left off your grocery list when you generate it from the calendar."),
-    React.createElement("div",{style:{display:"flex",gap:8,marginBottom:18}},
-      React.createElement("input",{type:"text",value:pantryInput,onChange:function(e){setPantryInput(e.target.value)},onKeyDown:function(e){if(e.key==="Enter"&&pantryInput.trim()){addToPantry(pantryInput);setPantryInput("")}},placeholder:"e.g. olive oil, salt, flour",style:{flex:1,minWidth:0,padding:"13px 14px",borderRadius:12,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box",color:C.ink,background:C.card,outline:"none"}}),
+    React.createElement("div",{style:{display:"flex",gap:8,marginBottom:18,alignItems:"flex-start"}},
+      React.createElement("textarea",{value:pantryInput,rows:1,onChange:function(e){setPantryInput(e.target.value)},onKeyDown:function(e){if(e.key==="Enter"&&!e.shiftKey&&pantryInput.trim()){e.preventDefault();addToPantry(pantryInput);setPantryInput("")}},placeholder:"Add one or many — separate with commas or new lines",style:{flex:1,minWidth:0,padding:"13px 14px",borderRadius:12,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box",color:C.ink,background:C.card,outline:"none",resize:"vertical",minHeight:48,fontFamily:"inherit",lineHeight:1.4}}),
       React.createElement("button",{onClick:function(){if(pantryInput.trim()){addToPantry(pantryInput);setPantryInput("")}},disabled:!pantryInput.trim(),style:{flex:"0 0 auto",padding:"13px 20px",borderRadius:12,border:"none",background:pantryInput.trim()?C.dark:"var(--disabled)",color:"#fff",fontSize:14,fontWeight:600,cursor:pantryInput.trim()?"pointer":"not-allowed"}},"Add")
     ),
     pantry.length===0?React.createElement("div",{style:{textAlign:"center",padding:"44px 16px"}},
