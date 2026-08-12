@@ -4419,7 +4419,6 @@ function App(){
   var chefSpeech=(typeof window!=="undefined")&&(window.SpeechRecognition||window.webkitSpeechRecognition)&&!chefIsIOS;
   var [chefListening,setChefListening]=useState(false);
   var chefRecogRef=useRef(null);
-  var chefPhotoRef=useRef(null);
   function toggleChefVoice(){
     if(!chefSpeech)return;
     if(chefListening){try{chefRecogRef.current&&chefRecogRef.current.stop()}catch(e){}setChefListening(false);return;}
@@ -6270,59 +6269,11 @@ function App(){
   // the cook to type their ingredients or snap a photo - a real back-and-forth
   // instead of blindly firing a question at the model.
   function chefStartWhatIHave(){
-    setChefMessages([{role:"assistant",text:"Happy to help! What have you got on hand? List a few ingredients below, or tap the camera to snap your fridge and I'll take it from there."}]);
+    setChefMessages([{role:"assistant",text:"Happy to help! What have you got on hand? List a few ingredients below and I'll take it from there."}]);
     setChefLastActive(Date.now());
     setChefTyping({index:0,shown:0});
     setTimeout(function(){chefInputRef.current&&chefInputRef.current.focus()},60);
   }
-  // Snap the fridge/pantry -> meal ideas from what's visible.
-  function sendFridgeIdeas(images){
-    if(!images||!images.length)return;
-    var isStale=chefLastActive&&(Date.now()-chefLastActive>CHEF_IDLE_CLEAR_MS);
-    var baseHistory=isStale?[]:chefMessages;
-    var userMsg={role:"user",text:"📷 Here's what's in my kitchen — what can I make?"};
-    var history=baseHistory.concat([userMsg]);
-    setChefMessages(history);
-    setChefLastActive(Date.now());
-    if(!isOnline){ setChefMessages(history.concat([{role:"assistant",text:"I need an internet connection for that - try again once you're back online."}])); return; }
-    setChefLoading(true);
-    proxyFetch({type:"fridge_ideas",images:images,avoid:chefSeenDishes.slice(0,40),taste:buildTasteProfile(),diet:(chefDiet||"").trim(),extra:buildChefExtra()})
-    .then(function(response){return response.json()})
-    .then(function(data){
-      if(data.error)throw new Error(data.error);
-      if(!data.success||!data.reply)throw new Error("Couldn't read that photo");
-      setChefLastActive(Date.now());
-      setChefMessages(history.concat([{role:"assistant",text:data.reply}]));
-      recordChefDishes(data.reply);
-      setChefTyping({index:history.length,shown:0});
-      setChefLoading(false);
-    })
-    .catch(function(err){
-      var msg=err.isRateLimit?err.message:("Sorry, I couldn't get ideas from that photo - "+err.message+". Try again?");
-      setChefMessages(history.concat([{role:"assistant",text:msg}]));
-      setChefLoading(false);
-    });
-  }
-  function chefFridgePick(e){
-    var files=e.target.files;
-    if(!files||!files.length){e.target.value="";return;}
-    var arr=Array.prototype.slice.call(files).slice(0,3);
-    var images=[],pending=arr.length;
-    arr.forEach(function(f){
-      var rd=new FileReader();
-      rd.onload=function(ev){
-        compressPhoto(ev.target.result,function(c){
-          var m=/^data:(image\/[a-z0-9.+-]+);base64,(.*)$/i.exec(c||"");
-          if(m)images.push({mediaType:m[1],base64:m[2]});
-          pending--;
-          if(pending===0){ if(images.length)sendFridgeIdeas(images); else appAlert("Couldn't read those photos - try again."); }
-        });
-      };
-      rd.readAsDataURL(f);
-    });
-    e.target.value="";
-  }
-
   // "Plan my week" style asks route to the structured week-plan endpoint.
   function isWeekPlanRequest(text){
     var t=(text||"").toLowerCase();
@@ -7613,9 +7564,7 @@ function App(){
         }
 
         <div style={{display:"flex",gap:8}}>
-          <input ref={chefPhotoRef} type="file" accept="image/*" capture="environment" multiple style={{display:"none"}} onChange={chefFridgePick}/>
           <input ref={chefInputRef} value={chefInput} onChange={function(e){setChefInput(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter"&&!chefLoading&&chefInput.trim())sendChefMessage(chefInput)}} placeholder={chefListening?"Listening…":"Ask the Chef"} style={Object.assign({},inp,{flex:1})} disabled={chefLoading}/>
-          <button onClick={function(){if(!chefLoading&&chefPhotoRef.current)chefPhotoRef.current.click()}} disabled={chefLoading} title="Ideas from a fridge photo" aria-label="Ideas from a fridge photo" style={{width:44,height:44,borderRadius:10,border:"none",background:"var(--blush-med)",cursor:chefLoading?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="camera" size={18} color={C.dark} strokeWidth={2}/></button>
           {chefSpeech?<button onClick={toggleChefVoice} disabled={chefLoading} title={chefListening?"Stop":"Speak"} aria-label={chefListening?"Stop voice input":"Voice input"} style={{width:44,height:44,borderRadius:10,border:"none",background:chefListening?C.gold:"var(--blush-med)",cursor:chefLoading?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,animation:chefListening?"ft-pulse 1.2s ease-in-out infinite":"none"}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={chefListening?"#fff":C.dark} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/></svg></button>:null}
           <button onClick={function(){sendChefMessage(chefInput)}} disabled={chefLoading||!chefInput.trim()} style={{width:44,height:44,borderRadius:10,border:"none",background:(chefLoading||!chefInput.trim())?C.blushDeep:C.dark,color:"#fff",cursor:(chefLoading||!chefInput.trim())?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="send" size={18} strokeWidth={2}/></button>
         </div>
