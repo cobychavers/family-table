@@ -36,7 +36,11 @@ the rules change.
   world-readable document holding every user's email, phone, and avatar.
   Reads now require auth, and username resolution goes through `usernames`,
   which allows `get` but denies `list` — a known username resolves, the set
-  can't be enumerated.
+  can't be enumerated. The per-user `users/{uid}` profile collection was later
+  found to still allow `read` (= get **and** list), so any signed-in user could
+  enumerate every profile's email/phone via a direct query even though the
+  client never did. Tightened to `allow get` + `allow list: if false`, matching
+  `usernames`/`households`.
 - **Weak password hashes.** A legacy 32-bit non-cryptographic `passHash` sat
   in that world-readable doc and was accepted at login. Removed entirely; all
   accounts use Firebase Auth.
@@ -163,6 +167,37 @@ learn one is a valid invite code. Codes are 8 characters from a 31-symbol
 alphabet (~8.5e11 combinations; `O`/`0` and `I`/`1` removed so they can be read
 aloud) and are rotatable from the Family screen, which points a new invite
 document at the household and deletes the old one.
+
+## Account deletion (App Store Guideline 5.1.1(v))
+
+Users can permanently delete their account in-app (profile menu → Delete
+Account). The flow reauthenticates with the password, then — while still signed
+in, so the owner-only rules pass — deletes, in order:
+
+- all of the user's `data/*` documents (meals, mealstatus, generated list,
+  pantry, grocery flags/manual/history/overrides/brands/saved-lists, theme,
+  chef prefs, store prefs) plus every `dm_recipe_<user>_<id>` doc and the
+  `dm_recipe_index_<user>`, via `resource.data.ownerUid == request.auth.uid`;
+- the `usernames/{name}` doc (frees the name, removes the email/uid mapping);
+- the `users/{uid}` profile doc (removes stored email + phone);
+
+then calls `currentUser.delete()` to remove the Firebase Auth account and
+clears `dm_*` local storage.
+
+Two rules were changed to make the PII actually deletable — both were
+`allow delete: if false`:
+
+- `users/{uid}`: `allow delete: if request.auth != null && request.auth.uid == uid`
+- `usernames/{username}`: `allow delete: if request.auth != null && resource.data.uid == request.auth.uid`
+
+Both are tightly scoped — only the owner can delete their own profile/username.
+Client helpers: `window.users.remove(uid)` and `window.usernames.release(name)`.
+
+**Residual, accepted:** legacy `data` docs with no `ownerUid` stamp can't be
+deleted by the owner (the delete rule needs the stamp to prove ownership), and a
+deleted user's uid remains in any household `members` array — opaque, and since
+their `users/{uid}` doc is gone `householdIdOf` returns null so `sameHousehold`
+fails safe. Neither retains PII beyond the bare uid.
 
 ## Open — known and accepted
 
