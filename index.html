@@ -4419,8 +4419,6 @@ function App(){
   var [suggestedFriends,setSuggestedFriends]=useState([]);
   var [friendRecipes,setFriendRecipes]=useState([]);
   var [sharedRecipes,setSharedRecipes]=useState([]);
-  var [publicRecipes,setPublicRecipes]=useState([]);
-  var [publicRecipesLoaded,setPublicRecipesLoaded]=useState(false);
   var [familyRecipes,setFamilyRecipes]=useState([]);
   var [familyRecipesLoaded,setFamilyRecipesLoaded]=useState(false);
   var [familyRefreshTick,setFamilyRefreshTick]=useState(0); // bump to force a family-recipes refetch
@@ -5477,8 +5475,6 @@ function App(){
     setMyPendingRequests([]);
     setUserInbox([]);
     setFriendRecipes([]);
-    setPublicRecipes([]);
-    setPublicRecipesLoaded(false);
     setView("calendar");
     setStorePrefs({});
     setCategoryStores({});
@@ -5511,8 +5507,6 @@ function App(){
     setMyPendingRequests([]);
     setUserInbox([]);
     setFriendRecipes([]);
-    setPublicRecipes([]);
-    setPublicRecipesLoaded(false);
     setView("calendar");
     setStorePrefs({});
     setCategoryStores({});
@@ -5700,12 +5694,6 @@ function App(){
           console.error("Error saving recipe " + recipe.name + ":", err);
         });
     });
-    
-    // Update public recipe count in user profile. This fires on every recipe
-    // save, so it used to rewrite the whole shared user document each time.
-    var publicCount = recipes.filter(function(r) { return r.isPublic !== false; }).length;
-    var countUid = firebase.auth().currentUser && firebase.auth().currentUser.uid;
-    if (countUid) window.users.upsert(countUid, { publicRecipeCount: publicCount });
     
     console.log("Saved", recipes.length, "recipes individually");
   }
@@ -7476,13 +7464,11 @@ function App(){
         }).slice().sort(function(a,b){
           if((familySort||"newest")==="az")return (a.name||"").localeCompare(b.name||"");
           return recipeSortTime(b)-recipeSortTime(a);
-        }).map(function(r){var rtype=r.recipeType||detectRecipeType(r);var typeInfo=recipeTypeInfo(rtype);var fromFamily=!!r.ownerUsername;var isPrivate=!fromFamily&&r.isPublic===false;return(
+        }).map(function(r){var rtype=r.recipeType||detectRecipeType(r);var typeInfo=recipeTypeInfo(rtype);var fromFamily=!!r.ownerUsername;return(
           <div key={(fromFamily?r.ownerUsername:"me")+"_"+r.id} className="ft-card-tap" style={{background:"var(--surface)",borderRadius:20,border:"none",marginBottom:18,overflow:"hidden",boxShadow:C.shadowMd,cursor:"pointer"}} onClick={function(){setViewRecipe(r);setViewRecipeHideIng(false);setViewRecipeHideInst(false)}}>
             {/* Hero image */}
             <div style={{position:"relative",width:"100%",aspectRatio:r.photo?"4 / 3":undefined,height:r.photo?undefined:56,background:r.photo?undefined:"linear-gradient(135deg, "+C.blush+" 0%, "+C.blushMed+" 100%)"}}>
               {r.photo?<img src={r.photo} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.3}}><Icon name="plate" size={28} color={C.dark} strokeWidth={1.25}/></div>}
-              {/* Privacy badge - top left only if private */}
-              {isPrivate?<div style={{position:"absolute",top:14,left:14,display:"flex",alignItems:"center",gap:5,background:"rgba(0,0,0,0.75)",borderRadius:20,padding:"6px 12px",fontSize:10,fontWeight:600,color:"#fff"}}><Icon name="lock" size={10} color="#fff" strokeWidth={2}/>Private</div>:null}
             </div>
 
             {/* Content area */}
@@ -8591,7 +8577,7 @@ function App(){
                     ingredients:ingList,
                     notes:importPasteDirections.trim(),
                     recipeType:"other",
-                    isPublic:true
+                    isPublic:false
                   };
                   svR(recipes.concat([newRecipe]));
                   setShowImport(false);
