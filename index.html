@@ -4489,6 +4489,11 @@ function App(){
   var [chefAvoidInput,setChefAvoidInput]=useState("");
   function addChefAvoid(raw){var parts=(raw||"").split(",").map(function(s){return s.trim()}).filter(Boolean);if(!parts.length)return;setChefMore(function(prev){var arr=(prev.avoidList||[]).slice();parts.forEach(function(n){if(!arr.some(function(x){return x.toLowerCase()===n.toLowerCase()}))arr.push(n);});var next=Object.assign({},prev,{avoidList:arr.slice(0,80)});try{localStorage.setItem("dm_chef_more",JSON.stringify(next))}catch(e){}return next;});}
   function removeChefAvoid(name){setChefMore(function(prev){var arr=(prev.avoidList||[]).filter(function(x){return x.toLowerCase()!==(name||"").toLowerCase()});var next=Object.assign({},prev,{avoidList:arr});try{localStorage.setItem("dm_chef_more",JSON.stringify(next))}catch(e){}return next;});}
+  // Chef prefs live in localStorage for instant/offline reads, but we also mirror
+  // them to the account (Firestore) so they follow the user across devices. Gate
+  // cloud writes on chefSyncReady so we don't clobber the cloud copy with local
+  // defaults before the initial pull has had a chance to hydrate.
+  var [chefSyncReady,setChefSyncReady]=useState(false);
   // The user's pantry staples, loaded so the Chef can lean on what they already
   // have. (The pantry itself is managed in the Grocery tab; this is a read.)
   var [chefPantry,setChefPantry]=useState([]);
@@ -4683,6 +4688,42 @@ function App(){
     setTheme(next);
     if(userId!=="guest")window.storage.set("dm_theme_"+userId,next,true).catch(function(){});
   }
+
+  // Pull Chef preferences from the account once a real user is known. If the
+  // cloud has a copy, hydrate state (and mirror to localStorage) so they show up
+  // on this device. If the cloud is empty, seed it from whatever is already
+  // local - a one-time migration for anyone who set prefs before sync existed.
+  useEffect(function(){
+    if(!userId||userId==="guest"){setChefSyncReady(false);return;}
+    var alive=true;
+    window.storage.get("dm_chefprefs_"+userId,true).then(function(r){
+      if(!alive)return;
+      if(r&&r.value){
+        try{
+          var d=JSON.parse(r.value);
+          if(typeof d.household==="string"){setChefHousehold(d.household);try{localStorage.setItem("dm_chef_household",d.household)}catch(e){}}
+          if(Array.isArray(d.equipment)){setChefEquipment(d.equipment);try{localStorage.setItem("dm_chef_equipment",JSON.stringify(d.equipment))}catch(e){}}
+          if(d.more&&typeof d.more==="object"){setChefMore(d.more);try{localStorage.setItem("dm_chef_more",JSON.stringify(d.more))}catch(e){}}
+        }catch(e){}
+      }else{
+        var seed={household:chefHousehold,equipment:chefEquipment,more:chefMore};
+        if(chefHousehold||(chefEquipment&&chefEquipment.length)||(chefMore&&Object.keys(chefMore).length)){
+          window.storage.set("dm_chefprefs_"+userId,JSON.stringify(seed),true).catch(function(){});
+        }
+      }
+      if(alive)setChefSyncReady(true);
+    }).catch(function(){if(alive)setChefSyncReady(true);});
+    return function(){alive=false;};
+  },[userId]);
+
+  // Once hydrated, mirror any Chef-pref change up to the account. localStorage is
+  // still written by each mutator for instant/offline reads; this keeps the
+  // synced copy current so a fresh device gets the latest on next open.
+  useEffect(function(){
+    if(!chefSyncReady||!userId||userId==="guest")return;
+    var bundle=JSON.stringify({household:chefHousehold,equipment:chefEquipment,more:chefMore});
+    window.storage.set("dm_chefprefs_"+userId,bundle,true).catch(function(){});
+  },[chefSyncReady,chefHousehold,chefEquipment,chefMore,userId]);
 
   // Initialize selected calendar date to today
   useEffect(function(){
@@ -7590,7 +7631,7 @@ function App(){
           <button onClick={function(){sendChefMessage(chefInput)}} disabled={chefLoading||!chefInput.trim()} style={{width:44,height:44,borderRadius:10,border:"none",background:(chefLoading||!chefInput.trim())?C.blushDeep:C.dark,color:"#fff",cursor:(chefLoading||!chefInput.trim())?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="send" size={18} strokeWidth={2}/></button>
         </div>
 
-        {showChefPrefs?<div style={ovl} onClick={function(){setShowChefPrefs(false)}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
+        {showChefPrefs?<div style={ovl} onClick={function(){setShowChefPrefs(false)}}><div style={Object.assign({},mdl,{display:"flex",flexDirection:"column"})} onClick={function(e){e.stopPropagation()}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
             <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:16,color:C.ink}}><Icon name="user" size={15} color={C.dark} strokeWidth={1.75}/>Chef Preferences</div>
             <button onClick={function(){setShowChefPrefs(false)}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button>
@@ -7606,7 +7647,7 @@ function App(){
             var collHead=function(text,count,open,onToggle){return <button onClick={onToggle} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",cursor:"pointer",fontSize:11,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.5,margin:"14px 0 8px",padding:0,fontFamily:FS}}><span>{text}{count?" · "+count:""}</span><span style={{fontSize:8,transform:open?"none":"rotate(-90deg)",transition:"transform .15s"}}>▼</span></button>;};
             var drop=function(value,onChange,opts,anyLabel){return <div style={{position:"relative",maxWidth:230}}><select value={value||""} onChange={onChange} style={Object.assign({},field,{appearance:"none",WebkitAppearance:"none",MozAppearance:"none",paddingRight:32,cursor:"pointer",fontWeight:600})}><option value="">{anyLabel}</option>{opts.map(function(o){return <option key={o} value={o}>{o}</option>})}</select><span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",fontSize:9,color:C.light}}>▼</span></div>;};
             var checkRow=function(labelText,checked,onToggle){return <button onClick={onToggle} style={{display:"flex",alignItems:"center",gap:11,width:"100%",padding:"9px 0",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}><span style={{width:20,height:20,borderRadius:6,border:"1.5px solid "+(checked?C.dark:C.bdr),background:checked?C.dark:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"background .12s"}}>{checked?<Icon name="check" size={12} color="#fff" strokeWidth={3}/>:null}</span><span style={{fontSize:14,color:C.ink,fontFamily:FS}}>{labelText}</span></button>;};
-            return <div style={{maxHeight:"62vh",overflowY:"auto",margin:"0 -2px",padding:"0 2px"}}>
+            return <div style={{flex:1,minHeight:0,overflowY:"auto",margin:"0 -2px",padding:"0 2px"}}>
 
               <div style={section(true)}>Who's eating</div>
               <div style={label()}>Household size</div>
@@ -7642,7 +7683,7 @@ function App(){
 
             </div>;
           })()}
-          <button onClick={function(){setShowChefPrefs(false)}} style={Object.assign({},btn(C.dark),{width:"100%",marginTop:14})}>Done</button>
+          <button onClick={function(){setShowChefPrefs(false)}} style={Object.assign({},btn(C.dark),{width:"100%",marginTop:14,flexShrink:0})}>Done</button>
         </div></div>:null}
       </div>}
 
