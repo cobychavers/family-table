@@ -6265,15 +6265,6 @@ function App(){
     });
   }
 
-  // Tapping "What can I make with what I have?" opens a friendly prompt inviting
-  // the cook to type their ingredients or snap a photo - a real back-and-forth
-  // instead of blindly firing a question at the model.
-  function chefStartWhatIHave(){
-    setChefMessages([{role:"assistant",text:"Happy to help! What have you got on hand? List a few ingredients below and I'll take it from there."}]);
-    setChefLastActive(Date.now());
-    setChefTyping({index:0,shown:0});
-    setTimeout(function(){chefInputRef.current&&chefInputRef.current.focus()},60);
-  }
   // "Plan my week" style asks route to the structured week-plan endpoint.
   function isWeekPlanRequest(text){
     var t=(text||"").toLowerCase();
@@ -7490,9 +7481,9 @@ function App(){
             <div style={{marginBottom:10,opacity:.35}}><Icon name="sparkle" size={30} color={C.dark} strokeWidth={1.25}/></div>
             <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:5}}>What should we cook?</div>
             <div style={{fontSize:13,color:C.light,maxWidth:280,margin:"0 auto 16px"}}>Tell me what's in your fridge, what you're in the mood for, or ask a cooking question.</div>
-            <div style={{display:"flex",flexDirection:"column",gap:7,maxWidth:340,margin:"0 auto"}}>
-              {["Plan my week of dinners","What can I make with what I have?","Something quick and easy tonight","Kid-friendly dinner ideas","Surprise me with an idea"].map(function(sug){
-                return <button key={sug} onClick={function(){if(sug==="What can I make with what I have?"){chefStartWhatIHave()}else{sendChefMessage(sug)}}} style={{padding:"12px 16px",borderRadius:10,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",boxShadow:C.shadowSm}}>{sug}</button>
+            <div style={{display:"flex",flexDirection:"column",gap:6,maxWidth:320,margin:"0 auto"}}>
+              {["Plan my week","Something quick and easy","Kid-friendly ideas","Surprise me"].map(function(sug){
+                return <button key={sug} onClick={function(){sendChefMessage(sug)}} style={{padding:"9px 14px",borderRadius:9,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontSize:12.5,fontWeight:500,cursor:"pointer",textAlign:"left",boxShadow:C.shadowSm}}>{sug}</button>
               })}
             </div>
           </div>
