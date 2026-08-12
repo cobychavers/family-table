@@ -7013,7 +7013,7 @@ function App(){
             {showJump?<button onClick={function(){
               if(calendarMode==="week"){setWs(getMonday(new Date()))}
               else{setMd(new Date(now.getFullYear(),now.getMonth(),1))}
-            }} style={{background:"none",border:"none",padding:"0 0 9px",cursor:"pointer",fontSize:12,fontWeight:600,color:C.gold}}>{calendarMode==="week"?"This week":"This month"}</button>:null}
+            }} style={{background:"none",border:"none",padding:"0 0 8px",cursor:"pointer",fontSize:16,fontWeight:600,color:C.dark}}>{calendarMode==="week"?"This week":"This month"}</button>:null}
           </div>;
         })()}
         
@@ -7833,7 +7833,7 @@ function App(){
                     <div style={{width:22,height:22,borderRadius:11,background:C.blushMed,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>{isImageSrc(r.ownerProfilePic)?<img src={r.ownerProfilePic} style={{width:22,height:22,objectFit:"cover"}}/>:r.ownerProfilePic?<span style={{fontSize:12}}>{r.ownerProfilePic}</span>:<Icon name="user" size={12} strokeWidth={1.75}/>}</div>
                     <div style={{fontSize:12,color:C.light}}>@{r.ownerUsername}</div>
                   </div>:null}
-                  <h3 style={{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:19,color:C.ink,lineHeight:1.25,margin:0,marginBottom:(ct||typeInfo)?7:0}}>{r.name}</h3>
+                  <h3 style={{fontWeight:600,fontSize:16,color:C.dark,lineHeight:1.25,margin:0,marginBottom:(ct||typeInfo)?7:0}}>{r.name}</h3>
                   {(ct||typeInfo)?<div style={{display:"flex",alignItems:"center",gap:9,fontSize:12.5,color:C.light}}>
                     {ct?<span style={{display:"inline-flex",alignItems:"center",gap:4}}><Icon name="clock" size={11} strokeWidth={1.75}/>{ct}</span>:null}
                     {ct&&typeInfo?<span style={{opacity:.4}}>|</span>:null}
