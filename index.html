@@ -3691,8 +3691,8 @@ function GroceryTab(p){
   return React.createElement("div",{style:{animation:"ft-fade-in .25s ease-out"}},
     React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:14,position:"relative"}},
       React.createElement("div",{style:{display:"flex",alignItems:"baseline",gap:18}},
-        React.createElement("button",{onClick:function(){setGrocerySub("list")},style:{background:"none",border:"none",padding:0,cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:22,lineHeight:1.1,color:C.ink,opacity:grocerySub==="list"?1:.4,borderBottom:grocerySub==="list"?"2px solid "+C.dark:"2px solid transparent",paddingBottom:3}},"Grocery List"),
-        React.createElement("button",{onClick:function(){setGrocerySub("pantry")},style:{background:"none",border:"none",padding:0,cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:22,lineHeight:1.1,color:C.ink,opacity:grocerySub==="pantry"?1:.4,borderBottom:grocerySub==="pantry"?"2px solid "+C.dark:"2px solid transparent",paddingBottom:3}},"Pantry")
+        React.createElement("button",{onClick:function(){setGrocerySub("list")},style:{background:"none",border:"none",padding:0,cursor:"pointer",fontWeight:600,fontSize:16,color:grocerySub==="list"?C.dark:C.light,borderBottom:grocerySub==="list"?"2px solid "+C.dark:"2px solid transparent",paddingBottom:6}},"Grocery List"),
+        React.createElement("button",{onClick:function(){setGrocerySub("pantry")},style:{background:"none",border:"none",padding:0,cursor:"pointer",fontWeight:600,fontSize:16,color:grocerySub==="pantry"?C.dark:C.light,borderBottom:grocerySub==="pantry"?"2px solid "+C.dark:"2px solid transparent",paddingBottom:6}},"Pantry")
       ),
       grocerySub==="list"?React.createElement("div",{style:{display:"flex",gap:8,alignItems:"center"}},
         /* "From Calendar" moved to the Calendar tab: you now select specific
@@ -5717,7 +5717,7 @@ function App(){
           Recipes above carries the heavy filtering, and the family list stays a
           clean, sortable roll-up so the one tab doesn't get cluttered. */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:14,flexWrap:"wrap"}}>
-        <div style={{fontWeight:700,fontSize:16,letterSpacing:.3,color:C.ink}}>Family Recipes ({filtered.length})</div>
+        <div style={{fontWeight:600,fontSize:16,color:C.dark}}>Family Recipes ({filtered.length})</div>
         <div style={{display:"flex",gap:6,overflowX:"auto"}}>
           {sortBtn("newest","Newest")}
           {sortBtn("az","A–Z")}
@@ -6964,7 +6964,7 @@ function App(){
           var isCurrentWeek = dk(ws)===dk(todayMon);
           var isCurrentMonth = md.getMonth()===now.getMonth() && md.getFullYear()===now.getFullYear();
           var showJump = (calendarMode==="week" && !isCurrentWeek) || (calendarMode==="month" && !isCurrentMonth);
-          var calTab=function(mode,label){var on=calendarMode===mode;return <button onClick={function(){setCalendarMode(mode)}} style={{background:"none",border:"none",padding:"0 0 8px",cursor:"pointer",fontFamily:"'Cormorant Garamond','Georgia',serif",fontSize:17,fontWeight:700,color:on?C.ink:C.light,borderBottom:on?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1,transition:"color .18s"}}>{label}</button>;};
+          var calTab=function(mode,label){var on=calendarMode===mode;return <button onClick={function(){setCalendarMode(mode)}} style={{background:"none",border:"none",padding:"0 0 8px",cursor:"pointer",fontSize:16,fontWeight:600,color:on?C.dark:C.light,borderBottom:on?"2px solid "+C.dark:"2px solid transparent",marginBottom:-1,transition:"color .18s"}}>{label}</button>;};
           return <div style={{display:"flex",alignItems:"flex-end",gap:20,marginBottom:16,borderBottom:"1px solid "+C.bdr}}>
             {calTab("week","Week")}
             {calTab("month","Month")}
@@ -7246,7 +7246,7 @@ function App(){
         <React.Fragment>
 
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,position:"relative"}}>
-          <div style={{fontWeight:700,fontSize:16,letterSpacing:.3,color:C.ink}}>Recipes ({allRecipes.length})</div>
+          <div style={{fontWeight:600,fontSize:16,color:C.dark}}>Recipes ({allRecipes.length})</div>
           <div style={{position:"relative"}}>
             <button onClick={function(){setShowRecipePlusMenu(!showRecipePlusMenu)}} style={{padding:"7px 14px",borderRadius:8,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>+ Add</button>
             {showRecipePlusMenu?<div style={{position:"absolute",top:40,right:0,background:"var(--surface)",borderRadius:10,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,minWidth:180,zIndex:50,overflow:"hidden"}}>
