@@ -497,6 +497,17 @@
           console.error("usernames claim error:", e);
           return null;
         }
+      },
+      // Free the username so login can no longer resolve to this account.
+      release: async (username) => {
+        if (!db || !username) return null;
+        try {
+          await db.collection("usernames").doc(username.trim().toLowerCase()).delete();
+          return true;
+        } catch (e) {
+          console.error("usernames release error:", e);
+          return null;
+        }
       }
     };
 
@@ -533,6 +544,18 @@
           return true;
         } catch (e) {
           console.error("users upsert error:", e);
+          return null;
+        }
+      },
+
+      // Delete this account's profile doc (used by account deletion).
+      remove: async (uid) => {
+        if (!db || !uid) return null;
+        try {
+          await db.collection("users").doc(uid).delete();
+          return true;
+        } catch (e) {
+          console.error("users remove error:", e);
           return null;
         }
       },
@@ -5501,6 +5524,56 @@ function App(){
     try{localStorage.removeItem("dm_session_local");}catch(e){}
   }
 
+  // Account deletion (App Store requires an in-app path). Reauthenticate, wipe
+  // the user's Firestore data + identity docs while still authed (owner-only
+  // rules need request.auth), THEN delete the Firebase Auth user, then reset.
+  var [showDeleteAccount,setShowDeleteAccount]=useState(false);
+  var [deletePassword,setDeletePassword]=useState("");
+  var [deleteConfirm,setDeleteConfirm]=useState("");
+  var [deleteError,setDeleteError]=useState("");
+  var [deleteBusy,setDeleteBusy]=useState(false);
+  function deleteAccountData(unameLower){
+    var bases=["dm_meals_","dm_mealstatus_","dm_generated_","dm_pantry_","dm_gmanual_","dm_groceryhistory_","dm_gqtyoverrides_","dm_gbrands_","dm_savedlists_","dm_gcheck_","dm_ghidden_","dm_theme_","dm_chefprefs_","dm_storeprefs_","dm_recipes_"];
+    var jobs=bases.map(function(b){return window.storage.delete(b+unameLower,true).catch(function(){})});
+    // Recipes are an index doc plus one doc per recipe - read the index, delete
+    // each recipe, then the index itself.
+    var recipeJob=window.storage.get("dm_recipe_index_"+unameLower,true).catch(function(){return null}).then(function(r){
+      var ids=[];if(r&&r.value){try{ids=JSON.parse(r.value)||[]}catch(e){}}
+      return Promise.all((ids||[]).map(function(id){return window.storage.delete("dm_recipe_"+unameLower+"_"+id,true).catch(function(){})}));
+    }).then(function(){return window.storage.delete("dm_recipe_index_"+unameLower,true).catch(function(){})});
+    return Promise.all(jobs.concat([recipeJob]));
+  }
+  function handleDeleteAccount(){
+    var cu=auth&&auth.currentUser;
+    if(!cu||!cu.email){setDeleteError("You must be signed in.");return;}
+    if((deleteConfirm||"").trim().toUpperCase()!=="DELETE"){setDeleteError("Type DELETE to confirm.");return;}
+    if(!deletePassword){setDeleteError("Enter your password.");return;}
+    setDeleteBusy(true);setDeleteError("");
+    var unameLower=(userId||"").toLowerCase();
+    var uid=cu.uid;
+    var cred=firebase.auth.EmailAuthProvider.credential(cu.email,deletePassword);
+    cu.reauthenticateWithCredential(cred).then(function(){
+      return deleteAccountData(unameLower);
+    }).then(function(){
+      return Promise.all([
+        window.usernames.release(unameLower).catch(function(){}),
+        window.users.remove(uid).catch(function(){})
+      ]);
+    }).then(function(){
+      return auth.currentUser.delete();
+    }).then(function(){
+      try{Object.keys(localStorage).forEach(function(k){if(k.indexOf("dm_")===0)localStorage.removeItem(k)})}catch(e){}
+      setDeleteBusy(false);setShowDeleteAccount(false);setDeletePassword("");setDeleteConfirm("");
+      handleLogout();
+      appAlert("Your account and all your data have been permanently deleted.");
+    }).catch(function(e){
+      setDeleteBusy(false);
+      if(e&&(e.code==="auth/wrong-password"||e.code==="auth/invalid-credential")){setDeleteError("Incorrect password.");}
+      else if(e&&e.code==="auth/requires-recent-login"){setDeleteError("For security, sign out and back in, then try again.");}
+      else{setDeleteError("Couldn't delete account: "+((e&&e.message)||"please try again."));}
+    });
+  }
+
   // Always use lowercase userId for storage keys to avoid case sensitivity issues
   var userIdLowerForSave = userId.toLowerCase();
   
@@ -6781,6 +6854,10 @@ function App(){
                   <button onClick={function(){setShowProfileMenu(false);handleLogout()}} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:500,color:"var(--danger)",display:"flex",alignItems:"center",gap:10}}>
                     <Icon name="logout" size={15} color="var(--danger)" strokeWidth={1.75}/> Sign Out
                   </button>
+                  <div style={{height:1,background:C.bdr,margin:"4px 0"}}/>
+                  <button onClick={function(){setShowProfileMenu(false);setShowDeleteAccount(true);setDeleteError("");setDeletePassword("");setDeleteConfirm("")}} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:500,color:"var(--danger)",display:"flex",alignItems:"center",gap:10}}>
+                    <Icon name="trash" size={15} color="var(--danger)" strokeWidth={1.75}/> Delete Account
+                  </button>
                 </div>
               </div>:null}
             </div>
@@ -6913,6 +6990,24 @@ function App(){
       </div></div>}
 
       {/* CHANGE PASSWORD MODAL */}
+      {showDeleteAccount&&<div style={ovl} onClick={function(){if(!deleteBusy){setShowDeleteAccount(false);setDeletePassword("");setDeleteConfirm("");setDeleteError("")}}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:17,color:C.ink}}><Icon name="trash" size={16} color="var(--danger)" strokeWidth={1.75}/> Delete Account</div>
+          <button onClick={function(){if(!deleteBusy){setShowDeleteAccount(false);setDeletePassword("");setDeleteConfirm("");setDeleteError("")}}} style={{background:"none",border:"none",cursor:"pointer",opacity:.4,display:"flex"}}><Icon name="x" size={18} strokeWidth={2}/></button>
+        </div>
+        <div style={{fontSize:13,color:C.light,lineHeight:1.55,marginBottom:16}}>This permanently deletes your account and everything in it — recipes, meal plans, grocery lists, and pantry. This can’t be undone.</div>
+        <div style={{marginBottom:12}}>
+          <label style={{fontSize:12,fontWeight:600,color:C.light,display:"block",marginBottom:4}}>Your Password</label>
+          <input type="password" value={deletePassword} onChange={function(e){setDeletePassword(e.target.value);setDeleteError("")}} style={Object.assign({},inp,{padding:"12px 14px"})} placeholder="Enter your password"/>
+        </div>
+        <div style={{marginBottom:16}}>
+          <label style={{fontSize:12,fontWeight:600,color:C.light,display:"block",marginBottom:4}}>Type DELETE to confirm</label>
+          <input value={deleteConfirm} onChange={function(e){setDeleteConfirm(e.target.value);setDeleteError("")}} style={Object.assign({},inp,{padding:"12px 14px"})} placeholder="DELETE"/>
+        </div>
+        {deleteError?<div style={{color:"#e74c3c",fontSize:13,marginBottom:12,textAlign:"center",padding:"8px 12px",background:"#fdf2f2",borderRadius:8}}>{deleteError}</div>:null}
+        <button onClick={handleDeleteAccount} disabled={deleteBusy} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:"var(--danger)",color:"#fff",fontWeight:600,fontSize:14,cursor:deleteBusy?"not-allowed":"pointer",opacity:deleteBusy?.6:1}}>{deleteBusy?"Deleting…":"Permanently Delete Account"}</button>
+      </div></div>}
+
       {showChangePassword&&<div style={ovl} onClick={function(){setShowChangePassword(false);setCurrentPassword("");setNewPassword("");setConfirmNewPassword("");setPasswordError("");setPasswordSuccess("")}}><div style={mdl} onClick={function(e){e.stopPropagation()}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:17,color:C.ink}}><Icon name="lock" size={16} color={C.dark} strokeWidth={1.75}/> Change Password</div>
