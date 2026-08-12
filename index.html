@@ -4462,8 +4462,8 @@ function App(){
   }
   function buildChefExtra(){
     var t=chefTimeContext();
-    return {household:(chefHousehold||"").trim(),kids:(chefKids||"").trim(),kidsNotes:(chefMore.kidsNotes||"").trim(),equipment:chefEquipment,dislikes:chefDislikes.slice(0,60),timeOfDay:t.timeOfDay,season:t.season,
-      cuisines:chefMore.cuisines||[],proteins:chefMore.proteins||[],spice:chefMore.spice||"",avoidIngredients:(chefMore.avoid||"").trim(),timeBudget:chefMore.timeBudget||"",skill:chefMore.skill||""};
+    return {household:(chefHousehold||"").trim(),equipment:chefEquipment,dislikes:chefDislikes.slice(0,60),timeOfDay:t.timeOfDay,season:t.season,
+      cuisines:chefMore.cuisines||[],proteins:chefMore.proteins||[],spice:chefMore.spice||"",avoidIngredients:(chefMore.avoid||"").trim(),timeBudget:chefMore.timeBudget||"",skill:chefMore.skill||"",leftovers:chefMore.leftovers?"yes":""};
   }
   var CHEF_EQUIPMENT=["Air fryer","Slow cooker","Instant Pot","Grill","Oven","Stovetop","Blender","Sheet pan"];
   var CHEF_EFFORT_OPTIONS=["Quick & easy","Balanced","I love to cook"];
@@ -7594,14 +7594,12 @@ function App(){
             var chips=function(list,isOn,onTap){return <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{list.map(function(o){return <button key={o} onClick={function(){onTap(o)}} style={chipS(isOn(o))}>{o}</button>})}</div>;};
             var drop=function(value,onChange,opts,anyLabel){return <div style={{position:"relative",maxWidth:230}}><select value={value||""} onChange={onChange} style={Object.assign({},field,{appearance:"none",WebkitAppearance:"none",MozAppearance:"none",paddingRight:32,cursor:"pointer",fontWeight:600})}><option value="">{anyLabel}</option>{opts.map(function(o){return <option key={o} value={o}>{o}</option>})}</select><span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",fontSize:9,color:C.light}}>▼</span></div>;};
             var checkRow=function(labelText,checked,onToggle){return <button onClick={onToggle} style={{display:"flex",alignItems:"center",gap:11,width:"100%",padding:"9px 0",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}><span style={{width:20,height:20,borderRadius:6,border:"1.5px solid "+(checked?C.dark:C.bdr),background:checked?C.dark:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"background .12s"}}>{checked?<Icon name="check" size={12} color="#fff" strokeWidth={3}/>:null}</span><span style={{fontSize:14,color:C.ink,fontFamily:FS}}>{labelText}</span></button>;};
-            var kids=chefKids==="yes";
             return <div style={{maxHeight:"62vh",overflowY:"auto",margin:"0 -2px",padding:"0 2px"}}>
 
               <div style={section(true)}>Who's eating</div>
               <div style={label()}>Household size</div>
               <input type="number" min="1" max="20" value={chefHousehold} onChange={function(e){saveChefHousehold(e.target.value)}} placeholder="e.g. 4" style={Object.assign({},field,{width:110})}/>
-              <div style={{marginTop:8}}>{checkRow("Cooking for kids too",kids,function(){saveChefKids(kids?"":"yes")})}</div>
-              {kids?<input value={chefMore.kidsNotes||""} onChange={function(e){updateChefMore({kidsNotes:e.target.value})}} placeholder="Ages or picky-eater notes (optional)" style={Object.assign({},field,{marginTop:4})}/>:null}
+              <div style={{marginTop:8}}>{checkRow("Leftovers",!!chefMore.leftovers,function(){updateChefMore({leftovers:!chefMore.leftovers})})}</div>
 
               <div style={section()}>Tastes</div>
               <div style={label()}>Favorite cuisines</div>
