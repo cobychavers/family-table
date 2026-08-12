@@ -4463,7 +4463,7 @@ function App(){
   function buildChefExtra(){
     var t=chefTimeContext();
     return {household:(chefHousehold||"").trim(),equipment:chefEquipment,dislikes:chefDislikes.slice(0,60),timeOfDay:t.timeOfDay,season:t.season,
-      cuisines:chefMore.cuisines||[],proteins:chefMore.proteins||[],spice:chefMore.spice||"",avoidIngredients:(chefMore.avoid||"").trim(),timeBudget:chefMore.timeBudget||"",skill:chefMore.skill||"",leftovers:chefMore.leftovers?"yes":""};
+      cuisines:chefMore.cuisines||[],spice:chefMore.spice||"",avoidIngredients:(chefMore.avoid||"").trim(),timeBudget:chefMore.timeBudget||"",skill:chefMore.skill||"",leftovers:chefMore.leftovers?"yes":""};
   }
   var CHEF_EQUIPMENT=["Air fryer","Slow cooker","Instant Pot","Grill","Oven","Stovetop","Blender","Sheet pan"];
   var CHEF_EFFORT_OPTIONS=["Quick & easy","Balanced","I love to cook"];
@@ -7604,10 +7604,8 @@ function App(){
               <div style={section()}>Tastes</div>
               <div style={label()}>Favorite cuisines</div>
               {chips(CHEF_CUISINES,function(o){return (chefMore.cuisines||[]).indexOf(o)>=0},function(o){toggleChefMoreArr("cuisines",o)})}
-              <div style={label()}>Go-to proteins</div>
-              {chips(CHEF_PROTEINS,function(o){return (chefMore.proteins||[]).indexOf(o)>=0},function(o){toggleChefMoreArr("proteins",o)})}
               <div style={label()}>Spice level</div>
-              {drop(chefMore.spice,function(e){updateChefMore({spice:e.target.value})},CHEF_SPICE,"No preference")}
+              {chips(CHEF_SPICE,function(o){return chefMore.spice===o},function(o){updateChefMore({spice:chefMore.spice===o?"":o})})}
               <div style={label()}>Ingredients to avoid</div>
               <input value={chefMore.avoid||""} onChange={function(e){updateChefMore({avoid:e.target.value})}} placeholder="e.g. cilantro, mushrooms, olives" style={field}/>
 
