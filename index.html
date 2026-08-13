@@ -2371,7 +2371,8 @@ function GroceryTab(p){
   var [grocerySub,setGrocerySub]=useState("list"); // "list" | "pantry"
   var [pantryInput,setPantryInput]=useState("");
   var [pantrySkipped,setPantrySkipped]=useState(0);
-  var [staplesOpen,setStaplesOpen]=useState(true);
+  var [showPantryAdd,setShowPantryAdd]=useState(false);
+  var [pantryAddText,setPantryAddText]=useState("");
   // Matches on the same cleaned/synonym key the grocery list consolidates by,
   // so "black pepper, to taste" in a recipe matches "black pepper" in a pantry.
   function pantryKey(name){return groceryMergeKey(displayGroceryName(name||""))}
@@ -3702,35 +3703,8 @@ function GroceryTab(p){
 
   // Pantry sub-tab panel (staples kept off the generated list). Reuses this
   // tab's own pantry data - the same doc that drives list filtering.
-  var COMMON_STAPLES=[
-    {cat:"Oils & vinegars",items:["Olive oil","Vegetable oil","Balsamic vinegar"]},
-    {cat:"Baking",items:["Flour","Sugar","Brown sugar","Baking soda","Baking powder","Vanilla extract"]},
-    {cat:"Seasonings",items:["Salt","Black pepper","Garlic powder","Onion powder","Paprika","Cumin","Cinnamon","Oregano"]},
-    {cat:"Condiments",items:["Ketchup","Mustard","Mayonnaise","Soy sauce","Hot sauce","Honey"]},
-    {cat:"Basics",items:["Butter","Eggs","Milk","Rice","Pasta","Garlic","Onion"]}
-  ];
   var pantryPanel=React.createElement("div",{style:{animation:"ft-fade-in .2s ease-out"}},
     React.createElement("div",{style:{fontSize:12.5,color:C.light,lineHeight:1.5,marginBottom:16}},"Staples you keep at home. These are left off your grocery list when you generate it from the calendar."),
-    React.createElement("div",{style:{display:"flex",gap:8,marginBottom:18,alignItems:"flex-start"}},
-      React.createElement("textarea",{value:pantryInput,rows:1,onChange:function(e){setPantryInput(e.target.value)},onKeyDown:function(e){if(e.key==="Enter"&&!e.shiftKey&&pantryInput.trim()){e.preventDefault();addToPantry(pantryInput);setPantryInput("")}},placeholder:"Add one or many — separate with commas or new lines",style:{flex:1,minWidth:0,padding:"13px 14px",borderRadius:12,border:"1px solid "+C.bdr,fontSize:15,boxSizing:"border-box",color:C.ink,background:C.card,outline:"none",resize:"vertical",minHeight:48,fontFamily:"inherit",lineHeight:1.4}}),
-      React.createElement("button",{onClick:function(){if(pantryInput.trim()){addToPantry(pantryInput);setPantryInput("")}},disabled:!pantryInput.trim(),style:{flex:"0 0 auto",padding:"13px 20px",borderRadius:12,border:"none",background:pantryInput.trim()?C.dark:"var(--disabled)",color:"#fff",fontSize:14,fontWeight:600,cursor:pantryInput.trim()?"pointer":"not-allowed"}},"Add")
-    ),
-    React.createElement("div",{style:{marginBottom:20}},
-      React.createElement("button",{onClick:function(){setStaplesOpen(!staplesOpen)},style:{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",cursor:"pointer",fontSize:11,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:.5,padding:0,marginBottom:staplesOpen?12:0}},
-        React.createElement("span",null,"Quick add · common staples"),
-        React.createElement("span",{style:{fontSize:8,transform:staplesOpen?"none":"rotate(-90deg)",transition:"transform .15s"}},"▼")
-      ),
-      staplesOpen?React.createElement("div",null,COMMON_STAPLES.map(function(g){
-        return React.createElement("div",{key:g.cat,style:{marginBottom:13}},
-          React.createElement("div",{style:{fontSize:11,color:C.light,marginBottom:7,fontWeight:600}},g.cat),
-          React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:7}},g.items.map(function(name){
-            var on=isInPantry(name);
-            return React.createElement("button",{key:name,onClick:function(){if(on){removeFromPantry(name)}else{addToPantry(name)}},style:{padding:"7px 12px",borderRadius:16,border:"1px solid "+(on?C.dark:C.bdr),background:on?C.blushMed:C.card,color:on?C.ink:C.light,fontSize:12.5,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:5,fontFamily:"inherit"}},
-              on?React.createElement(Icon,{name:"check",size:11,color:C.dark,strokeWidth:2.5}):null,name);
-          }))
-        );
-      })):null
-    ),
     pantry.length===0?React.createElement("div",{style:{textAlign:"center",padding:"44px 16px"}},
       React.createElement("div",{style:{marginBottom:12,opacity:.3}},React.createElement(Icon,{name:"clipboard",size:34,color:C.dark,strokeWidth:1.25})),
       React.createElement("div",{style:{fontSize:14,fontWeight:600,color:C.dark,marginBottom:5}},"Your pantry is empty"),
@@ -3764,7 +3738,7 @@ function GroceryTab(p){
             savedLists.length>0?React.createElement("button",{onClick:function(){setShowLoadList(true);setShowPlusMenu(false)},style:{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",boxSizing:"border-box"}},React.createElement(Icon,{name:"folder",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"Saved Lists")):null
           ):null
         )
-      ):null,
+      ):grocerySub==="pantry"?React.createElement("button",{onClick:function(){setShowPantryAdd(true);setPantryAddText("")},style:{padding:"7px 14px",borderRadius:8,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}},"+ Add"):null,
       /* Click outside to close + menu */
       (showPlusMenu&&grocerySub==="list")?React.createElement("div",{onClick:function(){setShowPlusMenu(false)},style:{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:40}}):null
     ),
@@ -4209,6 +4183,23 @@ function GroceryTab(p){
           React.createElement("div",{style:{padding:"12px 16px",paddingBottom:"max(12px, env(safe-area-inset-bottom))",borderTop:"1px solid "+C.bdr,flexShrink:0,background:"var(--surface)"}},
             React.createElement("button",{onClick:handleImportFromText,disabled:!importGroceryText.trim(),style:{width:"100%",height:48,borderRadius:12,border:"none",background:importGroceryText.trim()?C.dark:"var(--disabled)",color:"#fff",fontWeight:700,fontSize:15,cursor:importGroceryText.trim()?"pointer":"not-allowed"}},"Import Items")
           )
+        )
+      )
+    ):null,
+
+    // Add to Pantry (full-screen) - one or many items, comma/newline separated.
+    showPantryAdd?React.createElement("div",{onClick:function(){setShowPantryAdd(false);setPantryAddText("")},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",zIndex:1000,animation:"ft-backdrop-fade .18s ease-out"}},
+      React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden",animation:"ft-fs-slide-up .25s cubic-bezier(0.16,1,0.3,1)"}},
+        React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"max(12px, env(safe-area-inset-top)) 16px 12px",flexShrink:0}},
+          React.createElement("div",{style:{fontFamily:"'Cormorant Garamond','Georgia',serif",fontWeight:700,fontSize:20,color:C.ink}},"Add to pantry"),
+          React.createElement("button",{onClick:function(){setShowPantryAdd(false);setPantryAddText("")},style:{background:"none",border:"none",cursor:"pointer",opacity:.4,padding:6,display:"flex"}},React.createElement(Icon,{name:"x",size:20,strokeWidth:2}))
+        ),
+        React.createElement("div",{style:{flex:1,overflowY:"auto",padding:"4px 18px 18px",display:"flex",flexDirection:"column"}},
+          React.createElement("div",{style:{fontSize:12.5,color:C.light,marginBottom:12}},"Add one item or several — separate with commas or new lines."),
+          React.createElement("textarea",{value:pantryAddText,onChange:function(e){setPantryAddText(e.target.value)},placeholder:"e.g. olive oil, salt, flour\n\nor one per line:\nButter\nRice\nGarlic",style:{flex:1,minHeight:220,width:"100%",padding:14,borderRadius:14,border:"1px solid "+C.bdr,fontSize:15,resize:"none",fontFamily:"inherit",boxSizing:"border-box",background:C.card,color:C.ink,outline:"none"}})
+        ),
+        React.createElement("div",{style:{padding:"12px 16px",paddingBottom:"max(12px, env(safe-area-inset-bottom))",borderTop:"1px solid "+C.bdr,flexShrink:0,background:"var(--surface)"}},
+          React.createElement("button",{onClick:function(){addToPantry(pantryAddText);setPantryAddText("");setShowPantryAdd(false)},disabled:!pantryAddText.trim(),style:{width:"100%",height:48,borderRadius:12,border:"none",background:pantryAddText.trim()?C.dark:"var(--disabled)",color:"#fff",fontWeight:700,fontSize:15,cursor:pantryAddText.trim()?"pointer":"not-allowed"}},"Add to Pantry")
         )
       )
     ):null
