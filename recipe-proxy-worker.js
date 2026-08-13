@@ -201,10 +201,48 @@ async function recordSpend(env, uid, microDollars) {
   try {
     const key = monthKeyFor("cost:", uid);
     const spent = parseInt((await kv.get(key)) || "0", 10);
-    await kv.put(key, String(spent + microDollars), { expirationTtl: MONTH_TTL_SEC });
+    const total = spent + microDollars;
+    // Mirror the total into the key's metadata so the admin cost report can read
+    // every user's spend from one list() call instead of a get() per key.
+    await kv.put(key, String(total), { expirationTtl: MONTH_TTL_SEC, metadata: { micro: total } });
   } catch (e) {
     // best-effort accounting; ignore
   }
+}
+
+// Operator-only spend report: every user's month-to-date AI cost, read straight
+// from the "cost:" counters that the budget already maintains. Pseudonymous -
+// uids and dollar amounts only, never prompt content or PII. Paginates KV and
+// prefers the value mirrored in each key's metadata, falling back to a get() for
+// any legacy key written before that mirroring existed.
+async function adminCostReport(env) {
+  const kv = env.AI_RATE_LIMIT;
+  if (!kv) return { error: "KV namespace AI_RATE_LIMIT not bound" };
+  const rows = [];
+  let cursor;
+  do {
+    const page = await kv.list({ prefix: "cost:", cursor });
+    for (const k of page.keys) {
+      let micro = k.metadata && typeof k.metadata.micro === "number" ? k.metadata.micro : null;
+      if (micro === null) micro = parseInt((await kv.get(k.name)) || "0", 10);
+      const m = k.name.match(/^cost:(.+):(\d{4}-\d{2})$/);
+      rows.push({
+        uid: m ? m[1] : k.name,
+        month: m ? m[2] : "",
+        micro,
+        dollars: Math.round(micro / 100) / 10000 // micro-$ -> $ at 4dp
+      });
+    }
+    cursor = page.list_complete ? null : page.cursor;
+  } while (cursor);
+  rows.sort((a, b) => b.micro - a.micro);
+  const totalMicro = rows.reduce((s, r) => s + r.micro, 0);
+  return {
+    users: rows.length,
+    totalDollars: Math.round(totalMicro / 100) / 10000,
+    budgetPerUser: "$" + (MONTHLY_BUDGET_MICRO / 1e6).toFixed(2) + "/mo (metered at standard Sonnet rates)",
+    rows
+  };
 }
 
 // Single choke point for every Anthropic Messages API call. Does the fetch,
@@ -239,6 +277,29 @@ export default {
           "Access-Control-Allow-Headers": "Content-Type, Authorization"
         }
       });
+    }
+
+    // Operator cost report: GET /admin/costs?secret=... -> per-user month-to-date
+    // spend as JSON. Gated by a shared secret (env.ADMIN_SECRET), NOT a Firebase
+    // token - it's for the app owner, hit from a browser or curl, never used by
+    // the app. No CORS header, so a random web page can't fetch it cross-origin.
+    // Refuses if ADMIN_SECRET is unset, so the endpoint can't be left wide open.
+    if (request.method === "GET") {
+      const url = new URL(request.url);
+      if (url.pathname === "/admin/costs") {
+        const expected = env.ADMIN_SECRET || "";
+        const given = url.searchParams.get("secret") || request.headers.get("X-Admin-Secret") || "";
+        if (!expected || given !== expected) {
+          return new Response(JSON.stringify({ error: "Forbidden" }), {
+            status: 403,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+        const report = await adminCostReport(env);
+        return new Response(JSON.stringify(report, null, 2), {
+          headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }
+        });
+      }
     }
 
     if (request.method !== "POST") {
