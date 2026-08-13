@@ -130,7 +130,15 @@ function createMeter() {
       const isHaiku = model === MODEL_HAIKU;
       const inRate = isHaiku ? PRICE_IN_HAIKU : PRICE_IN_PER_TOK;
       const outRate = isHaiku ? PRICE_OUT_HAIKU : PRICE_OUT_PER_TOK;
-      this.microDollars += inTok * inRate + outTok * outRate + searches * PRICE_WEB_SEARCH;
+      // Prompt caching: cache writes cost 1.25x the input rate, cache reads 0.1x
+      // (Anthropic pricing). Counting them keeps the budget honest once caching
+      // is on - otherwise the cached prefix would look free and over-grant spend.
+      const cacheWrite = usage.cache_creation_input_tokens || 0;
+      const cacheRead = usage.cache_read_input_tokens || 0;
+      this.microDollars += inTok * inRate + outTok * outRate
+        + Math.round(cacheWrite * inRate * 1.25)
+        + Math.round(cacheRead * inRate * 0.1)
+        + searches * PRICE_WEB_SEARCH;
     }
   };
 }
@@ -967,37 +975,42 @@ When they ask a practical cooking question - a unit conversion ("how many tables
 
 Keep tone practical and friendly. No long preambles, no markdown headers, no emoji spam - the app already has its own visual style.`;
 
+  // Everything above is byte-stable across requests, so it's sent as a cached
+  // system block (see callAnthropic below). Everything that varies per cook /
+  // per request goes in contextPrompt, a second UNcached block after it.
+  let contextPrompt = "";
+
   // Dishes the user has already been shown in previous chats (their history is
   // cleared between chats, so without this the model would happily re-suggest
   // the same crowd-pleasers every fresh chat). Only applies to idea lists, not a
   // "give me the full recipe for X" follow-up, so a requested detail still works.
   if (Array.isArray(avoid) && avoid.length) {
-    systemPrompt += `\n\nThe user has ALREADY been shown these dishes in recent sessions. When brainstorming a LIST of ideas, do NOT suggest any of these or close variations of them - give genuinely new, different dishes. (This does not apply if the user is asking for the full recipe/details of one specific dish.)\nAlready shown:\n` + avoid.slice(0, 40).map(d => "- " + d).join("\n");
+    contextPrompt += `\n\nThe user has ALREADY been shown these dishes in recent sessions. When brainstorming a LIST of ideas, do NOT suggest any of these or close variations of them - give genuinely new, different dishes. (This does not apply if the user is asking for the full recipe/details of one specific dish.)\nAlready shown:\n` + avoid.slice(0, 40).map(d => "- " + d).join("\n");
   }
 
   // Taste profile inferred from the user's own saved recipes (categories +
   // recurring ingredients). Bias ideas toward it, but never at the expense of
   // the variety rules, and always defer to an explicit request in the chat.
   if (typeof taste === "string" && taste.trim()) {
-    systemPrompt += `\n\nWhat this cook tends to like, inferred from their saved recipes: ${taste.trim()}.\nLean your ideas toward these tastes and ingredients they already enjoy - it makes suggestions feel personal. But keep the variety rules above (still range around, still no repeats), and if the user asks for something specific in the chat, follow that over their usual tastes.`;
+    contextPrompt += `\n\nWhat this cook tends to like, inferred from their saved recipes: ${taste.trim()}.\nLean your ideas toward these tastes and ingredients they already enjoy - it makes suggestions feel personal. But keep the variety rules above (still range around, still no repeats), and if the user asks for something specific in the chat, follow that over their usual tastes.`;
   }
 
   // Dietary preferences/restrictions - HARD constraints, always respected.
   if (typeof diet === "string" && diet.trim()) {
-    systemPrompt += `\n\nDIETARY RULES (hard constraints - NEVER violate these, in ideas OR full recipes): ${diet.trim()}. If a dish would break these, don't offer it; adapt or choose something else. Don't call attention to the rules - just quietly follow them.`;
+    contextPrompt += `\n\nDIETARY RULES (hard constraints - NEVER violate these, in ideas OR full recipes): ${diet.trim()}. If a dish would break these, don't offer it; adapt or choose something else. Don't call attention to the rules - just quietly follow them.`;
   }
 
   // What's already scheduled on their calendar this week - suggest around it.
   if (Array.isArray(planned) && planned.length) {
-    systemPrompt += `\n\nAlready on their meal plan for this week (don't re-suggest these exact dishes when giving ideas - complement them and keep the week varied):\n` + planned.slice(0, 20).map(d => "- " + d).join("\n");
+    contextPrompt += `\n\nAlready on their meal plan for this week (don't re-suggest these exact dishes when giving ideas - complement them and keep the week varied):\n` + planned.slice(0, 20).map(d => "- " + d).join("\n");
   }
 
   // Pantry staples they already have on hand.
   if (Array.isArray(pantry) && pantry.length) {
-    systemPrompt += `\n\nStaples the cook already has on hand: ${pantry.slice(0, 50).join(", ")}.\nWhen it fits, prefer ideas that make good use of these, and never tell them to buy something in this list.`;
+    contextPrompt += `\n\nStaples the cook already has on hand: ${pantry.slice(0, 50).join(", ")}.\nWhen it fits, prefer ideas that make good use of these, and never tell them to buy something in this list.`;
   }
 
-  systemPrompt += chefExtraPromptLines(extra);
+  contextPrompt += chefExtraPromptLines(extra);
 
   const anthropicMessages = messages.map(m => ({
     role: m.role === "assistant" ? "assistant" : "user",
@@ -1008,7 +1021,12 @@ Keep tone practical and friendly. No long preambles, no markdown headers, no emo
     model: MODEL_SONNET,
     max_tokens: 1400,
     temperature: 1,
-    system: systemPrompt,
+    // Cache the constant persona prefix (~0.1x on reads within 5 min); the
+    // per-cook context rides in a second, uncached block so it can vary freely.
+    system: [
+      { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
+      ...(contextPrompt ? [{ type: "text", text: contextPrompt }] : [])
+    ],
     messages: anthropicMessages
   }, apiKey, meter);
 
@@ -1026,39 +1044,49 @@ Keep tone practical and friendly. No long preambles, no markdown headers, no emo
 async function chefWeekPlan(count, apiKey, meter, avoid, taste, planned, pantry, diet, extra) {
   const n = Math.max(3, Math.min(7, parseInt(count, 10) || 5));
 
-  let prompt = `Plan ${n} dinners for this cook's week. Return ONLY valid JSON with no other text, in exactly this shape:
+  // Constant instruction + JSON-schema block. Byte-stable for a given ${n}, so
+  // it's sent as a cached system block - a regenerate within 5 min reads it at
+  // ~0.1x instead of re-billing the whole schema every time.
+  const instructions = `Plan ${n} dinners for this cook's week. Return ONLY valid JSON with no other text, in exactly this shape:
 {"intro":"One short friendly sentence about the plan.","meals":[{"name":"Recipe Name","time":"30 min","ingredients":[{"qty":"2","unit":"cup","name":"flour"}],"notes":"1. First step\\n2. Second step","recipeType":"other","servings":4,"nutrition":{"calories":520,"protein":"32g","carbs":"45g","fat":"18g"}}]}
 
 Rules:
 - Exactly ${n} dinners, genuinely different from each other: vary the cuisine, the main protein or base, and the cooking method. No near-duplicates.
 - Deliberately let a few INGREDIENTS overlap across the meals so one grocery trip covers the week and less food is wasted - but keep the dishes themselves distinct.
 - Each meal must be complete and cookable: a real ingredient list with qty/unit/name, and numbered steps in "notes" (each step on its own line separated by \\n).
-- Keep them realistic weeknight dinners unless the context below says otherwise.
+- Keep them realistic weeknight dinners unless the context provided says otherwise.
 - "recipeType" is one of: chicken, beef, pork, seafood, pasta, mexican, asian, soup, salad, vegetarian, breakfast, dessert, drinks, cocktails, other.
 - "servings": a whole number. "nutrition": your best PER-SERVING estimate ("calories" a whole number; "protein"/"carbs"/"fat" strings ending in "g"). Always include these estimates.`;
 
+  // Per-request context (varies with the cook's data) rides in the user turn.
+  let context = "";
   if (typeof diet === "string" && diet.trim()) {
-    prompt += `\n- DIETARY RULES (hard constraints, never violate): ${diet.trim()}.`;
+    context += `\n- DIETARY RULES (hard constraints, never violate): ${diet.trim()}.`;
   }
   if (Array.isArray(planned) && planned.length) {
-    prompt += `\n- Already on their plan this week (do NOT repeat these, plan around them): ${planned.slice(0, 20).join(", ")}.`;
+    context += `\n- Already on their plan this week (do NOT repeat these, plan around them): ${planned.slice(0, 20).join(", ")}.`;
   }
   if (Array.isArray(pantry) && pantry.length) {
-    prompt += `\n- Staples they already have (lean on these where it fits): ${pantry.slice(0, 50).join(", ")}.`;
+    context += `\n- Staples they already have (lean on these where it fits): ${pantry.slice(0, 50).join(", ")}.`;
   }
   if (typeof taste === "string" && taste.trim()) {
-    prompt += `\n- Their usual tastes (lean toward these but keep variety): ${taste.trim()}.`;
+    context += `\n- Their usual tastes (lean toward these but keep variety): ${taste.trim()}.`;
   }
   if (Array.isArray(avoid) && avoid.length) {
-    prompt += `\n- Recently suggested already (avoid these and close variations): ${avoid.slice(0, 30).join(", ")}.`;
+    context += `\n- Recently suggested already (avoid these and close variations): ${avoid.slice(0, 30).join(", ")}.`;
   }
-  prompt += chefExtraPromptLines(extra);
+  context += chefExtraPromptLines(extra);
+
+  const userContent = context.trim()
+    ? `Plan the week now, following the rules above. Context for this cook:${context}`
+    : `Plan the week now, following the rules above.`;
 
   const data = await callAnthropic({
     model: MODEL_SONNET,
     max_tokens: 5000,
     temperature: 1,
-    messages: [{ role: "user", content: prompt }]
+    system: [{ type: "text", text: instructions, cache_control: { type: "ephemeral" } }],
+    messages: [{ role: "user", content: userContent }]
   }, apiKey, meter);
 
   const responseText = data.content?.find(b => b.type === "text")?.text || "";
