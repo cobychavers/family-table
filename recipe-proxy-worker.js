@@ -1012,10 +1012,18 @@ Keep tone practical and friendly. No long preambles, no markdown headers, no emo
 
   contextPrompt += chefExtraPromptLines(extra);
 
-  const anthropicMessages = messages.map(m => ({
-    role: m.role === "assistant" ? "assistant" : "user",
-    content: m.text
-  }));
+  // Put a cache breakpoint on the final message so the whole conversation so
+  // far (system + every earlier turn) is cached. On the next turn that prefix
+  // reads at ~0.1x and only the newest turn is written - so a long back-and-
+  // forth stops re-billing the full history on every reply.
+  const anthropicMessages = messages.map((m, i) => {
+    const block = { type: "text", text: m.text };
+    if (i === messages.length - 1) block.cache_control = { type: "ephemeral" };
+    return {
+      role: m.role === "assistant" ? "assistant" : "user",
+      content: [block]
+    };
+  });
 
   const data = await callAnthropic({
     model: MODEL_SONNET,
