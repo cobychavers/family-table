@@ -104,9 +104,9 @@ const PRICE_OUT_HAIKU = 5;            // claude-haiku-4-5: $5 / 1M output -> 5 Â
 const PRICE_WEB_SEARCH = 10000;       // $10 / 1k web searches  -> 10000 Âµ$/search
 const MONTHLY_BUDGET_MICRO = 1000000; // $1.00 base allowance per user per month
 
-// Model tiering: Haiku for structured extraction / simple tasks (recipe & grocery
-// scanning, PDF/text import, ingredient swaps), Sonnet where reasoning or
-// conversation quality matters (chef chat, week planning, URL import with search).
+// Model tiering: Haiku for clean-extraction tasks (grocery scanning, PDF & text
+// recipe import), Sonnet where accuracy or judgment matters (recipe photo scan,
+// ingredient swaps, chef chat, week planning, URL import with search).
 const MODEL_SONNET = "claude-sonnet-5";
 const MODEL_HAIKU = "claude-haiku-4-5";
 const MONTH_TTL_SEC = 60 * 60 * 24 * 63; // ~63 days: outlive the month, then auto-clean
@@ -378,7 +378,7 @@ async function scanImages(images, apiKey, meter) {
   content.push({ type: "text", text: intro + "\n\n" + RECIPE_EXTRACTION_INSTRUCTIONS });
 
   const data = await callAnthropic({
-    model: MODEL_HAIKU,
+    model: MODEL_SONNET,
     max_tokens: 4000,
     messages: [{ role: "user", content }]
   }, apiKey, meter);
@@ -1106,7 +1106,7 @@ Return ONLY this JSON object with no other text, no markdown code fences, and no
 {"success":true,"original":"the ingredient name you identified (empty string if success is false)","suggestions":[{"substitute":"name","note":"short practical note"}],"message":"only used when success is false"}`;
 
   const data2 = await callAnthropic({
-    model: MODEL_HAIKU,
+    model: MODEL_SONNET,
     max_tokens: 1000,
     messages: [{ role: "user", content: prompt }]
   }, apiKey, meter);
