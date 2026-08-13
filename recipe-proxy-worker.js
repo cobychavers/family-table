@@ -287,8 +287,17 @@ export default {
     if (request.method === "GET") {
       const url = new URL(request.url);
       if (url.pathname === "/admin/costs") {
-        const expected = env.ADMIN_SECRET || "";
-        const given = url.searchParams.get("secret") || request.headers.get("X-Admin-Secret") || "";
+        const expected = (env.ADMIN_SECRET || "").trim();
+        const given = (url.searchParams.get("secret") || request.headers.get("X-Admin-Secret") || "").trim();
+        // Temporary setup diagnostic: /admin/costs?probe=diag-7q2 reports ONLY
+        // whether a secret is configured at runtime and its length - never the
+        // value. Lets us tell "secret not reaching the worker" from "value
+        // mismatch" without exposing anything. Remove once setup is confirmed.
+        if (url.searchParams.get("probe") === "diag-7q2") {
+          return new Response(JSON.stringify({ configured: !!expected, length: expected.length }), {
+            headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }
+          });
+        }
         if (!expected || given !== expected) {
           return new Response(JSON.stringify({ error: "Forbidden" }), {
             status: 403,
