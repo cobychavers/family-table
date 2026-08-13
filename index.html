@@ -4171,9 +4171,12 @@ function GroceryTab(p){
           )
         )
       )
-    ):null,
+    ):null
+  ),
 
     // Add to Pantry (full-screen) - one or many items, comma/newline separated.
+    // Rendered at the GroceryTab root (not inside the grocery-list fragment) so
+    // it's reachable from the Pantry sub-tab too.
     showPantryAdd?React.createElement("div",{onClick:function(){setShowPantryAdd(false);setPantryAddText("")},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",zIndex:1000,animation:"ft-backdrop-fade .18s ease-out"}},
       React.createElement("div",{onClick:function(e){e.stopPropagation()},style:{background:"var(--surface)",width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden",animation:"ft-fs-slide-up .25s cubic-bezier(0.16,1,0.3,1)"}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"max(12px, env(safe-area-inset-top)) 16px 12px",flexShrink:0}},
@@ -4189,7 +4192,6 @@ function GroceryTab(p){
         )
       )
     ):null
-  )
   );
 }
 
