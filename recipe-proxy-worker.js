@@ -97,10 +97,18 @@ const RATE_LIMIT_WINDOW_SEC = 600;    // ...per this many seconds (10 minutes)
 // integers, so there is no floating-point drift in KV. claude-sonnet-5 STANDARD
 // pricing is used deliberately (not the cheaper intro rate that expires
 // 2026-08-31), so the budget always reflects worst-case real cost.
-const PRICE_IN_PER_TOK = 3;           // $3  / 1M input tokens  -> 3 µ$/token
-const PRICE_OUT_PER_TOK = 15;         // $15 / 1M output tokens -> 15 µ$/token
+const PRICE_IN_PER_TOK = 3;           // claude-sonnet-5: $3  / 1M input  -> 3 µ$/token
+const PRICE_OUT_PER_TOK = 15;         // claude-sonnet-5: $15 / 1M output -> 15 µ$/token
+const PRICE_IN_HAIKU = 1;             // claude-haiku-4-5: $1 / 1M input  -> 1 µ$/token
+const PRICE_OUT_HAIKU = 5;            // claude-haiku-4-5: $5 / 1M output -> 5 µ$/token
 const PRICE_WEB_SEARCH = 10000;       // $10 / 1k web searches  -> 10000 µ$/search
 const MONTHLY_BUDGET_MICRO = 1000000; // $1.00 base allowance per user per month
+
+// Model tiering: Haiku for structured extraction / simple tasks (recipe & grocery
+// scanning, PDF/text import, ingredient swaps), Sonnet where reasoning or
+// conversation quality matters (chef chat, week planning, URL import with search).
+const MODEL_SONNET = "claude-sonnet-5";
+const MODEL_HAIKU = "claude-haiku-4-5";
 const MONTH_TTL_SEC = 60 * 60 * 24 * 63; // ~63 days: outlive the month, then auto-clean
 
 function monthKeyFor(prefix, uid) {
@@ -112,12 +120,17 @@ function monthKeyFor(prefix, uid) {
 function createMeter() {
   return {
     microDollars: 0,
-    record(usage) {
+    record(usage, model) {
       if (!usage) return;
       const inTok = usage.input_tokens || 0;
       const outTok = usage.output_tokens || 0;
       const searches = (usage.server_tool_use && usage.server_tool_use.web_search_requests) || 0;
-      this.microDollars += inTok * PRICE_IN_PER_TOK + outTok * PRICE_OUT_PER_TOK + searches * PRICE_WEB_SEARCH;
+      // Price per model so the budget reflects the cheaper Haiku calls. Unknown
+      // models fall back to Sonnet rates (conservative - never undercharges).
+      const isHaiku = model === MODEL_HAIKU;
+      const inRate = isHaiku ? PRICE_IN_HAIKU : PRICE_IN_PER_TOK;
+      const outRate = isHaiku ? PRICE_OUT_HAIKU : PRICE_OUT_PER_TOK;
+      this.microDollars += inTok * inRate + outTok * outRate + searches * PRICE_WEB_SEARCH;
     }
   };
 }
@@ -199,7 +212,7 @@ async function callAnthropic(requestBody, apiKey, meter) {
     body: JSON.stringify(requestBody)
   });
   const data = await response.json();
-  if (meter && data && data.usage) meter.record(data.usage);
+  if (meter && data && data.usage) meter.record(data.usage, requestBody.model);
   if (data && data.error) throw new Error(data.error.message || "API error");
   return data;
 }
@@ -365,7 +378,7 @@ async function scanImages(images, apiKey, meter) {
   content.push({ type: "text", text: intro + "\n\n" + RECIPE_EXTRACTION_INSTRUCTIONS });
 
   const data = await callAnthropic({
-    model: "claude-sonnet-5",
+    model: MODEL_HAIKU,
     max_tokens: 4000,
     messages: [{ role: "user", content }]
   }, apiKey, meter);
@@ -404,7 +417,7 @@ async function groceryScan(images, pdf, apiKey, meter) {
   });
 
   const data = await callAnthropic({
-    model: "claude-sonnet-5",
+    model: MODEL_HAIKU,
     max_tokens: 1000,
     messages: [{ role: "user", content }]
   }, apiKey, meter);
@@ -760,7 +773,7 @@ For photo, include the main recipe image URL if found.`;
   }
 
   const requestBody = {
-    model: "claude-sonnet-5",
+    model: MODEL_SONNET,
     max_tokens: 4000,
     messages: [{ role: "user", content: prompt }]
   };
@@ -790,7 +803,7 @@ For photo, include the main recipe image URL if found.`;
 // Import from PDF
 async function importFromPdf(imageData, mimeType, apiKey, meter) {
   const data = await callAnthropic({
-    model: "claude-sonnet-5",
+    model: MODEL_HAIKU,
     max_tokens: 4000,
     messages: [{
       role: "user",
@@ -853,7 +866,7 @@ Important:
 - "nutrition": your best PER-SERVING estimate from the ingredients and servings - "calories" as a whole number, and "protein"/"carbs"/"fat" as strings ending in "g". These are approximate estimates; always include them.`;
 
   const data = await callAnthropic({
-    model: "claude-sonnet-5",
+    model: MODEL_HAIKU,
     max_tokens: 4000,
     messages: [{ role: "user", content: prompt }]
   }, apiKey, meter);
@@ -992,7 +1005,7 @@ Keep tone practical and friendly. No long preambles, no markdown headers, no emo
   }));
 
   const data = await callAnthropic({
-    model: "claude-sonnet-5",
+    model: MODEL_SONNET,
     max_tokens: 1400,
     temperature: 1,
     system: systemPrompt,
@@ -1042,7 +1055,7 @@ Rules:
   prompt += chefExtraPromptLines(extra);
 
   const data = await callAnthropic({
-    model: "claude-sonnet-5",
+    model: MODEL_SONNET,
     max_tokens: 5000,
     temperature: 1,
     messages: [{ role: "user", content: prompt }]
@@ -1093,7 +1106,7 @@ Return ONLY this JSON object with no other text, no markdown code fences, and no
 {"success":true,"original":"the ingredient name you identified (empty string if success is false)","suggestions":[{"substitute":"name","note":"short practical note"}],"message":"only used when success is false"}`;
 
   const data2 = await callAnthropic({
-    model: "claude-sonnet-5",
+    model: MODEL_HAIKU,
     max_tokens: 1000,
     messages: [{ role: "user", content: prompt }]
   }, apiKey, meter);

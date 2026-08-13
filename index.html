@@ -1085,6 +1085,34 @@ function isImageSrc(v){
   return typeof v === "string" && (v.indexOf("data:") === 0 || v.indexOf("https://") === 0);
 }
 
+// Downscale an image before sending it to the vision model. Anthropic resizes
+// anything over ~1568px on the long edge anyway, so full-resolution phone photos
+// only waste upload bandwidth and input tokens with no accuracy gain. Cap the
+// long edge and re-encode as JPEG. Resolves to a data: URL (falls back to the
+// original on any failure). Module-level so both the recipe scan (App) and the
+// grocery scan (GroceryTab) can share it.
+function compressForAI(dataUrl){
+  return new Promise(function(resolve){
+    try{
+      var img=new Image();
+      img.onload=function(){
+        var maxSize=1568;
+        var w=img.width, h=img.height;
+        if(w>maxSize||h>maxSize){
+          if(w>=h){ h=Math.round(h*maxSize/w); w=maxSize; }
+          else{ w=Math.round(w*maxSize/h); h=maxSize; }
+        }
+        var canvas=document.createElement("canvas");
+        canvas.width=w; canvas.height=h;
+        canvas.getContext("2d").drawImage(img,0,0,w,h);
+        resolve(canvas.toDataURL("image/jpeg",0.82));
+      };
+      img.onerror=function(){ resolve(dataUrl); };
+      img.src=dataUrl;
+    }catch(e){ resolve(dataUrl); }
+  });
+}
+
 // Category tag: colored dot + label (replaces per-category emoji from RECIPE_TYPES)
 function CatTag(p){
   var t=p.type;
@@ -3317,8 +3345,11 @@ function GroceryTab(p){
       // server-side and counts the call against the monthly AI budget).
       var reader=new FileReader();
       reader.onload=function(ev){
-        var base64=ev.target.result;
-        groceryProxyFetch({type:"grocery_scan",images:[{base64:base64.split(",")[1],mediaType:file.type}]})
+        // Downscale before upload to keep vision input tokens (and cost) low.
+        compressForAI(ev.target.result).then(function(shrunk){
+          var mediaType=(shrunk.split(";")[0].split(":")[1])||"image/jpeg";
+          return groceryProxyFetch({type:"grocery_scan",images:[{base64:shrunk.split(",")[1],mediaType:mediaType}]});
+        })
           .then(handleScanResp).then(applyScanned).catch(function(err){
             setImportGroceryLoading(false);
             appAlert(err&&err.isRateLimit?err.message:"Failed to process image. Please try pasting the text instead.");
@@ -5984,18 +6015,19 @@ function App(){
     setAiScanLoading(true);
     setAiScanStatus("Preparing " + photos.length + " photo" + (photos.length > 1 ? "s" : "") + "...");
     
-    // Convert data URLs to base64 objects
-    var imageDataArray = photos.map(function(dataUrl) {
-      var base64 = dataUrl.split(",")[1];
-      var mediaType = dataUrl.split(";")[0].split(":")[1] || "image/jpeg";
-      return { base64: base64, mediaType: mediaType };
-    });
-    
-    setAiScanStatus("Analyzing " + photos.length + " photo" + (photos.length > 1 ? "s" : "") + "...");
-    
-    proxyFetch({
-      type: "scan",
-      images: imageDataArray
+    // Downscale each photo before upload so the vision model isn't billed for
+    // full-resolution pixels it would only shrink anyway, then convert to base64.
+    Promise.all(photos.map(compressForAI)).then(function(resizedPhotos) {
+      var imageDataArray = resizedPhotos.map(function(dataUrl) {
+        var base64 = dataUrl.split(",")[1];
+        var mediaType = dataUrl.split(";")[0].split(":")[1] || "image/jpeg";
+        return { base64: base64, mediaType: mediaType };
+      });
+      setAiScanStatus("Analyzing " + photos.length + " photo" + (photos.length > 1 ? "s" : "") + "...");
+      return proxyFetch({
+        type: "scan",
+        images: imageDataArray
+      });
     })
     .then(function(response) { return response.json(); })
     .then(function(data) {
