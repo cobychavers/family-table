@@ -2887,14 +2887,19 @@ function GroceryTab(p){
   // an empty in-flight list can't wipe flags mid-load.
   useEffect(function(){
     if(!generatedLoaded)return;
+    // Meal status = the signed-in user's own calendar badges against their own
+    // list. When shopping a family member's list (!ownList) we must NOT touch it:
+    // writing would clobber our own badges AND hit their owner-only mealstatus
+    // doc (which, without ownerUid, either fails or mis-stamps their document).
+    if(!p.ownList)return;
     var out={};
     (generatedItems||[]).forEach(function(it){
       if(!it.meals||!it.meals.length||hiddenItems[it.id])return;
       it.meals.forEach(function(sig){out[sig]="added";});
     });
     if(p.setMealStatus)p.setMealStatus(out);
-    if(p.userId&&p.userId!=="guest")window.storage.set("dm_mealstatus_"+p.userId.toLowerCase(),JSON.stringify(out),true).catch(function(){});
-  },[generatedLoaded,generatedItems,hiddenItems]);
+    if(p.userId&&p.userId!=="guest")window.storage.set("dm_mealstatus_"+p.userId.toLowerCase(),JSON.stringify(out),true,p.ownerUid).catch(function(){});
+  },[generatedLoaded,generatedItems,hiddenItems,p.ownList]);
 
   function generateFromWeeks(weekStartDates, mode){
     // mode: "replace" (default) starts fresh, "append" adds to existing list
@@ -5536,16 +5541,26 @@ function App(){
   var [deleteConfirm,setDeleteConfirm]=useState("");
   var [deleteError,setDeleteError]=useState("");
   var [deleteBusy,setDeleteBusy]=useState(false);
-  function deleteAccountData(unameLower){
+  function deleteAccountData(rawName){
+    var lower=(rawName||"").toLowerCase();
+    // Storage keys were written under BOTH the raw-case username (grocery, pantry,
+    // recipes) and the lower-cased one (mealstatus) at different points, so delete
+    // every base under both variants. Otherwise an account whose username has an
+    // uppercase letter leaves its grocery/pantry/recipe docs behind after "delete
+    // account" - a data-retention/privacy failure and an App Store 5.1.1(v) gap.
+    var names=(rawName&&rawName!==lower)?[rawName,lower]:[lower];
     var bases=["dm_meals_","dm_mealstatus_","dm_generated_","dm_pantry_","dm_gmanual_","dm_groceryhistory_","dm_gqtyoverrides_","dm_gbrands_","dm_savedlists_","dm_gcheck_","dm_ghidden_","dm_theme_","dm_chefprefs_","dm_storeprefs_","dm_recipes_"];
-    var jobs=bases.map(function(b){return window.storage.delete(b+unameLower,true).catch(function(){})});
+    var jobs=[];
+    bases.forEach(function(b){names.forEach(function(nm){jobs.push(window.storage.delete(b+nm,true).catch(function(){}))})});
     // Recipes are an index doc plus one doc per recipe - read the index, delete
-    // each recipe, then the index itself.
-    var recipeJob=window.storage.get("dm_recipe_index_"+unameLower,true).catch(function(){return null}).then(function(r){
-      var ids=[];if(r&&r.value){try{ids=JSON.parse(r.value)||[]}catch(e){}}
-      return Promise.all((ids||[]).map(function(id){return window.storage.delete("dm_recipe_"+unameLower+"_"+id,true).catch(function(){})}));
-    }).then(function(){return window.storage.delete("dm_recipe_index_"+unameLower,true).catch(function(){})});
-    return Promise.all(jobs.concat([recipeJob]));
+    // each recipe, then the index itself. Do it for each name variant.
+    names.forEach(function(nm){
+      jobs.push(window.storage.get("dm_recipe_index_"+nm,true).catch(function(){return null}).then(function(r){
+        var ids=[];if(r&&r.value){try{ids=JSON.parse(r.value)||[]}catch(e){}}
+        return Promise.all((ids||[]).map(function(id){return window.storage.delete("dm_recipe_"+nm+"_"+id,true).catch(function(){})}));
+      }).then(function(){return window.storage.delete("dm_recipe_index_"+nm,true).catch(function(){})}));
+    });
+    return Promise.all(jobs);
   }
   function handleDeleteAccount(){
     var cu=auth&&auth.currentUser;
@@ -5557,7 +5572,7 @@ function App(){
     var uid=cu.uid;
     var cred=firebase.auth.EmailAuthProvider.credential(cu.email,deletePassword);
     cu.reauthenticateWithCredential(cred).then(function(){
-      return deleteAccountData(unameLower);
+      return deleteAccountData(userId);
     }).then(function(){
       return Promise.all([
         window.usernames.release(unameLower).catch(function(){}),

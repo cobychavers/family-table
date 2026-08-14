@@ -210,6 +210,19 @@ async function recordSpend(env, uid, microDollars) {
   }
 }
 
+// Constant-time string comparison for the admin secret, so response timing
+// can't leak the secret one byte at a time. Loops over the longer length so a
+// length mismatch doesn't short-circuit; the length delta is folded into diff.
+function timingSafeEqual(a, b) {
+  a = String(a); b = String(b);
+  const len = Math.max(a.length, b.length);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < len; i++) {
+    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
+  return diff === 0;
+}
+
 // Operator-only spend report: every user's month-to-date AI cost, read straight
 // from the "cost:" counters that the budget already maintains. Pseudonymous -
 // uids and dollar amounts only, never prompt content or PII. Paginates KV and
@@ -289,16 +302,7 @@ export default {
       if (url.pathname === "/admin/costs") {
         const expected = (env.ADMIN_SECRET || "").trim();
         const given = (url.searchParams.get("secret") || request.headers.get("X-Admin-Secret") || "").trim();
-        // Temporary setup diagnostic: /admin/costs?probe=diag-7q2 reports ONLY
-        // whether a secret is configured at runtime and its length - never the
-        // value. Lets us tell "secret not reaching the worker" from "value
-        // mismatch" without exposing anything. Remove once setup is confirmed.
-        if (url.searchParams.get("probe") === "diag-7q2") {
-          return new Response(JSON.stringify({ configured: !!expected, length: expected.length }), {
-            headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }
-          });
-        }
-        if (!expected || given !== expected) {
+        if (!expected || !timingSafeEqual(given, expected)) {
           return new Response(JSON.stringify({ error: "Forbidden" }), {
             status: 403,
             headers: { "Content-Type": "application/json" }
@@ -724,7 +728,44 @@ function jsonLdToAppRecipe(recipe, fallbackPhotoUrl) {
 }
 
 // Import from URL - fetch the page directly then use AI to extract
+// SSRF guard for the URL importer: only allow http(s) to a public host, so an
+// authenticated user can't point it at internal/private addresses reachable from
+// the worker's egress. Hostname-based (no DNS resolution), so it doesn't stop DNS
+// rebinding, but it closes the direct private-address vector.
+function isPublicHttpUrl(raw) {
+  let u;
+  try { u = new URL(raw); } catch (e) { return false; }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+  let host = u.hostname.toLowerCase();
+  if (host.startsWith("[") && host.endsWith("]")) host = host.slice(1, -1);
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) return false;
+  const m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const o = m.slice(1).map(Number);
+    if (o.some(n => n > 255)) return false;
+    const a = o[0], b = o[1];
+    if (a === 127 || a === 10 || a === 0) return false;             // loopback / private / this-host
+    if (a === 169 && b === 254) return false;                       // link-local (incl. cloud metadata)
+    if (a === 172 && b >= 16 && b <= 31) return false;              // private
+    if (a === 192 && b === 168) return false;                       // private
+    if (a === 100 && b >= 64 && b <= 127) return false;             // CGNAT
+    return true;
+  }
+  if (host.includes(":")) {                                          // IPv6 literal
+    if (host === "::1" || host === "::") return false;
+    if (host.startsWith("fc") || host.startsWith("fd")) return false; // unique-local
+    if (host.startsWith("fe80")) return false;                       // link-local
+    if (host.startsWith("::ffff:")) return false;                    // IPv4-mapped
+    return true;
+  }
+  if (!host.includes(".")) return false;                             // bare hostname like "router"
+  return true;
+}
+
 async function importFromUrl(url, apiKey, meter) {
+  if (!isPublicHttpUrl(url)) {
+    throw new Error("That URL can't be imported. Please use a public recipe web address.");
+  }
   // First, try to fetch the URL directly
   let pageContent = "";
   let photoUrl = "";
