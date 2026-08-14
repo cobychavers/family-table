@@ -4199,7 +4199,13 @@ function GroceryTab(p){
           React.createElement("div",{style:{fontSize:14,color:"var(--light)"}},"Processing...")
         ):React.createElement(React.Fragment,null,
           React.createElement("div",{style:{flex:1,overflowY:"auto",padding:"4px 18px 18px",display:"flex",flexDirection:"column"}},
-            React.createElement("div",{style:{fontSize:12.5,color:C.light,marginBottom:12}},"Paste a grocery list and we'll turn it into checkable items."),
+            React.createElement("input",{ref:importGroceryRef,type:"file",accept:"image/*,application/pdf,.txt",style:{display:"none"},onChange:handleImportFile}),
+            React.createElement("button",{onClick:function(){if(importGroceryRef.current)importGroceryRef.current.click()},style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"13px",borderRadius:14,border:"1px solid "+C.bdr,background:C.blush,color:C.dark,fontWeight:600,fontSize:14,cursor:"pointer",marginBottom:14}},React.createElement(Icon,{name:"camera",size:17,color:C.dark,strokeWidth:1.75}),React.createElement("span",null,"Scan a photo of a list")),
+            React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:14}},
+              React.createElement("div",{style:{flex:1,height:1,background:C.bdr}}),
+              React.createElement("div",{style:{fontSize:11,color:C.light,fontWeight:600,letterSpacing:".5px"}},"OR PASTE"),
+              React.createElement("div",{style:{flex:1,height:1,background:C.bdr}})
+            ),
             React.createElement("textarea",{value:importGroceryText,onChange:function(e){setImportGroceryText(e.target.value)},placeholder:"Paste your grocery list here...\n\nExample:\n- Milk\n- 2 lbs chicken\n- Eggs",style:{flex:1,minHeight:220,width:"100%",padding:14,borderRadius:14,border:"1px solid "+C.bdr,fontSize:15,resize:"none",fontFamily:"inherit",boxSizing:"border-box",background:C.card,color:C.ink,outline:"none"}})
           ),
           React.createElement("div",{style:{padding:"12px 16px",paddingBottom:"max(12px, env(safe-area-inset-bottom))",borderTop:"1px solid "+C.bdr,flexShrink:0,background:"var(--surface)"}},
