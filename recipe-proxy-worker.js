@@ -253,7 +253,7 @@ async function adminCostReport(env) {
   return {
     users: rows.length,
     totalDollars: Math.round(totalMicro / 100) / 10000,
-    budgetPerUser: "$" + (MONTHLY_BUDGET_MICRO / 1e6).toFixed(2) + "/mo (metered at standard Sonnet rates)",
+    budgetPerUser: "$" + (MONTHLY_BUDGET_MICRO / 1e6).toFixed(2) + "/mo per user (metered at per-model list prices)",
     rows
   };
 }
