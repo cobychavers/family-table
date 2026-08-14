@@ -3341,6 +3341,10 @@ function GroceryTab(p){
   function handleImportFile(e){
     var file=e.target.files&&e.target.files[0];
     if(!file)return;
+    // Open the import view so its "Processing..." spinner is visible while the
+    // photo/PDF is scanned - this path can be triggered straight from the + menu
+    // (Photo), not just from inside the already-open Create List modal.
+    setShowImportGrocery(true);
     setImportGroceryLoading(true);
     
     var isImage=file.type.startsWith("image/");
@@ -3768,6 +3772,9 @@ function GroceryTab(p){
   );
 
   return React.createElement("div",{style:{animation:"ft-fade-in .25s ease-out"}},
+    /* Hidden file input for the "Photo" import (triggered from the + menu). Lives
+       at the tab root so it's always mounted, not tied to any open modal. */
+    React.createElement("input",{ref:importGroceryRef,type:"file",accept:"image/*,application/pdf,.txt",style:{display:"none"},onChange:handleImportFile}),
     React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:14,position:"relative"}},
       React.createElement("div",{style:{display:"flex",alignItems:"baseline",gap:18}},
         React.createElement("button",{onClick:function(){setGrocerySub("list")},style:{background:"none",border:"none",padding:0,cursor:"pointer",fontWeight:600,fontSize:16,color:grocerySub==="list"?C.dark:C.light,borderBottom:grocerySub==="list"?"2px solid "+C.dark:"2px solid transparent",paddingBottom:6}},"Grocery List"),
@@ -3781,7 +3788,8 @@ function GroceryTab(p){
           React.createElement("button",{onClick:function(){setShowPlusMenu(!showPlusMenu);setShowWeekPicker(false)},style:{width:36,height:36,borderRadius:8,border:"none",background:C.dark,color:"#fff",fontWeight:700,fontSize:20,cursor:"pointer",lineHeight:1}},"+"),
           showPlusMenu?React.createElement("div",{style:{position:"absolute",top:42,right:0,background:"var(--surface)",borderRadius:10,border:"1px solid "+C.bdr,boxShadow:C.shadowMd,minWidth:170,zIndex:50,overflow:"hidden"}},
             React.createElement("button",{onClick:function(){setShowImportGrocery(true);setShowPlusMenu(false)},style:{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}},React.createElement(Icon,{name:"list",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"Create List")),
-            savedLists.length>0?React.createElement("button",{onClick:function(){setShowLoadList(true);setShowPlusMenu(false)},style:{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",boxSizing:"border-box"}},React.createElement(Icon,{name:"folder",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"Saved Lists")):null
+            savedLists.length>0?React.createElement("button",{onClick:function(){setShowLoadList(true);setShowPlusMenu(false)},style:{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",borderBottom:"1px solid "+C.bdr,boxSizing:"border-box"}},React.createElement(Icon,{name:"folder",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"Saved Lists")):null,
+            React.createElement("button",{onClick:function(){setShowPlusMenu(false);if(importGroceryRef.current)importGroceryRef.current.click()},style:{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"12px 14px",border:"none",background:"none",textAlign:"left",fontSize:13,color:C.dark,fontWeight:500,cursor:"pointer",boxSizing:"border-box"}},React.createElement(Icon,{name:"camera",size:14,color:C.dark,strokeWidth:2}),React.createElement("span",null,"Photo"))
           ):null
         )
       ):grocerySub==="pantry"?React.createElement("button",{onClick:function(){setShowPantryAdd(true);setPantryAddText("")},style:{padding:"7px 14px",borderRadius:8,border:"none",background:C.dark,color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}},"+ Add"):null,
@@ -4210,13 +4218,7 @@ function GroceryTab(p){
           React.createElement("div",{style:{fontSize:14,color:"var(--light)"}},"Processing...")
         ):React.createElement(React.Fragment,null,
           React.createElement("div",{style:{flex:1,overflowY:"auto",padding:"4px 18px 18px",display:"flex",flexDirection:"column"}},
-            React.createElement("input",{ref:importGroceryRef,type:"file",accept:"image/*,application/pdf,.txt",style:{display:"none"},onChange:handleImportFile}),
-            React.createElement("button",{onClick:function(){if(importGroceryRef.current)importGroceryRef.current.click()},style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"13px",borderRadius:14,border:"1px solid "+C.bdr,background:C.blush,color:C.dark,fontWeight:600,fontSize:14,cursor:"pointer",marginBottom:14}},React.createElement(Icon,{name:"camera",size:17,color:C.dark,strokeWidth:1.75}),React.createElement("span",null,"Scan a photo of a list")),
-            React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:14}},
-              React.createElement("div",{style:{flex:1,height:1,background:C.bdr}}),
-              React.createElement("div",{style:{fontSize:11,color:C.light,fontWeight:600,letterSpacing:".5px"}},"OR PASTE"),
-              React.createElement("div",{style:{flex:1,height:1,background:C.bdr}})
-            ),
+            React.createElement("div",{style:{fontSize:12.5,color:C.light,marginBottom:12}},"Paste a grocery list and we'll turn it into checkable items."),
             React.createElement("textarea",{value:importGroceryText,onChange:function(e){setImportGroceryText(e.target.value)},placeholder:"Paste your grocery list here...\n\nExample:\n- Milk\n- 2 lbs chicken\n- Eggs",style:{flex:1,minHeight:220,width:"100%",padding:14,borderRadius:14,border:"1px solid "+C.bdr,fontSize:15,resize:"none",fontFamily:"inherit",boxSizing:"border-box",background:C.card,color:C.ink,outline:"none"}})
           ),
           React.createElement("div",{style:{padding:"12px 16px",paddingBottom:"max(12px, env(safe-area-inset-bottom))",borderTop:"1px solid "+C.bdr,flexShrink:0,background:"var(--surface)"}},
