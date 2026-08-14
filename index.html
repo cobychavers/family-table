@@ -6846,18 +6846,19 @@ function App(){
                   </div>
                 </div>
                 <div style={{padding:8}}>
-                  <button onClick={function(){setShowEditProfile(true);setShowProfileMenu(false);setProfileError("");setProfileSuccess("")}} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:500,color:C.ink,display:"flex",alignItems:"center",gap:10}}>
-                    <Icon name="camera" size={15} color={C.dark} strokeWidth={1.75}/> Edit Profile Picture
-                  </button>
-                  <button onClick={function(){setShowChangePassword(true);setShowProfileMenu(false)}} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:500,color:C.ink,display:"flex",alignItems:"center",gap:10}}>
-                    <Icon name="lock" size={15} color={C.dark} strokeWidth={1.75}/> Change Password
-                  </button>
                   <button onClick={function(){setShowFamily(true);setShowProfileMenu(false);setFamilyError("")}} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:500,color:C.ink,display:"flex",alignItems:"center",gap:10}}>
                     <Icon name="users" size={15} color={C.dark} strokeWidth={1.75}/>
                     <span style={{flex:1}}>Family</span>
                     {household?<span style={{fontSize:11,color:C.light}}>{householdMembers.length}</span>:<span style={{fontSize:11,color:C.light}}>Set up</span>}
                   </button>
                   <div style={{height:1,background:C.bdr,margin:"4px 0"}}/>
+                  <div style={{padding:"8px 12px 4px",fontSize:10,fontWeight:700,letterSpacing:".6px",textTransform:"uppercase",color:C.light}}>Settings</div>
+                  <button onClick={function(){setShowEditProfile(true);setShowProfileMenu(false);setProfileError("");setProfileSuccess("")}} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:500,color:C.ink,display:"flex",alignItems:"center",gap:10}}>
+                    <Icon name="camera" size={15} color={C.dark} strokeWidth={1.75}/> Edit Profile Picture
+                  </button>
+                  <button onClick={function(){setShowChangePassword(true);setShowProfileMenu(false)}} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:500,color:C.ink,display:"flex",alignItems:"center",gap:10}}>
+                    <Icon name="lock" size={15} color={C.dark} strokeWidth={1.75}/> Change Password
+                  </button>
                   <div style={{padding:"10px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                     <div style={{display:"flex",alignItems:"center",gap:10}}>
                       <Icon name={theme==="dark"?"moon":"sun"} size={15} color={C.dark} strokeWidth={1.75}/>
@@ -6870,13 +6871,12 @@ function App(){
                       <div style={{width:18,height:18,borderRadius:9,background:"var(--surface)",position:"absolute",top:3,left:theme==="dark"?21:3,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}/>
                     </button>
                   </div>
+                  <button onClick={function(){setShowProfileMenu(false);setShowDeleteAccount(true);setDeleteError("");setDeletePassword("");setDeleteConfirm("")}} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:500,color:"var(--danger)",display:"flex",alignItems:"center",gap:10}}>
+                    <Icon name="trash" size={15} color="var(--danger)" strokeWidth={1.75}/> Delete Account
+                  </button>
                   <div style={{height:1,background:C.bdr,margin:"4px 0"}}/>
                   <button onClick={function(){setShowProfileMenu(false);handleLogout()}} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:500,color:"var(--danger)",display:"flex",alignItems:"center",gap:10}}>
                     <Icon name="logout" size={15} color="var(--danger)" strokeWidth={1.75}/> Sign Out
-                  </button>
-                  <div style={{height:1,background:C.bdr,margin:"4px 0"}}/>
-                  <button onClick={function(){setShowProfileMenu(false);setShowDeleteAccount(true);setDeleteError("");setDeletePassword("");setDeleteConfirm("")}} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:500,color:"var(--danger)",display:"flex",alignItems:"center",gap:10}}>
-                    <Icon name="trash" size={15} color="var(--danger)" strokeWidth={1.75}/> Delete Account
                   </button>
                 </div>
               </div>:null}
