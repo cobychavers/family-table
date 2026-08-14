@@ -7525,7 +7525,7 @@ function App(){
           <div style={{flex:1,overflowY:"auto",padding:16}}>
             {/* Photo - only display if exists */}
             {viewRecipe.photo?<div style={{marginBottom:16}}>
-              <img src={viewRecipe.photo} style={{width:"100%",height:"auto",maxHeight:"70vh",objectFit:"contain",borderRadius:12,background:C.blush,display:"block"}} alt=""/>
+              <img src={viewRecipe.photo} style={{width:"100%",aspectRatio:"3 / 2",objectFit:"cover",borderRadius:12,background:C.blush,display:"block"}} alt=""/>
             </div>:null}
             
             {/* Action buttons */}
