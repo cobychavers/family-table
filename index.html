@@ -7713,18 +7713,30 @@ function App(){
         {chefMessages.length===0?
           <div style={{textAlign:"center",padding:"6px 10px 10px"}}>
             <div style={{marginBottom:10,opacity:.35}}><Icon name="sparkle" size={30} color={C.dark} strokeWidth={1.25}/></div>
-            <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:5}}>What should we cook?</div>
-            <div style={{fontSize:13,color:C.light,maxWidth:280,margin:"0 auto 16px"}}>Tell me what's in your fridge, what you're in the mood for, or ask a cooking question.</div>
+            <div style={{fontSize:15,color:C.ink,fontWeight:600,marginBottom:5}}>What sounds good?</div>
+            <div style={{fontSize:13,color:C.light,maxWidth:290,margin:"0 auto 16px"}}>Not sure what you're in the mood for? Tap a vibe and I'll suggest a few things — or just tell me below.</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,maxWidth:300,margin:"0 auto"}}>
               {[
-                ["Breakfast","sun",function(){sendChefMessage("Give me some breakfast ideas.")}],
-                ["Lunch","clock",function(){sendChefMessage("Give me some lunch ideas.")}],
-                ["Dinner","moon",function(){sendChefMessage("Give me some dinner ideas.")}],
-                ["Kid-Friendly","users",function(){sendChefMessage("Easy, kid-friendly dinner ideas that most kids will happily eat.")}],
-                ["Plan My Week","calendar",function(){sendChefWeekPlan("Plan my week of dinners")}],
-                ["Surprise Me","sparkle",function(){sendChefMessage("Surprise me with something out of the ordinary - feel free to step outside my usual tastes (but keep any hard dietary restrictions).")}]
+                ["Cozy & comforting","plate",function(){sendChefMessage("I'm in the mood for something cozy and comforting tonight. Give me a few ideas.")}],
+                ["Fresh & light","sun",function(){sendChefMessage("I want something fresh and light. Give me a few ideas.")}],
+                ["Quick & easy","clock",function(){sendChefMessage("I want something quick and easy with minimal effort and cleanup. Give me a few ideas.")}],
+                ["Something new","sparkle",function(){sendChefMessage("I'm bored of my usual meals - suggest a few dishes that are a bit outside my routine, things I probably haven't made before.")}],
+                ["Date night","heart",function(){sendChefMessage("Something special for date night - a little impressive but still doable at home. Give me a few ideas.")}],
+                ["Feed a crowd","users",function(){sendChefMessage("I'm feeding a crowd. Give me a few crowd-pleasing ideas that scale well for a group.")}]
               ].map(function(s){
                 return <button key={s[0]} onClick={s[2]} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,padding:"15px 8px",borderRadius:12,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.ink,fontSize:12.5,fontWeight:600,cursor:"pointer",boxShadow:C.shadowSm}}><Icon name={s[1]} size={18} color={C.gold} strokeWidth={1.75}/>{s[0]}</button>
+              })}
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",justifyContent:"center",gap:7,maxWidth:320,margin:"14px auto 0"}}>
+              {[
+                ["Breakfast",function(){sendChefMessage("Give me some breakfast ideas.")}],
+                ["Lunch",function(){sendChefMessage("Give me some lunch ideas.")}],
+                ["Dinner",function(){sendChefMessage("Give me some dinner ideas.")}],
+                ["Kid-friendly",function(){sendChefMessage("Easy, kid-friendly dinner ideas that most kids will happily eat.")}],
+                ["Surprise me",function(){sendChefMessage("Surprise me with something out of the ordinary - feel free to step outside my usual tastes (but keep any hard dietary restrictions).")}],
+                ["Plan my week",function(){sendChefWeekPlan("Plan my week of dinners")}]
+              ].map(function(s){
+                return <button key={s[0]} onClick={s[1]} style={{padding:"7px 13px",borderRadius:16,border:"1px solid "+C.bdr,background:"var(--surface)",color:C.dark,fontSize:12.5,fontWeight:600,cursor:"pointer",boxShadow:C.shadowSm}}>{s[0]}</button>
               })}
             </div>
           </div>
